@@ -16,6 +16,7 @@ use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use App\Models\Category;
 
 use Illuminate\Support\Facades\Log;
 class InventoryController extends Controller
@@ -63,7 +64,8 @@ class InventoryController extends Controller
             11 => 'Novembre', 
             12 => 'Décembre'
         ];
-        
+        $Class = DB::select('select distinct(classe) as class from categories');
+       // dd($Class);
         // Pass variables to the view
         return view('inventory.index', compact(
             'products', 
@@ -71,9 +73,59 @@ class InventoryController extends Controller
             'month', 
             'months', 
             'years',
-            'displayMonths'
+            'displayMonths',
+            'Class' 
         ));
     }
+
+    public function GetCategooryAndProduct(Request $request)
+    {
+        $idcategorys = DB::table('categories')
+            ->where('classe', $request->class)
+            ->pluck('id');
+
+        $Category = DB::table('categories')
+            ->whereIn('id', $idcategorys)
+            ->get();
+
+        $ProductByClass = DB::table('products')
+            ->whereIn('id_categorie', $idcategorys)
+            ->get();
+
+        return response()->json([
+            'status'         => 200,
+            'Categorys'      => $Category,
+            'ProductByClass' => $ProductByClass
+        ]);
+    }
+
+    public function GetFamilleAndProduct(Request $request)
+    {
+        $Famille = DB::table('sub_categories')->where('id_categorie',$request->category)->get();
+        $ProductByCategory = DB::table('products')
+            ->where('id_categorie', $request->category)
+            ->get();
+
+        return response()->json([
+            'status'         => 200,
+            'Famille'      => $Famille,
+            'ProductByCategory' => $ProductByCategory
+        ]);
+    }
+
+    public function GetProductByCategoryAndFamille(Request $request)
+    {
+        $ProductByCategoryAndFamille = DB::table('products')
+        ->where('id_categorie',$request->category)
+        ->where('id_subcategorie',$request->Famille)
+        ->get();
+
+        return response()->json([
+            'status'         => 200,
+            'ProductByCategoryAndFamille' => $ProductByCategoryAndFamille
+        ]);
+    }
+
 
     /**
      * Get inventory data for a specific product, month, and year

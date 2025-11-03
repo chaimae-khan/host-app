@@ -14,6 +14,9 @@
     var generateAnnualBalancePdf = "{{url('generateAnnualBalancePdf')}}";
     var cardexUrl = "{{url('cardex')}}";
     var exportCardexExcelUrl = "{{url('exportCardexExcel')}}";
+    var GetCategooryAndProduct = "{{url('GetCategooryAndProduct')}}";
+    var GetFamilleAndProduct = "{{url('GetFamilleAndProduct')}}";
+    var GetProductByCategoryAndFamille = "{{url('GetProductByCategoryAndFamille')}}";
 </script>
 <script src="{{asset('js/inventory/script.js')}}"></script>
 
@@ -298,7 +301,30 @@
                     <div class="card">
                         <div class="card-body">
                             <div class="row mb-3">
-                                <div class="col-md-6">
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        <label for="" class="form-label">Class</label>
+                                        <select name="" id="dropdownclass" class="form-select">
+                                            <option value="0">Sélectionner un class</option>
+                                            @foreach ($Class as $item)
+                                                <option value="{{ $item->class }}">{{ $item->class }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        <label for="" class="form-label">Catégorie</label>
+                                        <select name="" id="dropdowncategory" class="form-select"></select>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        <label for="" class="form-label">Famille</label>
+                                        <select name="" id="dropdownFamille" class="form-select"></select>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
                                     <div class="form-group">
                                         <label for="product_selector" class="form-label">Produit</label>
                                         <select class="form-select" id="product_selector">
@@ -313,7 +339,7 @@
                                 <!-- Hidden year field with current year default -->
                                 <input type="hidden" id="year_selector" value="{{ date('Y') }}">
                                 
-                                <div class="col-md-6">
+                                <div class="col-md-3">
                                     <div class="form-group">
                                         <label class="form-label">Prix Unitaire</label>
                                         <div class="price-info-box">
@@ -756,6 +782,151 @@ $('#export-cardex-excel-btn').on('click', function() {
         btn.prop('disabled', false);
     }, 3000);
 });
+
+
+$('#dropdownclass').on('change', function (e) {
+    e.preventDefault(); // optional, useful if inside a form
+
+    let selectedClass = $(this).val();
+
+    if (selectedClass == 0 || selectedClass === "") {
+        alert("Please select a class");
+        return false;
+    }
+
+    $.ajax({
+        type: "GET",
+        url: GetCategooryAndProduct,
+        data: { class: selectedClass },
+        dataType: "json",
+        success: function (response) {
+            if (response.status == 200) 
+            {
+                let $dropdowncategory = $('#dropdowncategory');
+                $dropdowncategory.empty();
+                $dropdowncategory.append('<option value="0">Please select category</option>');
+
+                $.each(response.Categorys, function (index, value) {
+                    $dropdowncategory.append(
+                        '<option value="' + value.id + '">' + value.name + '</option>'
+                    );
+                });
+
+                let $product_selector = $('#product_selector');
+                $product_selector.empty();
+                $product_selector.append('<option value="0">Sélectionner un produit</option>');
+
+                $.each(response.ProductByClass, function (index, value) {
+                    $product_selector.append(
+                        '<option value="' + value.id + '">' + value.name + '</option>'
+                    );
+                });
+            }
+        },
+        error: function (xhr, status, error) {
+            console.error("AJAX Error:", error);
+        }
+    });
+});
+
+
+
+$('#dropdowncategory').on('change', function (e) {
+    e.preventDefault(); 
+
+   
+    let selectedCategory= $(this).val(); 
+
+    
+
+    if (selectedCategory == 0 || selectedCategory === "") {
+        alert("Please select a categories");
+        return false;
+    }
+
+    $.ajax({
+        type: "GET",
+        url: GetFamilleAndProduct,
+        data: 
+        { 
+           
+            category : selectedCategory
+        },
+        dataType: "json",
+        success: function (response) {
+            if (response.status == 200) 
+            {
+                let $dropdownFamille = $('#dropdownFamille');
+                $dropdownFamille.empty();
+                $dropdownFamille.append('<option value="0">Please select famille</option>');
+
+                $.each(response.Famille, function (index, value) {
+                    $dropdownFamille.append(
+                        '<option value="' + value.id + '">' + value.name + '</option>'
+                    );
+                });
+
+                let $product_selector = $('#product_selector');
+                $product_selector.empty();
+                $product_selector.append('<option value="0">Sélectionner un produit</option>');
+
+                $.each(response.ProductByCategory, function (index, value) {
+                    $product_selector.append(
+                        '<option value="' + value.id + '">' + value.name + '</option>'
+                    );
+                });
+            }
+        },
+        error: function (xhr, status, error) {
+            console.error("AJAX Error:", error);
+        }
+    });
+});
+
+
+$('#dropdownFamille').on('change',function(e)
+{
+    e.preventDefault(); 
+    let category = $('#dropdowncategory').val();
+    let dropdownFamille = $(this).val();
+
+    if (category == 0 || category === "") {
+        alert("Please select a categories");
+        return false;
+    }
+
+    if (dropdownFamille == 0 || dropdownFamille === "") {
+        alert("Please select a famille");
+        return false;
+    }
+    $.ajax({
+        type: "get",
+        url: GetProductByCategoryAndFamille,
+        data:
+        {
+            category : category,
+            Famille  : dropdownFamille,
+        },
+        dataType: "json",
+        success: function (response) 
+        {
+            if(response.status == 200)
+            {
+                let $product_selector = $('#product_selector');
+                $product_selector.empty();
+                $product_selector.append('<option value="0">Sélectionner un produit</option>');
+
+                $.each(response.ProductByCategoryAndFamille, function (index, value) {
+                    $product_selector.append(
+                        '<option value="' + value.id + '">' + value.name + '</option>'
+                    );
+                });
+            }    
+        }
+    });
+});
+
+
 </script>
 
 @endsection

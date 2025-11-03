@@ -345,5 +345,10 @@ Route::get('getPlatsByType', [PlatsController::class, 'getPlatsByType']);
 
     Route::get('GetProductByFamaille',[ProductController::class,'GetProductByFamaille']);
     Route::get('getUnitebyProduct',[ProductController::class,'getUnitebyProduct']);
+
+
+    Route::get('GetCategooryAndProduct',[InventoryController::class,'GetCategooryAndProduct']);
+    Route::get('GetFamilleAndProduct'              ,[InventoryController::class,'GetFamilleAndProduct']);
+    Route::get('GetProductByCategoryAndFamille' ,[InventoryController::class,'GetProductByCategoryAndFamille']);
 });
 
