@@ -92,25 +92,19 @@
                                     
                                     <div class="datatable-container">
                                         <table class="table datatable datatable-table TableStock">
-                                            <thead>
-                                                <tr>
-                                                    <th data-sortable="true">Code article</th>
-                                                    <th data-sortable="true">Nom du Produit</th>
-                                                    <th data-sortable="true">Unité</th>
-                                                    <th data-sortable="true">Catégorie</th>
-                                                    <th data-sortable="true">Famille</th>
-                                                    <th data-sortable="true">Emplacement</th>
-                                                    <th data-sortable="true">Stock</th>
-                                                    <th data-sortable="true">Prix d'achat</th>
-                                                  <th data-sortable="true" style="display: none;">Taux TVA</th>
-                                                    <th data-sortable="true">Seuil</th>
-                                                    <!-- <th data-sortable="true">Code barre</th>
-                                                    <th data-sortable="false">Photo</th> -->
-                                                    <th data-sortable="true">Date d'expiration</th>
-                                                    <th data-sortable="true">Date de réception</th>
-                                                    <th data-sortable="false">Statut</th>
-                                                </tr>
-                                            </thead>
+    <thead>
+    <tr>
+        <th data-sortable="true">Nom du Produit</th>
+        <th data-sortable="true">Unité</th>
+        <th data-sortable="true">Catégorie</th>
+        <th data-sortable="true">Famille</th>
+        <th data-sortable="true">Emplacement</th>
+        <th data-sortable="true" style="display: none;">Taux TVA</th>
+        <th data-sortable="true">Stock</th>
+        <th data-sortable="false">Statut</th>
+    </tr>
+</thead>
+       
                                             <tbody>
                                                 <!-- Table content will be dynamically generated -->
                                             </tbody>
