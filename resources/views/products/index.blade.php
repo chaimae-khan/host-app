@@ -75,17 +75,17 @@ document.addEventListener('DOMContentLoaded', function () {
                         <div class="card-body">
                             <!-- Bouton Ajouter Produit -->
                             <div class="mb-3">
-    @can('Products-ajoute')
-  <!-- Bouton Ajouter Produit -->
-<div class="mb-3">
- @can('Products-ajoute')
-   <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#ModalAddProduct">
-       <i class="fa-solid fa-plus"></i> Ajouter un produit
-   </button>
-   <button class="btn btn-success ms-2" data-bs-toggle="modal" data-bs-target="#ModalImportProduct">
-       <i class="fa-solid fa-file-import"></i> Importer des produits
-   </button>
-   @endcan
+                                @can('Products-ajoute')
+                            <!-- Bouton Ajouter Produit -->
+                            <div class="mb-3">
+                            @can('Products-ajoute')
+                            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#ModalAddProduct">
+                                <i class="fa-solid fa-plus"></i> Ajouter un produit
+                            </button>
+                            <button class="btn btn-success ms-2" data-bs-toggle="modal" data-bs-target="#ModalImportProduct">
+                                <i class="fa-solid fa-file-import"></i> Importer des produits
+                            </button>
+                            @endcan
 </div>
 
 
