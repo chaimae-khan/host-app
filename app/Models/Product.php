@@ -48,7 +48,8 @@ class Product extends Model implements Auditable
      * @var array
      */
     protected $casts = [
-        'date_expiration' => 'date', // Ensure date is properly cast
+        'date_expiration' => 'date', 
+        'date_reception' => 'date', 
     ];
 
     /**

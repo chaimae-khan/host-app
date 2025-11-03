@@ -119,6 +119,7 @@ if ($request->filled('filter_designation')) {
                 'p.code_barre',
                 'p.photo',
                 'p.date_expiration',
+                'p.date_reception',
                 DB::raw("CONCAT(us.prenom, ' ', us.nom) as username"),
                 'p.created_at',
                 'p.id_tva', 
@@ -270,210 +271,180 @@ if ($request->filled('filter_designation')) {
      * Store a newly created resource in storage.
      */
   
-     public function store(Request $request)
-     {
-         // Check if user has permission to add products
-         if (!auth()->user()->can('Products-ajoute')) {
-             return response()->json([
-                 'status' => 403,
-                 'message' => 'Vous n\'avez pas la permission d\'ajouter des produits'
-             ], 403);
-         }
-     
-         $validator = Validator::make($request->all(), [
-             'name' => 'required|string|max:255',
-             'price_achat' => 'required|numeric',
-             'class' => 'required|string|max:255',
-             'id_categorie' => 'required|exists:categories,id',
-             'id_subcategorie' => 'required|exists:sub_categories,id',
-             'id_local' => 'required|exists:locals,id',
-             'id_rayon' => 'required|exists:rayons,id',
-             'id_unite' => 'required|exists:unite,id',
-             'code_barre' => 'nullable|string|max:255',
-             'photo' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-             'date_expiration' => 'nullable|date',
-             'quantite' => 'required|numeric',
-             'seuil' => 'required|numeric',
-             'id_tva' => 'nullable|exists:tvas,id',
-         ], [
-             'required' => 'Le champ :attribute est requis.',
-             'numeric' => 'Le champ :attribute doit être un nombre.',
-             'exists' => 'La valeur sélectionnée pour :attribute est invalide.',
-             'image' => 'Le fichier doit être une image.',
-             'mimes' => 'Le fichier doit être du type: :values.',
-             'max' => 'Le fichier ne doit pas dépasser :max kilo-octets.',
-             'date' => 'Le champ :attribute doit être une date valide.'
-         ]);
-         
-         if ($validator->fails()) {
-             return response()->json([
-                 'status' => 400,
-                 'errors' => $validator->messages(),
-             ], 400);
-         }
-     
-         // Vérifier si un produit avec ce nom existe déjà (insensible à la casse)
-         /* $cleanedName = strtolower(trim($request->name));
-         $nameExists = Product::whereRaw('LOWER(TRIM(name)) = ?', [$cleanedName])->count();
-         
-         if ($nameExists > 0) {
-             return response()->json([
-                 'status' => 422,
-                 'message' => 'Un produit avec ce nom existe déjà',
-             ], 422);
-         } */
-     
-         try {
-             
-             DB::beginTransaction();
-             
-             // Verify the relationship between category and subcategory
-             $subcategory = SubCategory::find($request->id_subcategorie);
-             
-             if ($subcategory->id_categorie != $request->id_categorie) {
-                 return response()->json([
-                     'status' => 400,
-                     'message' => 'La famille sélectionnée n\'appartient pas à cette catégorie',
-                 ], 400);
-             }
-            
-             
-             // Verify the relationship between local and rayon
-             $rayon = Rayon::find($request->id_rayon);
-             if ($rayon->id_local != $request->id_local) {
-                 return response()->json([
-                     'status' => 400,
-                     'message' => 'Le rayon sélectionné n\'appartient pas à ce local',
-                 ], 400);
-             }
-             
-             // Get category and subcategory names for code generation
-             $category = Category::find($request->id_categorie);
-             
-             // Generate code_article
-             $code_article = Product::generateCodeArticle(
-                 $category->name, 
-                 $subcategory->name
-             );
+public function store(Request $request)
+{
+    // Check if user has permission to add products
+    if (!auth()->user()->can('Products-ajoute')) {
+        return response()->json([
+            'status' => 403,
+            'message' => 'Vous n\'avez pas la permission d\'ajouter des produits'
+        ], 403);
+    }
 
-            
-             
-             // Handle file upload
-             $photoPath = null;
-             if ($request->hasFile('photo')) {
-                 $photoFile = $request->file('photo');
-                 $filename = time() . '_' . $photoFile->getClientOriginalName();
-                 $photoPath = $photoFile->storeAs('product_photos', $filename, 'public');
-             }
-             
-             // Process date_expiration field - ensure it's correctly handled if empty
-             $dateExpiration = $request->date_expiration;
-             if (empty($dateExpiration)) {
-                 $dateExpiration = null;
-             }
-             $idTva = $request->filled('id_tva') ? $request->id_tva : 1;
+    $validator = Validator::make($request->all(), [
+        'name' => 'required|string|max:255',
+        'price_achat' => 'required|numeric',
+        'class' => 'required|string|max:255',
+        'id_categorie' => 'required|exists:categories,id',
+        'id_subcategorie' => 'required|exists:sub_categories,id',
+        'id_local' => 'required|exists:locals,id',
+        'id_rayon' => 'required|exists:rayons,id',
+        'id_unite' => 'required|exists:unite,id',
+        'code_barre' => 'nullable|string|max:255',
+        'photo' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+        'date_expiration' => 'nullable|date',
+        'date_reception' => 'nullable|date',  
+        'quantite' => 'required|numeric',
+        'seuil' => 'required|numeric',
+        'id_tva' => 'nullable|exists:tvas,id',
+    ], [
+        'required' => 'Le champ :attribute est requis.',
+        'numeric' => 'Le champ :attribute doit être un nombre.',
+        'exists' => 'La valeur sélectionnée pour :attribute est invalide.',
+        'image' => 'Le fichier doit être une image.',
+        'mimes' => 'Le fichier doit être du type: :values.',
+        'max' => 'Le fichier ne doit pas dépasser :max kilo-octets.',
+        'date' => 'Le champ :attribute doit être une date valide.'
+    ]);
+    
+    if ($validator->fails()) {
+        return response()->json([
+            'status' => 400,
+            'errors' => $validator->messages(),
+        ], 400);
+    }
 
-            
+    try {
+        DB::beginTransaction();
+        
+        // Verify the relationship between category and subcategory
+        $subcategory = SubCategory::find($request->id_subcategorie);
+        
+        if ($subcategory->id_categorie != $request->id_categorie) {
+            return response()->json([
+                'status' => 400,
+                'message' => 'La famille sélectionnée n\'appartient pas à cette catégorie',
+            ], 400);
+        }
+        
+        // Verify the relationship between local and rayon
+        $rayon = Rayon::find($request->id_rayon);
+        if ($rayon->id_local != $request->id_local) {
+            return response()->json([
+                'status' => 400,
+                'message' => 'Le rayon sélectionné n\'appartient pas à ce local',
+            ], 400);
+        }
+        
+        // Get category and subcategory names for code generation
+        $category = Category::find($request->id_categorie);
+        
+        // Generate code_article
+        $code_article = Product::generateCodeArticle(
+            $category->name, 
+            $subcategory->name
+        );
+        
+        // Handle file upload
+        $photoPath = null;
+        if ($request->hasFile('photo')) {
+            $photoFile = $request->file('photo');
+            $filename = time() . '_' . $photoFile->getClientOriginalName();
+            $photoPath = $photoFile->storeAs('product_photos', $filename, 'public');
+        }
+        
+        // Process date fields - use user input, not system date
+        $dateExpiration = $request->filled('date_expiration') ? $request->date_expiration : null;
+        $dateReception = $request->filled('date_reception') ? $request->date_reception : null;
+        
+        $idTva = $request->filled('id_tva') ? $request->id_tva : 1;
+        $priceAchat = $request->price_achat;
 
-             /************************** Youssef  *******************/
-            $dateExpiration = $request->date_expiration;
-            $dateReception  = $request->date_reception;
-            $priceAchat     = $request->price_achat;
-
-           
-
-            $existingProduct = Product::where('name', trim($request->name))
+        // Check if product with same name, expiration, price and reception date already exists
+        $existingProduct = Product::where('name', trim($request->name))
             ->where('date_expiration', $dateExpiration)
             ->where('price_achat', $priceAchat)
             ->where('date_reception', $dateReception)
             ->first();
-             
-            //dd($dateReception,$existingProduct);
-            if ($existingProduct) 
-            {
-                
-                $stock = Stock::where('id_product', $existingProduct->id)->first();
+        
+        if ($existingProduct) {
+            // Product exists, just update the stock quantity
+            $stock = Stock::where('id_product', $existingProduct->id)->first();
 
-                if ($stock) {
-                    $stock->quantite += $request->quantite;
-                    $stock->save();
-                } else {
-                    // if no stock record exists, create a new one
-                    Stock::create([
-                        'id_product' => $existingProduct->id,
-                        'id_tva'     => $request->id_tva,
-                        'id_unite'   => $request->id_unite,
-                        'quantite'   => $request->quantite,
-                    ]);
-                }
-
-                DB::commit();
-
-                return response()->json([
-                    'status'  => 200,
-                    'message' => 'Quantity updated successfully for existing product.',
-                    'product' => $existingProduct,
+            if ($stock) {
+                $stock->quantite += $request->quantite;
+                $stock->save();
+            } else {
+                // if no stock record exists, create a new one
+                Stock::create([
+                    'id_product' => $existingProduct->id,
+                    'id_tva'     => $idTva,
+                    'id_unite'   => $request->id_unite,
+                    'quantite'   => $request->quantite,
                 ]);
             }
-             
-             /************************** End youssef check product **********/
-             // Create product with the new foreign keys
-             $product = Product::create([
-                 'name' => trim($request->name),
-                 'code_article' => $code_article,
-                 'price_achat' => $request->price_achat,
-                 'code_barre' => $request->code_barre,
-                 'photo' => $photoPath,
-                 'date_expiration' => $dateExpiration,
-                 'class' => $request->class,
-                 'id_categorie' => $request->id_categorie,
-                 'id_subcategorie' => $request->id_subcategorie,
-                 'seuil' => $request->seuil,
-                 'id_local' => $request->id_local,
-                 'id_rayon' => $request->id_rayon,
-                 'id_tva' => $idTva,       
-                 'id_unite' => $request->id_unite,   
-                 'id_user' => Auth::id(),
-                 'date_reception'    => $dateReception,
-             ]);
 
-             //dd($request->all());
-            
-     
-             
-             // Update emplacement after creating product
-             $product->emplacement = $product->generateEmplacement();
-             $product->save();
-             
-             // Create stock entry - keep all fields as before, including id_tva and id_unite
-             Stock::create([
-                 'id_product' => $product->id,
-                 'id_tva' => $request->id_tva,     // Keep in stock table
-                 'id_unite' => $request->id_unite, // Keep in stock table
-                 'quantite' => $request->quantite,
-             ]);
-             
-             DB::commit(); 
-             
-             return response()->json([
-                 'status' => 200,
-                 'message' => 'Produit créé avec succès',
-             ]);
-             
-         } catch (\Exception $e) {
-             DB::rollBack();
-             
-             Log::error('Error creating product: ' . $e->getMessage(), [
-                 'request' => $request->all()
-             ]);
-             
-             return response()->json([
-                 'status' => 500,
-                 'message' => 'Une erreur est survenue. Veuillez réessayer.',
-             ], 500);
-         }
-     }
+            DB::commit();
 
+            return response()->json([
+                'status'  => 200,
+                'message' => 'Quantity updated successfully for existing product.',
+                'product' => $existingProduct,
+            ]);
+        }
+        
+        // Create new product
+        $product = Product::create([
+            'name' => trim($request->name),
+            'code_article' => $code_article,
+            'price_achat' => $priceAchat,
+            'code_barre' => $request->code_barre,
+            'photo' => $photoPath,
+            'date_expiration' => $dateExpiration,
+            'class' => $request->class,
+            'id_categorie' => $request->id_categorie,
+            'id_subcategorie' => $request->id_subcategorie,
+            'seuil' => $request->seuil,
+            'id_local' => $request->id_local,
+            'id_rayon' => $request->id_rayon,
+            'id_tva' => $idTva,       
+            'id_unite' => $request->id_unite,   
+            'id_user' => Auth::id(),
+            'date_reception' => $dateReception,
+        ]);
+        
+        // Update emplacement after creating product
+        $product->emplacement = $product->generateEmplacement();
+        $product->save();
+        
+        // Create stock entry
+        Stock::create([
+            'id_product' => $product->id,
+            'id_tva' => $idTva,
+            'id_unite' => $request->id_unite,
+            'quantite' => $request->quantite,
+        ]);
+        
+        DB::commit(); 
+        
+        return response()->json([
+            'status' => 200,
+            'message' => 'Produit créé avec succès',
+        ]);
+        
+    } catch (\Exception $e) {
+        DB::rollBack();
+        
+        Log::error('Error creating product: ' . $e->getMessage(), [
+            'request' => $request->all()
+        ]);
+        
+        return response()->json([
+            'status' => 500,
+            'message' => 'Une erreur est survenue. Veuillez réessayer.',
+        ], 500);
+    }
+}
   
    /**
  * Show the form for editing the specified resource.

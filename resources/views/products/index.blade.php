@@ -75,17 +75,17 @@ document.addEventListener('DOMContentLoaded', function () {
                         <div class="card-body">
                             <!-- Bouton Ajouter Produit -->
                             <div class="mb-3">
-                                @can('Products-ajoute')
-                            <!-- Bouton Ajouter Produit -->
-                            <div class="mb-3">
-                            @can('Products-ajoute')
-                            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#ModalAddProduct">
-                                <i class="fa-solid fa-plus"></i> Ajouter un produit
-                            </button>
-                            <button class="btn btn-success ms-2" data-bs-toggle="modal" data-bs-target="#ModalImportProduct">
-                                <i class="fa-solid fa-file-import"></i> Importer des produits
-                            </button>
-                            @endcan
+    @can('Products-ajoute')
+  <!-- Bouton Ajouter Produit -->
+<div class="mb-3">
+ @can('Products-ajoute')
+   <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#ModalAddProduct">
+       <i class="fa-solid fa-plus"></i> Ajouter un produit
+   </button>
+   <button class="btn btn-success ms-2" data-bs-toggle="modal" data-bs-target="#ModalImportProduct">
+       <i class="fa-solid fa-file-import"></i> Importer des produits
+   </button>
+   @endcan
 </div>
 
 
@@ -161,6 +161,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                             <th>Seuil</th>
                                             <th>Date d'expiration</th>
                                             <th>Date de réception </th>
+                                            <th>Date de création</th>
                                             <th>Actions</th>
                                         </tr>
                                     </thead>
@@ -476,6 +477,13 @@ document.addEventListener('DOMContentLoaded', function () {
                             </div>
                         </div>
                     </div>
+
+                     <div class="col-md-6">
+        <div class="form-group">
+            <label>Date de réception</label>
+            <input type="text" id="edit_date_reception" name="date_reception" class="form-control datepicker">
+        </div>
+    </div>
 
                     <!-- Stock et Taxe -->
                     <div class="row mb-3">

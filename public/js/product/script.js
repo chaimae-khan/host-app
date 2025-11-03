@@ -22,8 +22,7 @@ $(document).ready(function () {
 
     // DataTable Initialization
  
-function initializeDataTable() 
-{
+function initializeDataTable() {
     try {
         // Destroy existing DataTable if it exists
         if ($.fn.DataTable.isDataTable('.TableProducts')) {
@@ -76,6 +75,24 @@ function initializeDataTable()
                         }
                     }
                 },
+                  { 
+        data: 'date_reception', 
+        name: 'p.date_reception',
+        defaultContent: '<span class="text-muted">Non définie</span>',
+        render: function(data) {
+            if (data && data !== null && data !== '') {
+                try {
+                    const date = new Date(data);
+                    if (!isNaN(date.getTime())) {
+                        return date.toLocaleDateString('fr-FR');
+                    }
+                } catch (e) {
+                    console.error('Error parsing date_reception:', e);
+                }
+            }
+            return '<span class="text-muted">Non définie</span>';
+        }
+    },
                 {
                     data: 'created_at',
                     name: 'p.created_at',
@@ -181,6 +198,15 @@ $('.TableProducts tbody').on('click', '.editProduct', function(e) {
                 $('#edit_date_expiration').val('');
                 console.log("No expiration date found");
             }
+            if (response.date_reception) {
+    const recDate = new Date(response.date_reception);
+    const formattedRecDate = recDate.toISOString().split('T')[0];
+    $('#edit_date_reception').val(formattedRecDate);
+    console.log("Setting reception date:", formattedRecDate);
+} else {
+    $('#edit_date_reception').val('');
+    console.log("No reception date found");
+}
             
             // Set seuil value directly from product
             $('#edit_seuil').val(response.seuil);
@@ -478,10 +504,8 @@ function initializeFilters() {
     // Designation autocomplete
     let designationTimeout;
     $('#filter_designation').on('keyup', function() {
-        //clearTimeout(designationTimeout);
+        clearTimeout(designationTimeout);
         const query = $(this).val();
-
-        
         
         if (query.length < 2) {
             $('#designation_suggestions').hide().empty();
@@ -503,103 +527,6 @@ function initializeFilters() {
                             suggestions += '<a href="#" class="list-group-item list-group-item-action designation-item" data-id="' + product.id + '" data-name="' + product.name + '">' + product.name + '</a>';
                         });
                         $('#designation_suggestions').html(suggestions).show();
-
-                        /********************* 3ajina */
-                        if ($.fn.DataTable.isDataTable('.TableProducts')) {
-                                $('.TableProducts').DataTable().destroy();
-                            }
-                            
-                            // Initialize DataTable
-                            var tableProducts = $('.TableProducts').DataTable({
-                                processing: true,
-                                serverSide: true,
-                                ajax: {
-                                    url: products_url,
-                                    data: function(d) {
-                                        // Add filter parameters
-                                        d.filter_designation = query;
-                                        
-                                    },
-                                    dataSrc: function (json) {
-                                        if (json.data.length === 0) {
-                                            $('.paging_full_numbers').css('display', 'none');
-                                        }
-                                        return json.data;
-                                    },
-                                    error: function(xhr, error, thrown) {
-                                        console.error('DataTables error:', error, thrown);
-                                        new AWN().alert("Erreur de chargement des données", { durations: { alert: 5000 } });
-                                    }
-                                },
-                                columns: [
-                                    { data: 'code_article', name: 'p.code_article' },
-                                    { data: 'name', name: 'p.name' },
-                                    { data: 'unite', name: 'u.name' },
-                                    { data: 'categorie', name: 'c.name' },
-                                    { data: 'famille', name: 'sc.name' },
-                                    { data: 'emplacement', name: 'p.emplacement' },
-                                    { data: 'stock', name: 's.quantite' },
-                                    { data: 'price_achat', name: 'p.price_achat' },
-                                    // { data: 'taux_taxe', name: 't.value' },
-                                    { data: 'seuil', name: 'p.seuil' },
-                                    { 
-                                        data: 'date_expiration', 
-                                        name: 'p.date_expiration',
-                                        render: function(data) {
-                                            if (data) {
-                                                // Format date as DD/MM/YYYY
-                                                const date = new Date(data);
-                                                return date.toLocaleDateString('fr-FR');
-                                            } else {
-                                                return '<span class="text-muted">Non définie</span>';
-                                            }
-                                        }
-                                    },
-                                    {
-                                        data: 'created_at',
-                                        name: 'p.created_at',
-                                        render: function(data) {
-                                            if (data) {
-                                                // Format date and time as DD/MM/YYYY HH:MM
-                                                const date = new Date(data);
-                                                return date.toLocaleDateString('fr-FR') + ' ' + date.toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'});
-                                            } else {
-                                                return '<span class="text-muted">Non définie</span>';
-                                            }
-                                        }
-                                    },
-                                    { data: 'action', name: 'action', orderable: false, searchable: false }
-                                ],
-                                language: {
-                                    "sInfo": "",
-                                    "sInfoEmpty": "Affichage de l'élément 0 à 0 sur 0 élément",
-                                    "sInfoFiltered": "(filtré à partir de _MAX_ éléments au total)",
-                                    "sLengthMenu": "Afficher _MENU_ éléments",
-                                    "sLoadingRecords": "Chargement...",
-                                    "sProcessing": "Traitement...",
-                                    "sSearch": "Rechercher :",
-                                    "sZeroRecords": "Aucun élément correspondant trouvé",
-                                    "oPaginate": {
-                                        "sFirst": "Premier",
-                                        "sLast": "Dernier",
-                                        "sNext": "Suivant",
-                                        "sPrevious": "Précédent"
-                                    }
-                                }
-                            });
-                        /*************************** */
-
-
-
-
-
-
-
-
-
-
-
-
                     } else {
                         $('#designation_suggestions').hide().empty();
                     }
