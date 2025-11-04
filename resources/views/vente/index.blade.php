@@ -613,6 +613,16 @@ document.addEventListener('DOMContentLoaded', function () {
                             <option value="Visé">Visé</option>
                             <option value="Validation">Réception</option>
                             @endif    
+                             @if (Auth::user()->getRoleNames()->contains('Directeur'))
+                            <option value="Visé">Visé</option>
+                             <option value="Refus">Refus</option>
+                            <option value="Validation">Validation</option>
+                            @endif  
+                            @if (Auth::user()->getRoleNames()->contains('chargé'))
+                       
+                            <option value="Refus">Refus</option>
+                            <option value="Validation">Validation</option>
+                            @endif  
                             
                             
 

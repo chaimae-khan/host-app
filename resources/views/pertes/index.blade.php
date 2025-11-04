@@ -190,52 +190,79 @@
                                 </div>
 
                                 <!-- Quantité et Nature -->
-                                <div class="row mb-3">
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label>Quantité perdue <span class="text-danger">*</span></label>
-                                            <input type="number" step="0.01" name="quantite" class="form-control" required min="0.01">
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label>Nature de la perte <span class="text-danger">*</span></label>
-                                            <select name="nature" class="form-control" id="natureDropDown" required>
-                                                <option value="0">Please select</option>
-                                                <option value="stock">stock</option>
-                                                
-                                                <option value="produit fini">produit fini</option>
-                                               {{--  <option value="">Sélectionner la nature</option>
-                                                <option value="Casse">Casse</option>
-                                                <option value="Péremption">Péremption</option>
-                                                <option value="Vol">Vol</option>
-                                                <option value="Détérioration">Détérioration</option>
-                                                <option value="Autre">Autre</option> --}}
-                                            </select>
-                                        </div>
-                                    </div>
-                                </div>
-                                <script>
-                                    $('#natureDropDown').on('change',function(e)
-                                    {
-                                        let value = $(this).val();
-                                        if(value == 0 || value === "stock")
-                                        {
-                                            if(value == 0)
-                                            {
-                                                 alert("please selected nature");
-                                                  return false;
-                                            }
-                                           
-                                            $('#divtets').css('display','none');
-                                           
-                                        }
-                                        else
-                                        {
-                                            $('#divtets').css('display','block');
-                                        }
-                                    });
-                                </script>
+                               <div class="row mb-3">
+    <div class="col-md-6">
+        <div class="form-group">
+            <label>Quantité perdue <span class="text-danger">*</span></label>
+            <input type="number" step="0.01" name="quantite" class="form-control" required min="0.01">
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="form-group">
+            <label>Nature de la perte <span class="text-danger">*</span></label>
+            <select name="nature" class="form-control" id="natureDropDown" required>
+                <option value="">Sélectionner la nature</option>
+                <option value="stock">Stock</option>
+                <option value="produit fini">Produit fini</option>
+            </select>
+        </div>
+    </div>
+</div>
+
+<!-- Date de perte and Produit fini type -->
+<div class="row mb-3">
+   
+    <div class="col-md-6" id="divProduitFiniType" style="display: none;">
+        <div class="form-group">
+            <label>Type de produit fini <span class="text-danger">*</span></label>
+            <select name="produit_fini_type" id="produit_fini_type" class="form-select">
+                <option value="">Sélectionner un type</option>
+                <option value="Entrée">Entrée</option>
+                <option value="Suite">Suite</option>
+                <option value="Dessert">Dessert</option>
+                <option value="Accompagnement">Accompagnement</option>
+                <option value="Autres">Autres</option>
+            </select>
+        </div>
+    </div>
+</div>
+
+<script>
+$(document).ready(function() {
+    // Handle nature dropdown change
+    $('#natureDropDown').on('change', function(e) {
+        let value = $(this).val();
+        let produitFiniTypeDiv = $('#divProduitFiniType');
+        let produitFiniTypeSelect = $('#produit_fini_type');
+        
+        if (value === '') {
+            // No selection made
+            produitFiniTypeDiv.hide();
+            produitFiniTypeSelect.prop('required', false);
+            produitFiniTypeSelect.val('');
+        } 
+        else if (value === 'stock') {
+            // Stock selected - hide produit fini type
+            produitFiniTypeDiv.hide();
+            produitFiniTypeSelect.prop('required', false);
+            produitFiniTypeSelect.val('');
+        } 
+        else if (value === 'produit fini') {
+            // Produit fini selected - show produit fini type
+            produitFiniTypeDiv.show();
+            produitFiniTypeSelect.prop('required', true);
+        }
+    });
+    
+    // Reset form when modal is closed
+    $('#ModalAddPerte').on('hidden.bs.modal', function() {
+        $('#FormAddPerte')[0].reset();
+        $('#divProduitFiniType').hide();
+        $('#produit_fini_type').prop('required', false);
+        $('#unite_display_perte').val('');
+    });
+});
+</script>
 
                                 <!-- Date de perte -->
                                 <div class="row mb-3">
@@ -247,10 +274,13 @@
                                     </div>
                                     <div class="col-md-6" id="divtets" style="display: none">
                                         <div class="form-group">
-                                            <label>Date de la perte <span class="text-danger">*</span></label>
+                                            <label>produit fini<span class="text-danger">*</span></label>
                                             <select name="" id="" class="form-select">
-                                                <option value="entér">entér</option>
-                                                <option value="suit ">entér </option>
+                                                <option value="entér">Entrée</option>
+                                                <option value="suit ">Suite </option>
+                                                <option value="suit ">Dessert </option>
+                                                 <option value="suit ">Accompagnement </option>
+                                                   <option value="suit ">Autres </option>
                                             </select>
                                         </div>
                                     </div>

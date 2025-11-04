@@ -95,7 +95,8 @@
                     </div>
                 </div>
             </div>
-               <!-- Declaration Information Card -->
+
+            <!-- Declaration Information Card -->
             <div class="row mt-3">
                 <div class="col-12">
                     <div class="card info-card">
@@ -196,7 +197,13 @@
                                 <div class="col-md-4 mb-3">
                                     <span class="detail-label">Nature:</span>
                                     <div class="detail-value">
-                                        <i class="fa-solid fa-clipboard-list me-1"></i>{{ $perte->nature }}
+                                        <i class="fa-solid fa-clipboard-list me-1"></i>{{ ucfirst($perte->nature) }}
+                                        @if($perte->nature == 'produit fini' && $perte->produit_fini_type)
+                                            <br>
+                                            <span class="badge bg-info mt-2">
+                                                <i class="fa-solid fa-utensils me-1"></i>{{ $perte->produit_fini_type }}
+                                            </span>
+                                        @endif
                                     </div>
                                 </div>
                             </div>
@@ -217,45 +224,6 @@
                     </div>
                 </div>
             </div>
-
-         
-
-            <!-- Action Buttons -->
-            <!-- @if(auth()->user()->can('Pertes-valider') || auth()->user()->can('Pertes-supprimer'))
-            <div class="row mt-3">
-                <div class="col-12">
-                    <div class="card">
-                        <div class="card-header bg-light">
-                            <h5 class="mb-0">
-                                <i class="fa-solid fa-cog me-2"></i>Actions
-                            </h5>
-                        </div>
-                        <div class="card-body">
-                            <div class="action-buttons">
-                                @can('Pertes-valider')
-                                    @if($perte->status == 'En attente')
-                                        <button type="button" class="btn btn-success" id="validateBtn">
-                                            <i class="fa-solid fa-check me-1"></i> Valider la perte
-                                        </button>
-                                        <button type="button" class="btn btn-danger" id="refuseBtn">
-                                            <i class="fa-solid fa-times me-1"></i> Refuser la perte
-                                        </button>
-                                    @endif
-                                @endcan
-                                
-                                @can('Pertes-supprimer')
-                                    @if($perte->status !== 'Validé')
-                                        <button type="button" class="btn btn-danger" id="deleteBtn">
-                                            <i class="fa-solid fa-trash me-1"></i> Supprimer
-                                        </button>
-                                    @endif
-                                @endcan
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            @endif -->
 
         </div>
     </div>
@@ -410,9 +378,6 @@ $(document).ready(function() {
             }
         });
     });
-    
- 
-
 });
 </script>
 @endsection

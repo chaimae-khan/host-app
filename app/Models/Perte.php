@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-class Perte extends Model  // Changed from Pertes to Perte
+class Perte extends Model
 {
     use HasFactory, SoftDeletes;
 
@@ -21,6 +21,7 @@ class Perte extends Model  // Changed from Pertes to Perte
         'designation',
         'quantite',
         'nature',
+        'produit_fini_type', // Add this new field
         'date_perte',
         'cause',
         'status',

@@ -18,7 +18,11 @@ class RoleSeeder extends Seeder
         $econome = Role::create(['name' => 'Économe']);
         $magasinier = Role::create(['name' => 'Magasinier']);
         $formateur = Role::create(['name' => 'Formateur']);
-        
+        $directeur = Role::create(['name' => 'Directeur']);
+        $charge = Role::create(['name' => 'Chargé']);
+        $directeurEtudes = Role::create(['name' => 'Directeur des études']);
+        $chargeInventaire = Role::create(['name' => 'Chargé d\'inventaire']);
+
         // Add the additional roles from your data
         $utilisateur = Role::create(['name' => 'Utilisateur']);
         $gestionnaire = Role::create(['name' => 'Gestionnaire']);
@@ -39,11 +43,6 @@ class RoleSeeder extends Seeder
             'Fournisseurs-ajoute',
             'Fournisseurs-modifier',
             'Fournisseurs-supprimer',
-
-            // 'Formateurs',
-            // 'Formateurs-ajoute',
-            // 'Formateurs-modifier',
-            // 'Formateurs-supprimer',
 
             'Categories',
             'Categories-ajoute',
@@ -217,6 +216,31 @@ class RoleSeeder extends Seeder
             
             'Historique',
             'Historique-montrer',
+        ]);
+
+        // Directeur des études permissions (Product and Command permissions)
+        $directeurEtudes->givePermissionTo([
+            'Products',
+            
+            'Commande',
+            'Commande-ajoute',
+            'Commande-modifier',
+            
+            'Historique',
+            'Historique-montrer',
+        ]);
+
+        // Chargé d'inventaire permissions (Product and Command permissions)
+        $chargeInventaire->givePermissionTo([
+            'Products',
+            
+            'Commande',
+            'Commande-ajoute',
+            
+            'Historique',
+            'Historique-montrer',
+            
+            'Inventaire',
         ]);
 
         // Gestionnaire permissions (similar to Économe but with less privileges)

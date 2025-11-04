@@ -174,102 +174,103 @@ public function index(Request $request)
         }
     }
 
-    /**
-     * Store a newly created perte
-     */
-    public function store(Request $request)
-    {
-        // Check if user has permission to add pertes
-        if (!auth()->user()->can('Pertes-ajouter')) {
-            return response()->json([
-                'status' => 403,
-                'message' => 'Vous n\'avez pas la permission d\'ajouter des pertes'
-            ], 403);
-        }
+  public function store(Request $request)
+{
+    // Check if user has permission to add pertes
+    if (!auth()->user()->can('Pertes-ajouter')) {
+        return response()->json([
+            'status' => 403,
+            'message' => 'Vous n\'avez pas la permission d\'ajouter des pertes'
+        ], 403);
+    }
+
+    $validator = Validator::make($request->all(), [
+        'classe' => 'required|string|max:255',
+        'id_category' => 'required|exists:categories,id',
+        'id_subcategorie' => 'required|exists:sub_categories,id',
+        'id_product' => 'required|exists:products,id',
+        'quantite' => 'required|numeric|min:0.01',
+        'nature' => 'required|string|max:255',
+        'produit_fini_type' => 'required_if:nature,produit fini|nullable|in:Entrée,Suite,Dessert,Accompagnement,Autres',
+        'date_perte' => 'required|date',
+        'cause' => 'required|string',
+    ], [
+        'required' => 'Le champ :attribute est requis.',
+        'numeric' => 'Le champ :attribute doit être un nombre.',
+        'exists' => 'La valeur sélectionnée pour :attribute est invalide.',
+        'date' => 'Le champ :attribute doit être une date valide.',
+        'min' => 'Le champ :attribute doit être au moins :min.',
+        'required_if' => 'Le type de produit fini est requis lorsque la nature est "produit fini".',
+        'in' => 'Le type de produit fini sélectionné est invalide.',
+    ]);
     
-        $validator = Validator::make($request->all(), [
-            'classe' => 'required|string|max:255',
-            'id_category' => 'required|exists:categories,id',
-            'id_subcategorie' => 'required|exists:sub_categories,id',
-            'id_product' => 'required|exists:products,id',
-            'quantite' => 'required|numeric|min:0.01',
-            'nature' => 'required|string|max:255',
-            'date_perte' => 'required|date',
-            'cause' => 'required|string',
-        ], [
-            'required' => 'Le champ :attribute est requis.',
-            'numeric' => 'Le champ :attribute doit être un nombre.',
-            'exists' => 'La valeur sélectionnée pour :attribute est invalide.',
-            'date' => 'Le champ :attribute doit être une date valide.',
-            'min' => 'Le champ :attribute doit être au moins :min.',
-        ]);
+    if ($validator->fails()) {
+        return response()->json([
+            'status' => 400,
+            'errors' => $validator->messages(),
+        ], 400);
+    }
+
+    try {
+        DB::beginTransaction();
         
-        if ($validator->fails()) {
+        // Get product details
+        $product = Product::with(['unite', 'category', 'subcategory'])->find($request->id_product);
+        
+        if (!$product) {
+            return response()->json([
+                'status' => 404,
+                'message' => 'Produit non trouvé',
+            ], 404);
+        }
+        
+        // Verify the relationship between category and subcategory
+        $subcategory = SubCategory::find($request->id_subcategorie);
+        if ($subcategory->id_categorie != $request->id_category) {
             return response()->json([
                 'status' => 400,
-                'errors' => $validator->messages(),
+                'message' => 'La famille sélectionnée n\'appartient pas à cette catégorie',
             ], 400);
         }
-    
-        try {
-            DB::beginTransaction();
-            
-            // Get product details
-            $product = Product::with(['unite', 'category', 'subcategory'])->find($request->id_product);
-            
-            if (!$product) {
-                return response()->json([
-                    'status' => 404,
-                    'message' => 'Produit non trouvé',
-                ], 404);
-            }
-            
-            // Verify the relationship between category and subcategory
-            $subcategory = SubCategory::find($request->id_subcategorie);
-            if ($subcategory->id_categorie != $request->id_category) {
-                return response()->json([
-                    'status' => 400,
-                    'message' => 'La famille sélectionnée n\'appartient pas à cette catégorie',
-                ], 400);
-            }
-            
-            // Create perte
-            $perte = Perte::create([
-                'id_product' => $product->id,
-                'id_category' => $request->id_category,
-                'id_subcategorie' => $request->id_subcategorie,
-                'id_unite' => $product->id_unite,
-                'classe' => $request->classe,
-                'designation' => $product->name, // Store current product name
-                'quantite' => $request->quantite,
-                'nature' => $request->nature,
-                'date_perte' => $request->date_perte,
-                'cause' => $request->cause,
-                'status' => 'En attente',
-                'id_user' => Auth::id(),
-            ]);
-            
-            DB::commit();
-            
-            return response()->json([
-                'status' => 200,
-                'message' => 'Perte déclarée avec succès',
-            ]);
-            
-        } catch (\Exception $e) {
-            DB::rollBack();
-            
-            Log::error('Error creating perte: ' . $e->getMessage(), [
-                'request' => $request->all(),
-                'trace' => $e->getTraceAsString()
-            ]);
-            
-            return response()->json([
-                'status' => 500,
-                'message' => 'Une erreur est survenue. Veuillez réessayer.',
-            ], 500);
-        }
+        
+        // Create perte
+        $perte = Perte::create([
+            'id_product' => $product->id,
+            'id_category' => $request->id_category,
+            'id_subcategorie' => $request->id_subcategorie,
+            'id_unite' => $product->id_unite,
+            'classe' => $request->classe,
+            'designation' => $product->name,
+            'quantite' => $request->quantite,
+            'nature' => $request->nature,
+            'produit_fini_type' => $request->nature === 'produit fini' ? $request->produit_fini_type : null,
+            'date_perte' => $request->date_perte,
+            'cause' => $request->cause,
+            'status' => 'En attente',
+            'id_user' => Auth::id(),
+        ]);
+        
+        DB::commit();
+        
+        return response()->json([
+            'status' => 200,
+            'message' => 'Perte déclarée avec succès',
+        ]);
+        
+    } catch (\Exception $e) {
+        DB::rollBack();
+        
+        Log::error('Error creating perte: ' . $e->getMessage(), [
+            'request' => $request->all(),
+            'trace' => $e->getTraceAsString()
+        ]);
+        
+        return response()->json([
+            'status' => 500,
+            'message' => 'Une erreur est survenue. Veuillez réessayer.',
+        ], 500);
     }
+}
 
     /**
      * Show the perte details
