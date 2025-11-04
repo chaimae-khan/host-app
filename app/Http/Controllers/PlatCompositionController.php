@@ -18,82 +18,86 @@ class PlatCompositionController extends Controller
     /**
      * Display a listing of plat compositions
      */
-    public function index(Request $request)
-    {
-        if (!auth()->user()->can('Plats')) {
-            abort(403, 'Vous n\'avez pas la permission d\'accéder à cette page');
-        }
-
-        $countPlat = Plat::count();
-        if ($countPlat == 0) {
-            return view('Error.index')
-                ->withErrors('Vous n\'avez pas de plats. Veuillez d\'abord créer des plats.');
-        }
-
-        $countProduct = Product::count();
-        if ($countProduct == 0) {
-            return view('Error.index')
-                ->withErrors('Vous n\'avez pas de produits.');
-        }
-
-        if ($request->ajax()) {
-            $Data_Plat = DB::table('plats as p')
-                ->join('users as us', 'us.id', '=', 'p.iduser')
-                ->join('ligne_plat as l', 'l.id_plat', '=', 'p.id')
-                ->join('products as pro', 'pro.id', '=', 'l.idproduit')
-                ->join('unite as u', 'u.id', '=', 'pro.id_unite')
-                ->select(
-                    'l.id',
-                    'pro.name',
-                    'p.name as nom_plat',
-                    DB::raw("CONCAT(us.prenom, ' ', us.nom) as created_by"),
-                    'l.created_at',
-                    'l.qte','l.nombre_couvert',
-                    'u.name as unite'
-                )
-                ->whereNull('l.deleted_at')
-                ->orderBy('l.id', 'desc');
-
-            return DataTables::of($Data_Plat)
-                ->addIndexColumn()
-                ->addColumn('action', function ($row) {
-                    $btn = '';
-
-                    if (auth()->user()->can('Plats-modifier')) {
-                        $btn .= '<a href="#" class="btn btn-sm bg-primary-subtle me-1 editPlatComposition"
-                                    data-id="' . $row->id . '">
-                                    <i class="fa-solid fa-pen-to-square text-primary"></i>
-                                </a>';
-                    }
-
-                    if (auth()->user()->can('Plats')) {
-                        $btn .= '<a href="' . url('ShowPlatDetail/' . $row->id) . '" 
-                                    class="btn btn-sm bg-success-subtle me-1" 
-                                    target="_blank">
-                                    <i class="fa-solid fa-eye text-success"></i>
-                                </a>';
-                    }
-
-                    if (auth()->user()->can('Plats-supprimer')) {
-                        $btn .= '<a href="#" class="btn btn-sm bg-danger-subtle deletePlatComposition"
-                                    data-id="' . $row->id . '">
-                                    <i class="fa-solid fa-trash text-danger"></i>
-                                </a>';
-                    }
-
-                    return $btn;
-                })
-                ->rawColumns(['action'])
-                ->make(true);
-        }
-
-        $plats = Plat::all();
-        $unites = Unite::all();
-
-        return view('plat_composition.index')
-            ->with('plats', $plats)
-            ->with('unites', $unites);
+   public function index(Request $request)
+{
+    if (!auth()->user()->can('Plats')) {
+        abort(403, 'Vous n\'avez pas la permission d\'accéder à cette page');
     }
+
+    $countPlat = Plat::count();
+    if ($countPlat == 0) {
+        return view('Error.index')
+            ->withErrors('Vous n\'avez pas de plats. Veuillez d\'abord créer des plats.');
+    }
+
+    $countProduct = Product::count();
+    if ($countProduct == 0) {
+        return view('Error.index')
+            ->withErrors('Vous n\'avez pas de produits.');
+    }
+
+    if ($request->ajax()) {
+        $Data_Plat = DB::table('plats as p')
+            ->join('users as us', 'us.id', '=', 'p.iduser')
+            ->join('ligne_plat as l', 'l.id_plat', '=', 'p.id')
+            ->join('products as pro', 'pro.id', '=', 'l.idproduit')
+            ->join('unite as u', 'u.id', '=', 'pro.id_unite')
+            ->select(
+                'l.id',
+                'p.id as plat_id',  // ← ADD THIS LINE
+                'pro.name',
+                'p.name as nom_plat',
+                DB::raw("CONCAT(us.prenom, ' ', us.nom) as created_by"),
+                'l.created_at',
+                'l.qte',
+                'l.nombre_couvert',
+                'u.name as unite'
+            )
+            ->whereNull('l.deleted_at')
+            ->orderBy('l.id', 'desc');
+
+        return DataTables::of($Data_Plat)
+            ->addIndexColumn()
+            ->addColumn('action', function ($row) {
+                $btn = '';
+
+                if (auth()->user()->can('Plats-modifier')) {
+                    // ✅ USE plat_id INSTEAD OF ligne_plat id
+                    $btn .= '<a href="#" class="btn btn-sm bg-primary-subtle me-1 editPlatComposition"
+                                data-id="' . $row->plat_id . '">
+                                <i class="fa-solid fa-pen-to-square text-primary"></i>
+                            </a>';
+                }
+
+                if (auth()->user()->can('Plats')) {
+                    $btn .= '<a href="' . url('ShowPlatDetail/' . $row->plat_id) . '" 
+                                class="btn btn-sm bg-success-subtle me-1" 
+                                target="_blank">
+                                <i class="fa-solid fa-eye text-success"></i>
+                            </a>';
+                }
+
+                if (auth()->user()->can('Plats-supprimer')) {
+                    // ✅ USE plat_id FOR DELETE TOO
+                    $btn .= '<a href="#" class="btn btn-sm bg-danger-subtle deletePlatComposition"
+                                data-id="' . $row->plat_id . '">
+                                <i class="fa-solid fa-trash text-danger"></i>
+                            </a>';
+                }
+
+                return $btn;
+            })
+            ->rawColumns(['action'])
+            ->make(true);
+    }
+
+    $plats = Plat::all();
+    $unites = Unite::all();
+
+    return view('plat_composition.index')
+        ->with('plats', $plats)
+        ->with('unites', $unites);
+}
 
     /**
      * Get plats by type
@@ -369,52 +373,53 @@ class PlatCompositionController extends Controller
         }
     }
 
-    /**
-     * Edit plat composition
-     */
-    public function edit($id)
-    {
-        if (!auth()->user()->can('Plats-modifier')) {
-            return response()->json([
-                'status' => 403,
-                'message' => 'Vous n\'avez pas la permission de modifier'
-            ], 403);
-        }
+  public function edit($id)
+{
+    if (!auth()->user()->can('Plats-modifier')) {
+        return response()->json([
+            'status' => 403,
+            'message' => 'Vous n\'avez pas la permission de modifier'
+        ], 403);
+    }
 
-        $plat = Plat::find($id);
+    // ✅ Find the PLAT by ID
+    $plat = Plat::find($id);
 
-        if (!$plat) {
-            return response()->json([
-                'status' => 404,
-                'message' => 'Plat non trouvé'
-            ], 404);
-        }
+    if (!$plat) {
+        return response()->json([
+            'status' => 404,
+            'message' => 'Plat non trouvé'
+        ], 404);
+    }
 
-        // Get all ligne_plat for this plat and load into temp_plat
-        $lignePlats = LignePlat::where('id_plat', $id)->get();
+    // ✅ Get ALL ligne_plat records for this PLAT
+    $lignePlats = LignePlat::where('id_plat', $id)
+                           ->whereNull('deleted_at')  // ← Add this safety check
+                           ->get();
 
-        // Clear existing temp data for this user and plat
-        TempPlat::where('id_user', Auth::id())
+    // Clear existing temp data for this user and plat
+    TempPlat::where('id_user', Auth::id())
             ->where('id_plat', $id)
             ->delete();
 
-        // Load data into temp table
-        foreach ($lignePlats as $ligne) {
-            TempPlat::create([
-                'id_user' => Auth::id(),
-                'id_plat' => $ligne->id_plat,
-                'idproduit' => $ligne->idproduit,
-                'id_unite' => $ligne->id_unite,
-                'qte' => $ligne->qte,
-                'nombre_couvert' => $ligne->nombre_couvert,
-            ]);
-        }
-
-        return response()->json([
-            'status' => 200,
-            'plat' => $plat
+    // Load ALL data into temp table
+    foreach ($lignePlats as $ligne) {
+        TempPlat::create([
+            'id_user' => Auth::id(),
+            'id_plat' => $ligne->id_plat,
+            'idproduit' => $ligne->idproduit,
+            'id_unite' => $ligne->id_unite,
+            'qte' => $ligne->qte,
+            'nombre_couvert' => $ligne->nombre_couvert,
         ]);
     }
+
+    return response()->json([
+        'status' => 200,
+        'plat' => $plat,
+        'compositions_count' => $lignePlats->count()  // ← DEBUG: Check how many loaded
+    ]);
+}
 
     /**
      * Update plat composition
@@ -549,4 +554,309 @@ class PlatCompositionController extends Controller
 
         return view('plat_composition.detail', compact('plat', 'Data_LignePlat'));
     }
+    /**
+ * Get column information by index
+ */
+private function getColumnByIndex($index)
+{
+    $columns = [
+        0 => ['field' => 'nom_plat', 'title' => 'Nom du plat', 'data' => 'nom_plat'],
+        1 => ['field' => 'name', 'title' => 'Ingrédients', 'data' => 'name'],
+        2 => ['field' => 'qte', 'title' => 'Quantité', 'data' => 'qte'],
+        3 => ['field' => 'unite', 'title' => 'Unité', 'data' => 'unite'],
+        4 => ['field' => 'nombre_couvert', 'title' => 'Nombre de couvert', 'data' => 'nombre_couvert'],
+        5 => ['field' => 'created_by', 'title' => 'Créé par', 'data' => 'created_by'],
+        6 => ['field' => 'created_at', 'title' => 'Créé le', 'data' => 'created_at'],
+    ];
+    
+    return $columns[$index] ?? null;
+}
+
+/**
+ * Export plat compositions to Excel with selected columns
+ */
+public function exportExcel(Request $request)
+{
+    // if (!auth()->user()->can('Plats-exporter')) {
+    //     return response()->json([
+    //         'status' => 403,
+    //         'message' => 'Vous n\'avez pas la permission d\'exporter'
+    //     ], 403);
+    // }
+
+    // Parse columns from request
+    $selectedColumnIndices = [];
+    if ($request->has('columns')) {
+        $selectedColumnIndices = explode(',', $request->input('columns'));
+    } else {
+        // Default to all columns if none specified
+        $selectedColumnIndices = range(0, 6);
+    }
+    
+    // Get column information for selected columns
+    $selectedColumns = [];
+    $columnTitles = [];
+    $columnData = [];
+    
+    foreach ($selectedColumnIndices as $index) {
+        $column = $this->getColumnByIndex(intval($index));
+        if ($column) {
+            $selectedColumns[] = $column['field'];
+            $columnTitles[] = $column['title'];
+            $columnData[] = $column['data'];
+        }
+    }
+    
+    // Get all plat composition data
+    $compositionData = DB::table('plats as p')
+        ->join('users as us', 'us.id', '=', 'p.iduser')
+        ->join('ligne_plat as l', 'l.id_plat', '=', 'p.id')
+        ->join('products as pro', 'pro.id', '=', 'l.idproduit')
+        ->join('unite as u', 'u.id', '=', 'pro.id_unite')
+        ->select(
+            'l.id',
+            'pro.name',
+            'p.name as nom_plat',
+            DB::raw("CONCAT(us.prenom, ' ', us.nom) as created_by"),
+            'l.created_at',
+            'l.qte',
+            'l.nombre_couvert',
+            'u.name as unite'
+        )
+        ->whereNull('l.deleted_at')
+        ->orderBy('l.id', 'desc')
+        ->get();
+    
+    // Create new Spreadsheet object
+    $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+    $sheet = $spreadsheet->getActiveSheet();
+    
+    // Set header row with selected columns
+    $colIndex = 'A';
+    foreach ($columnTitles as $title) {
+        $sheet->setCellValue($colIndex . '1', $title);
+        $colIndex++;
+    }
+    
+    // Style header row
+    $headerStyle = [
+        'font' => [
+            'bold' => true,
+        ],
+        'alignment' => [
+            'horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER,
+        ],
+        'fill' => [
+            'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+            'startColor' => [
+                'rgb' => 'EEEEEE',
+            ],
+        ],
+    ];
+    
+    $sheet->getStyle('A1:' . chr(64 + count($columnTitles)) . '1')->applyFromArray($headerStyle);
+    
+    // Add data rows
+    $row = 2;
+    foreach ($compositionData as $composition) {
+        $colIndex = 'A';
+        
+        foreach ($columnData as $field) {
+            $value = '';
+            
+            if ($field === 'created_at') {
+                $value = $composition->created_at ? date('d/m/Y H:i', strtotime($composition->created_at)) : '';
+            } elseif ($field === 'qte') {
+                $value = number_format($composition->qte, 2);
+            } else {
+                $value = $composition->{$field} ?? '';
+            }
+            
+            $sheet->setCellValue($colIndex . $row, $value);
+            $colIndex++;
+        }
+        
+        // Center align all data cells
+        $sheet->getStyle('A' . $row . ':' . chr(64 + count($columnTitles)) . $row)
+            ->getAlignment()
+            ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+        
+        $row++;
+    }
+    
+    // Auto size columns
+    foreach (range('A', chr(64 + count($columnTitles))) as $column) {
+        $sheet->getColumnDimension($column)->setAutoSize(true);
+    }
+    
+    // Create writer
+    $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+    
+    // Set headers for download
+    $fileName = 'Composition_Plats - ' . date('d-m-Y') . '.xlsx';
+    header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    header('Content-Disposition: attachment; filename="' . $fileName . '"');
+    header('Cache-Control: max-age=0');
+    
+    // Save file to output
+    $writer->save('php://output');
+    exit;
+}
+
+/**
+ * Export plat compositions to PDF with selected columns
+ */
+public function exportPdf(Request $request)
+{
+    // if (!auth()->user()->can('Plats-exporter')) {
+    //     return response()->json([
+    //         'status' => 403,
+    //         'message' => 'Vous n\'avez pas la permission d\'exporter'
+    //     ], 403);
+    // }
+
+    // Parse columns from request
+    $selectedColumnIndices = [];
+    if ($request->has('columns')) {
+        $selectedColumnIndices = explode(',', $request->input('columns'));
+    } else {
+        // Default to all columns if none specified
+        $selectedColumnIndices = range(0, 6);
+    }
+    
+    // Get column information for selected columns
+    $selectedColumns = [];
+    $columnTitles = [];
+    $columnData = [];
+    
+    foreach ($selectedColumnIndices as $index) {
+        $column = $this->getColumnByIndex(intval($index));
+        if ($column) {
+            $selectedColumns[] = $column['field'];
+            $columnTitles[] = $column['title'];
+            $columnData[] = $column['data'];
+        }
+    }
+    
+    // Get all plat composition data
+    $compositionData = DB::table('plats as p')
+        ->join('users as us', 'us.id', '=', 'p.iduser')
+        ->join('ligne_plat as l', 'l.id_plat', '=', 'p.id')
+        ->join('products as pro', 'pro.id', '=', 'l.idproduit')
+        ->join('unite as u', 'u.id', '=', 'pro.id_unite')
+        ->select(
+            'l.id',
+            'pro.name',
+            'p.name as nom_plat',
+            DB::raw("CONCAT(us.prenom, ' ', us.nom) as created_by"),
+            'l.created_at',
+            'l.qte',
+            'l.nombre_couvert',
+            'u.name as unite'
+        )
+        ->whereNull('l.deleted_at')
+        ->orderBy('l.id', 'desc')
+        ->get();
+    
+    // Transform data for view with selected columns
+    $compositions = [];
+    foreach ($compositionData as $composition) {
+        $compositionItem = [];
+        
+        // Add only selected fields
+        foreach ($columnData as $field) {
+            if ($field === 'created_at') {
+                $compositionItem[$field] = $composition->created_at ? date('d/m/Y H:i', strtotime($composition->created_at)) : '';
+            } elseif ($field === 'qte') {
+                $compositionItem[$field] = number_format($composition->qte, 2);
+            } else {
+                $compositionItem[$field] = $composition->{$field} ?? '';
+            }
+        }
+        
+        $compositions[] = $compositionItem;
+    }
+    
+    // Generate PDF
+    $pdf = \PDF::loadView('plat_composition.pdf_export', [
+        'compositions' => $compositions,
+        'columns' => $columnTitles,
+        'columnData' => $columnData,
+        'date' => date('d/m/Y')
+    ]);
+    
+    // Make PDF landscape and A4
+    $pdf->setPaper('a4', 'landscape');
+    
+    // Download PDF
+    return $pdf->download('Composition_Plats - ' . date('d-m-Y') . '.pdf');
+}
+
+/**
+ * Export detailed plat composition grouped by plat
+ */
+public function exportDetailedPdf(Request $request)
+{
+    // if (!auth()->user()->can('Plats-exporter')) {
+    //     return response()->json([
+    //         'status' => 403,
+    //         'message' => 'Vous n\'avez pas la permission d\'exporter'
+    //     ], 403);
+    // }
+
+    // Get all plats with their compositions
+    $plats = DB::table('plats as p')
+        ->join('users as us', 'us.id', '=', 'p.iduser')
+        ->select(
+            'p.id',
+            'p.name',
+            'p.type',
+            DB::raw("CONCAT(us.prenom, ' ', us.nom) as created_by"),
+            'p.created_at'
+        )
+        ->whereExists(function($query) {
+            $query->select(DB::raw(1))
+                  ->from('ligne_plat as l')
+                  ->whereRaw('l.id_plat = p.id')
+                  ->whereNull('l.deleted_at');
+        })
+        ->whereNull('p.deleted_at')
+        ->orderBy('p.type')
+        ->orderBy('p.name')
+        ->get();
+
+    $platsData = [];
+    foreach ($plats as $plat) {
+        $ingredients = DB::table('ligne_plat as l')
+            ->join('products as pro', 'pro.id', '=', 'l.idproduit')
+            ->join('unite as u', 'u.id', '=', 'pro.id_unite')
+            ->select(
+                'pro.name',
+                'l.qte',
+                'u.name as unite',
+                'l.nombre_couvert'
+            )
+            ->where('l.id_plat', $plat->id)
+            ->whereNull('l.deleted_at')
+            ->whereNull('pro.deleted_at')
+            ->get();
+
+        $platsData[] = [
+            'plat' => $plat,
+            'ingredients' => $ingredients
+        ];
+    }
+    
+    // Generate PDF
+    $pdf = \PDF::loadView('plat_composition.pdf_detailed', [
+        'platsData' => $platsData,
+        'date' => date('d/m/Y')
+    ]);
+    
+    // Make PDF A4 portrait
+    $pdf->setPaper('a4', 'portrait');
+    
+    // Download PDF
+    return $pdf->download('Composition_Plats_Detaillee - ' . date('d-m-Y') . '.pdf');
+}
 }

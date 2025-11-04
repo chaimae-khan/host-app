@@ -10,6 +10,8 @@
     var DeletePlat          = "{{url('DeletePlat')}}";
     var editPlat            = "{{url('editPlat')}}";
     var ImportPlat          = "{{url('importPlat')}}";
+    var ExportPlatsExcel    = "{{url('exportPlatsExcel')}}";
+    var ExportPlatsPdf      = "{{url('exportPlatsPdf')}}";
 </script>
 <div class="content-page">
     <div class="content">
@@ -31,16 +33,26 @@
                 <div class="col-12">
                     <div class="card">
                         <div class="card-body">
-                            <div class="mb-3">
+                            <div class="mb-3 d-flex flex-wrap gap-2">
                                 @can('Plats-ajoute')
-                                <button class="btn btn-primary" style="margin-right: 5px" data-bs-toggle="modal" data-bs-target="#ModalAddPlat">
+                                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#ModalAddPlat">
                                     <i class="fa-solid fa-plus"></i> Ajouter un plat
                                 </button>
                                 
-                                <button class="btn btn-success" style="margin-right: 5px" data-bs-toggle="modal" data-bs-target="#ModalImportPlat">
+                                <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#ModalImportPlat">
                                     <i class="fa-solid fa-file-import"></i> Importer des plats
                                 </button>
                                 @endcan
+                                
+                            
+                                <button class="btn btn-info" id="BtnExportExcel">
+                                    <i class="fa-solid fa-file-excel"></i> Exporter Excel
+                                </button>
+                                
+                                <button class="btn btn-danger" id="BtnExportPdf">
+                                    <i class="fa-solid fa-file-pdf"></i> Exporter PDF
+                                </button>
+                             
                             </div>
                             
                             <div class="table-responsive">

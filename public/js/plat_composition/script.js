@@ -183,30 +183,40 @@ $(document).ready(function () {
             });
 
             // Edit handler
-            $('.TablePlatComposition tbody').on('click', '.editPlatComposition', function(e) {
-                e.preventDefault();
-                var platId = $(this).attr('data-id');
+         $('.TablePlatComposition tbody').on('click', '.editPlatComposition', function(e) {
+    e.preventDefault();
+    
+    // ✅ This now gets the PLAT ID (not ligne_plat ID)
+    var platId = $(this).attr('data-id');
+    
+    console.log('Editing plat ID:', platId); // ← DEBUG
+    
+    $.ajax({
+        type: "GET",
+        url: EditPlatComposition + "/" + platId,
+        dataType: "json",
+        success: function(response) {
+            console.log('Edit response:', response); // ← DEBUG
+            
+            if (response.status === 200) {
+                $('#ModalEditPlatComposition').modal("show");
+                $('#edit_id_plat').val(response.plat.id);
+                $('#edit_plat_name').val(response.plat.name);
+                selectedPlatId = response.plat.id;
                 
-                $.ajax({
-                    type: "GET",
-                    url: EditPlatComposition + "/" + platId,
-                    dataType: "json",
-                    success: function(response) {
-                        if (response.status === 200) {
-                            $('#ModalEditPlatComposition').modal("show");
-                            $('#edit_id_plat').val(response.plat.id);
-                            $('#edit_plat_name').val(response.plat.name);
-                            selectedPlatId = response.plat.id;
-                            
-                            // Load temp data
-                            initializeTableTmpPlat('.TableTmpPlatEdit', selectedPlatId, true);
-                        }
-                    },
-                    error: function(xhr) {
-                        new AWN().alert("Erreur lors du chargement", { durations: { alert: 5000 } });
-                    }
-                });
-            });
+                // Show how many compositions loaded
+                console.log('Loaded compositions:', response.compositions_count);
+                
+                // Load temp data - this should show ALL products
+                initializeTableTmpPlat('.TableTmpPlatEdit', selectedPlatId, true);
+            }
+        },
+        error: function(xhr) {
+            console.error('Edit error:', xhr.responseJSON); // ← DEBUG
+            new AWN().alert("Erreur lors du chargement", { durations: { alert: 5000 } });
+        }
+    });
+});
 
             // Delete handler
             $('.TablePlatComposition tbody').on('click', '.deletePlatComposition', function(e) {
@@ -774,4 +784,189 @@ function sendAjaxRequest(name_product, category, filter_subcategorie, type_comma
             }
         });
     });
+    // Add these export handlers to your existing plat_composition/script.js file
+
+// Export Excel Handler
+$(document).on('click', '#BtnExportCompositionExcel', function(e) {
+    e.preventDefault();
+    
+    // Get selected columns (all columns by default)
+    const selectedColumns = '0,1,2,3,4,5,6'; // all columns
+    
+    // Create form and submit
+    const form = $('<form>', {
+        'method': 'POST',
+        'action': ExportCompositionExcel
+    });
+    
+    form.append($('<input>', {
+        'type': 'hidden',
+        'name': '_token',
+        'value': csrf_token
+    }));
+    
+    form.append($('<input>', {
+        'type': 'hidden',
+        'name': 'columns',
+        'value': selectedColumns
+    }));
+    
+    $('body').append(form);
+    form.submit();
+    form.remove();
+    
+    new AWN().success('Export Excel en cours...', {durations: {success: 3000}});
+});
+
+// Export PDF Handler
+$(document).on('click', '#BtnExportCompositionPdf', function(e) {
+    e.preventDefault();
+    
+    // Get selected columns (all columns by default)
+    const selectedColumns = '0,1,2,3,4,5,6'; // all columns
+    
+    // Create form and submit
+    const form = $('<form>', {
+        'method': 'POST',
+        'action': ExportCompositionPdf
+    });
+    
+    form.append($('<input>', {
+        'type': 'hidden',
+        'name': '_token',
+        'value': csrf_token
+    }));
+    
+    form.append($('<input>', {
+        'type': 'hidden',
+        'name': 'columns',
+        'value': selectedColumns
+    }));
+    
+    $('body').append(form);
+    form.submit();
+    form.remove();
+    
+    new AWN().success('Export PDF en cours...', {durations: {success: 3000}});
+});
+
+// Export Detailed PDF Handler (grouped by plat)
+$(document).on('click', '#BtnExportCompositionDetailedPdf', function(e) {
+    e.preventDefault();
+    
+    // Create form and submit
+    const form = $('<form>', {
+        'method': 'POST',
+        'action': ExportCompositionDetailedPdf
+    });
+    
+    form.append($('<input>', {
+        'type': 'hidden',
+        'name': '_token',
+        'value': csrf_token
+    }));
+    
+    $('body').append(form);
+    form.submit();
+    form.remove();
+    
+    new AWN().success('Export PDF détaillé en cours...', {durations: {success: 3000}});
+});
+
+// Optional: Export with column selection modal
+function openExportCompositionModal(format) {
+    const columns = [
+        { index: 0, name: 'Nom du plat', checked: true },
+        { index: 1, name: 'Ingrédients', checked: true },
+        { index: 2, name: 'Quantité', checked: true },
+        { index: 3, name: 'Unité', checked: true },
+        { index: 4, name: 'Nombre de couvert', checked: true },
+        { index: 5, name: 'Créé par', checked: true },
+        { index: 6, name: 'Créé le', checked: true }
+    ];
+    
+    let checkboxes = '';
+    columns.forEach(col => {
+        checkboxes += `
+            <div class="form-check">
+                <input class="form-check-input export-composition-column" type="checkbox" 
+                       value="${col.index}" id="colComp${col.index}" ${col.checked ? 'checked' : ''}>
+                <label class="form-check-label" for="colComp${col.index}">
+                    ${col.name}
+                </label>
+            </div>
+        `;
+    });
+    
+    const modalHtml = `
+        <div class="modal fade" id="ModalExportComposition" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Exporter vers ${format}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>Sélectionnez les colonnes à exporter:</p>
+                        ${checkboxes}
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                        <button type="button" class="btn btn-primary" id="BtnConfirmExportComposition" data-format="${format}">
+                            Exporter
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Remove existing modal if present
+    $('#ModalExportComposition').remove();
+    
+    // Add modal to body and show
+    $('body').append(modalHtml);
+    $('#ModalExportComposition').modal('show');
+}
+
+// Confirm export with selected columns
+$(document).on('click', '#BtnConfirmExportComposition', function() {
+    const format = $(this).data('format');
+    const selectedColumns = [];
+    
+    $('.export-composition-column:checked').each(function() {
+        selectedColumns.push($(this).val());
+    });
+    
+    if (selectedColumns.length === 0) {
+        new AWN().warning('Veuillez sélectionner au moins une colonne', {durations: {warning: 3000}});
+        return;
+    }
+    
+    const exportUrl = format === 'Excel' ? ExportCompositionExcel : ExportCompositionPdf;
+    
+    const form = $('<form>', {
+        'method': 'POST',
+        'action': exportUrl
+    });
+    
+    form.append($('<input>', {
+        'type': 'hidden',
+        'name': '_token',
+        'value': csrf_token
+    }));
+    
+    form.append($('<input>', {
+        'type': 'hidden',
+        'name': 'columns',
+        'value': selectedColumns.join(',')
+    }));
+    
+    $('body').append(form);
+    form.submit();
+    form.remove();
+    
+    $('#ModalExportComposition').modal('hide');
+    new AWN().success(`Export ${format} en cours...`, {durations: {success: 3000}});
+});
 });

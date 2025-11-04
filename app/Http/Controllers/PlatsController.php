@@ -447,4 +447,223 @@ class PlatsController extends Controller
             'data'    => $plats,
         ]);
     }
+    /**
+ * Get column information by index
+ */
+private function getColumnByIndex($index)
+{
+    $columns = [
+        0 => ['field' => 'name', 'title' => 'Nom', 'data' => 'name'],
+        1 => ['field' => 'type', 'title' => 'Type', 'data' => 'type'],
+        2 => ['field' => 'username', 'title' => 'Créé par', 'data' => 'username'],
+        3 => ['field' => 'created_at', 'title' => 'Créé le', 'data' => 'created_at'],
+    ];
+    
+    return $columns[$index] ?? null;
+}
+
+/**
+ * Export plats to Excel with selected columns
+ */
+public function exportExcel(Request $request)
+{
+    // if (!auth()->user()->can('Plats-exporter')) {
+    //     return response()->json([
+    //         'status' => 403,
+    //         'message' => 'Vous n\'avez pas la permission d\'exporter des plats'
+    //     ], 403);
+    // }
+
+    // Parse columns from request
+    $selectedColumnIndices = [];
+    if ($request->has('columns')) {
+        $selectedColumnIndices = explode(',', $request->input('columns'));
+    } else {
+        // Default to all columns if none specified
+        $selectedColumnIndices = range(0, 3);
+    }
+    
+    // Get column information for selected columns
+    $selectedColumns = [];
+    $columnTitles = [];
+    $columnData = [];
+    
+    foreach ($selectedColumnIndices as $index) {
+        $column = $this->getColumnByIndex(intval($index));
+        if ($column) {
+            $selectedColumns[] = $column['field'];
+            $columnTitles[] = $column['title'];
+            $columnData[] = $column['data'];
+        }
+    }
+    
+    // Get all plats data with selected columns
+    $platsData = DB::table('plats as p')
+        ->join('users as us', 'us.id', '=', 'p.iduser')
+        ->whereNull('p.deleted_at')
+        ->select(
+            'p.id',
+            'p.name',
+            'p.type',
+            DB::raw("CONCAT(us.prenom, ' ', us.nom) as username"),
+            'p.created_at'
+        )
+        ->orderBy('p.id', 'desc')
+        ->get();
+    
+    // Create new Spreadsheet object
+    $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+    $sheet = $spreadsheet->getActiveSheet();
+    
+    // Set header row with selected columns
+    $colIndex = 'A';
+    foreach ($columnTitles as $title) {
+        $sheet->setCellValue($colIndex . '1', $title);
+        $colIndex++;
+    }
+    
+    // Style header row
+    $headerStyle = [
+        'font' => [
+            'bold' => true,
+        ],
+        'alignment' => [
+            'horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER,
+        ],
+        'fill' => [
+            'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+            'startColor' => [
+                'rgb' => 'EEEEEE',
+            ],
+        ],
+    ];
+    
+    $sheet->getStyle('A1:' . chr(64 + count($columnTitles)) . '1')->applyFromArray($headerStyle);
+    
+    // Add data rows
+    $row = 2;
+    foreach ($platsData as $plat) {
+        $colIndex = 'A';
+        
+        foreach ($columnData as $field) {
+            $value = '';
+            
+            if ($field === 'created_at') {
+                $value = $plat->created_at ? date('d/m/Y H:i', strtotime($plat->created_at)) : '';
+            } else {
+                $value = $plat->{$field} ?? '';
+            }
+            
+            $sheet->setCellValue($colIndex . $row, $value);
+            $colIndex++;
+        }
+        
+        // Center align all data cells
+        $sheet->getStyle('A' . $row . ':' . chr(64 + count($columnTitles)) . $row)
+            ->getAlignment()
+            ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+        
+        $row++;
+    }
+    
+    // Auto size columns
+    foreach (range('A', chr(64 + count($columnTitles))) as $column) {
+        $sheet->getColumnDimension($column)->setAutoSize(true);
+    }
+    
+    // Create writer
+    $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+    
+    // Set headers for download
+    $fileName = 'Plats - ' . date('d-m-Y') . '.xlsx';
+    header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    header('Content-Disposition: attachment; filename="' . $fileName . '"');
+    header('Cache-Control: max-age=0');
+    
+    // Save file to output
+    $writer->save('php://output');
+    exit;
+}
+
+/**
+ * Export plats to PDF with selected columns
+ */
+public function exportPdf(Request $request)
+{
+    // if (!auth()->user()->can('Plats-exporter')) {
+    //     return response()->json([
+    //         'status' => 403,
+    //         'message' => 'Vous n\'avez pas la permission d\'exporter des plats'
+    //     ], 403);
+    // }
+
+    // Parse columns from request
+    $selectedColumnIndices = [];
+    if ($request->has('columns')) {
+        $selectedColumnIndices = explode(',', $request->input('columns'));
+    } else {
+        // Default to all columns if none specified
+        $selectedColumnIndices = range(0, 3);
+    }
+    
+    // Get column information for selected columns
+    $selectedColumns = [];
+    $columnTitles = [];
+    $columnData = [];
+    
+    foreach ($selectedColumnIndices as $index) {
+        $column = $this->getColumnByIndex(intval($index));
+        if ($column) {
+            $selectedColumns[] = $column['field'];
+            $columnTitles[] = $column['title'];
+            $columnData[] = $column['data'];
+        }
+    }
+    
+    // Get all plats data
+    $platsData = DB::table('plats as p')
+        ->join('users as us', 'us.id', '=', 'p.iduser')
+        ->whereNull('p.deleted_at')
+        ->select(
+            'p.id',
+            'p.name',
+            'p.type',
+            DB::raw("CONCAT(us.prenom, ' ', us.nom) as username"),
+            'p.created_at'
+        )
+        ->orderBy('p.id', 'desc')
+        ->get();
+    
+    // Transform data for view with selected columns
+    $plats = [];
+    foreach ($platsData as $plat) {
+        $platItem = [];
+        
+        // Add only selected fields
+        foreach ($columnData as $field) {
+            if ($field === 'created_at') {
+                $platItem[$field] = $plat->created_at ? date('d/m/Y H:i', strtotime($plat->created_at)) : '';
+            } else {
+                $platItem[$field] = $plat->{$field} ?? '';
+            }
+        }
+        
+        $plats[] = $platItem;
+    }
+    
+    // Generate PDF
+    $pdf = \PDF::loadView('plats.pdf_export', [
+        'plats' => $plats,
+        'columns' => $columnTitles,
+        'columnData' => $columnData,
+        'date' => date('d/m/Y')
+    ]);
+    
+    // Make PDF landscape and A4
+    $pdf->setPaper('a4', 'landscape');
+    
+    // Download PDF
+    return $pdf->download('Plats - ' . date('d-m-Y') . '.pdf');
+}
+
 }

@@ -351,4 +351,163 @@ $(document).ready(function () {
             }
         });
     });
+    // Add this to your existing script.js file
+
+// Export Excel Handler
+$(document).on('click', '#BtnExportExcel', function(e) {
+    e.preventDefault();
+    
+    // Get selected columns (all columns by default)
+    const selectedColumns = '0,1,2,3'; // name, type, username, created_at
+    
+    // Create form and submit
+    const form = $('<form>', {
+        'method': 'POST',
+        'action': ExportPlatsExcel
+    });
+    
+    form.append($('<input>', {
+        'type': 'hidden',
+        'name': '_token',
+        'value': csrf_token
+    }));
+    
+    form.append($('<input>', {
+        'type': 'hidden',
+        'name': 'columns',
+        'value': selectedColumns
+    }));
+    
+    $('body').append(form);
+    form.submit();
+    form.remove();
+    
+    new AWN().success('Export Excel en cours...', {durations: {success: 3000}});
+});
+
+// Export PDF Handler
+$(document).on('click', '#BtnExportPdf', function(e) {
+    e.preventDefault();
+    
+    // Get selected columns (all columns by default)
+    const selectedColumns = '0,1,2,3'; // name, type, username, created_at
+    
+    // Create form and submit
+    const form = $('<form>', {
+        'method': 'POST',
+        'action': ExportPlatsPdf
+    });
+    
+    form.append($('<input>', {
+        'type': 'hidden',
+        'name': '_token',
+        'value': csrf_token
+    }));
+    
+    form.append($('<input>', {
+        'type': 'hidden',
+        'name': 'columns',
+        'value': selectedColumns
+    }));
+    
+    $('body').append(form);
+    form.submit();
+    form.remove();
+    
+    new AWN().success('Export PDF en cours...', {durations: {success: 3000}});
+});
+
+// Optional: Export with column selection modal
+function openExportModal(format) {
+    const columns = [
+        { index: 0, name: 'Nom', checked: true },
+        { index: 1, name: 'Type', checked: true },
+        { index: 2, name: 'Créé par', checked: true },
+        { index: 3, name: 'Créé le', checked: true }
+    ];
+    
+    let checkboxes = '';
+    columns.forEach(col => {
+        checkboxes += `
+            <div class="form-check">
+                <input class="form-check-input export-column" type="checkbox" 
+                       value="${col.index}" id="col${col.index}" ${col.checked ? 'checked' : ''}>
+                <label class="form-check-label" for="col${col.index}">
+                    ${col.name}
+                </label>
+            </div>
+        `;
+    });
+    
+    const modalHtml = `
+        <div class="modal fade" id="ModalExportPlats" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Exporter vers ${format}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>Sélectionnez les colonnes à exporter:</p>
+                        ${checkboxes}
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                        <button type="button" class="btn btn-primary" id="BtnConfirmExport" data-format="${format}">
+                            Exporter
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Remove existing modal if present
+    $('#ModalExportPlats').remove();
+    
+    // Add modal to body and show
+    $('body').append(modalHtml);
+    $('#ModalExportPlats').modal('show');
+}
+
+// Confirm export with selected columns
+$(document).on('click', '#BtnConfirmExport', function() {
+    const format = $(this).data('format');
+    const selectedColumns = [];
+    
+    $('.export-column:checked').each(function() {
+        selectedColumns.push($(this).val());
+    });
+    
+    if (selectedColumns.length === 0) {
+        new AWN().warning('Veuillez sélectionner au moins une colonne', {durations: {warning: 3000}});
+        return;
+    }
+    
+    const exportUrl = format === 'Excel' ? ExportPlatsExcel : ExportPlatsPdf;
+    
+    const form = $('<form>', {
+        'method': 'POST',
+        'action': exportUrl
+    });
+    
+    form.append($('<input>', {
+        'type': 'hidden',
+        'name': '_token',
+        'value': csrf_token
+    }));
+    
+    form.append($('<input>', {
+        'type': 'hidden',
+        'name': 'columns',
+        'value': selectedColumns.join(',')
+    }));
+    
+    $('body').append(form);
+    form.submit();
+    form.remove();
+    
+    $('#ModalExportPlats').modal('hide');
+    new AWN().success(`Export ${format} en cours...`, {durations: {success: 3000}});
+});
 });

@@ -324,6 +324,8 @@ Route::post('updatePlat', [PlatsController::class, 'update']);
 Route::post('DeletePlat', [PlatsController::class, 'destroy']);
 Route::post('importPlat', [PlatsController::class, 'import']);
 Route::get('getPlatsByType', [PlatsController::class, 'getPlatsByType']);
+Route::post('/exportPlatsExcel', [PlatsController::class, 'exportExcel'])->name('plats.export.excel');
+Route::post('/exportPlatsPdf', [PlatsController::class, 'exportPdf'])->name('plats.export.pdf');
 //
 // Plat Composition Routes
 
@@ -339,6 +341,9 @@ Route::get('getPlatsByType', [PlatsController::class, 'getPlatsByType']);
     Route::post('/UpdatePlatComposition', [PlatCompositionController::class, 'update']);
     Route::post('/DeletePlatComposition', [PlatCompositionController::class, 'destroy']);
     Route::get('/ShowPlatDetail/{id}', [PlatCompositionController::class, 'ShowPlatDetail']);
+    Route::post('/exportCompositionExcel', [PlatCompositionController::class, 'exportExcel'])->name('plat-composition.export.excel');
+    Route::post('/exportCompositionPdf', [PlatCompositionController::class, 'exportPdf'])->name('plat-composition.export.pdf');
+    Route::post('/exportCompositionDetailedPdf', [PlatCompositionController::class, 'exportDetailedPdf'])->name('plat-composition.export.detailed-pdf');
 
 
     Route::get('sendPlatToTmpVente'      ,[VenteController::class,'sendPlatToTmpVente']);

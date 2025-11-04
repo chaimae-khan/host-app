@@ -3,7 +3,6 @@
 @section('dashboard')
 
 <script src="{{asset('js/plat_composition/script.js')}}"></script>
-{{-- <script src="{{asset('js/vente/script.js')}}"></script> --}}
 <script>
     var csrf_token = "{{csrf_token()}}";
     var getPlatsByTypeForComposition = "{{url('getPlatsByTypeForComposition')}}";
@@ -19,6 +18,9 @@
     var DeletePlatComposition = "{{url('DeletePlatComposition')}}";
     var getcategorybytypemenu = "{{ url('getcategorybytypemenu') }}"
     var getProduct = "{{url('getProduct')}}";
+    var ExportCompositionExcel = "{{url('exportCompositionExcel')}}";
+    var ExportCompositionPdf = "{{url('exportCompositionPdf')}}";
+    var ExportCompositionDetailedPdf = "{{url('exportCompositionDetailedPdf')}}";
 </script>
 
 <style>
@@ -47,12 +49,26 @@
                 <div class="col-12">
                     <div class="card">
                         <div class="card-body">
-                            <div class="mb-3">
+                            <div class="mb-3 d-flex flex-wrap gap-2">
                                 @can('Plats-ajoute')
                                 <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#ModalAddPlatComposition">
                                     <i class="fa-solid fa-plus"></i> Composer un plat
                                 </button>
                                 @endcan
+                                
+                              
+                                <button class="btn btn-success" id="BtnExportCompositionExcel">
+                                    <i class="fa-solid fa-file-excel"></i> Exporter Excel
+                                </button>
+                                
+                                <button class="btn btn-danger" id="BtnExportCompositionPdf">
+                                    <i class="fa-solid fa-file-pdf"></i> Exporter PDF
+                                </button>
+                                
+                                <!-- <button class="btn btn-info" id="BtnExportCompositionDetailedPdf">
+                                    <i class="fa-solid fa-file-pdf"></i> Export PDF Détaillé
+                                </button> -->
+                             
                             </div>
                             
                             <div class="table-responsive">
@@ -113,10 +129,6 @@
                                             <input type="number" min="1" class="form-control" id="nombre_couvert" value="1">
                                         </div>
                                         
-                                       {{--  <div class="form-group mt-3">
-                                            <label>Rechercher un produit</label>
-                                            <input type="text" class="form-control input_products" placeholder="Entrez le nom du produit">
-                                        </div> --}}
                                         <div class="row">
                                             <div class="col-sm-12 col-md-12 col-xl-3">
                                                 <div class="form-group">
@@ -124,10 +136,8 @@
                                                     <select name="type_commande" class="form-select" id="type_commande">
                                                         <option value="0" selected>Please selected type order</option>
                                                         <option value="Alimentaire" >Alimentaire</option>
-                                                       
                                                     </select>
                                                 </div>
-                                                
                                             </div>
 
                                             <div class="col-sm-12 col-md-12 col-xl-3">
@@ -135,10 +145,8 @@
                                                     <label for="">Catégorie</label>
                                                     <select class="form-select" id="filter_categorie" name="filter_categorie">
                                                         <option value="">Toutes les catégories</option>
-                                                        
                                                     </select>
                                                 </div>
-                                                
                                             </div>
 
                                             <div class="col-sm-12 col-md-12 col-xl-3">
@@ -148,7 +156,6 @@
                                                         <option value="">Toutes les familles</option>
                                                     </select>
                                                 </div>
-                                                
                                             </div>
 
                                             <div class="col-sm-12 col-md-12 col-xl-3">
@@ -156,7 +163,6 @@
                                                     <label for="">Desgination</label>
                                                     <input type="text" class="form-control input_products" placeholder="Entrez le nom du produit">
                                                 </div>
-                                                
                                             </div>
                                         </div>
                                         
