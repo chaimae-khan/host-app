@@ -20,7 +20,7 @@
     var getProduct = "{{url('getProduct')}}";
     var ExportCompositionExcel = "{{url('exportCompositionExcel')}}";
     var ExportCompositionPdf = "{{url('exportCompositionPdf')}}";
-    var ExportCompositionDetailedPdf = "{{url('exportCompositionDetailedPdf')}}";
+    var ExportCompositionDetailedPdf = "{{url('exportCompositionDetailedPdf')}}"; 
 </script>
 
 <style>

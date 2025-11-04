@@ -138,7 +138,7 @@ $(document).ready(function () {
             });
         }
     });
-
+    let id_plat = 0;
     // Initialize main datatable
     function initializeTablePlatComposition() {
         try {
@@ -203,7 +203,7 @@ $(document).ready(function () {
                 $('#edit_id_plat').val(response.plat.id);
                 $('#edit_plat_name').val(response.plat.name);
                 selectedPlatId = response.plat.id;
-                
+                id_plat  = response.plat.id;
                 // Show how many compositions loaded
                 console.log('Loaded compositions:', response.compositions_count);
                 
@@ -364,6 +364,7 @@ $(document).ready(function () {
             let CouvertTmp = $(this).closest('tr').find('td:eq(4)').text();
             
             $('#ModalEditQteTmpPlat').modal('show');
+            $('#ModalEditPlatComposition').modal("hide");
             $('#BtnUpdateQteTmpPlat').attr('data-id', IdTmp); 
             $('#QteTmpPlat').val(Qtetmp);
             $('#NombreCouvertTmp').val(CouvertTmp);
@@ -717,6 +718,8 @@ function sendAjaxRequest(name_product, category, filter_subcategorie, type_comma
                     
                     initializeTableTmpPlat(tableSelector, platId, isEditMode);
                     $('#ModalEditQteTmpPlat').modal('hide');
+                    $('#ModalEditPlatComposition').modal("show");
+                    initializeTableTmpPlat('.TableTmpPlatEdit', id_plat, true);
                 } else if(response.status == 400) {
                     $('.validationUpdateQteTmpPlat').html("");
                     $('.validationUpdateQteTmpPlat').addClass('alert alert-danger');
