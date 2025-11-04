@@ -1,5 +1,5 @@
 @extends('dashboard.index')
-yearly-breakdow
+
 @section('dashboard')
 <div class="content-page">
     <div class="content">
@@ -69,6 +69,13 @@ yearly-breakdow
                     </div>
                 </div>
             </div>
+
+            <!-- Results Container -->
+            <div class="row" id="resultsContainer" style="display: none;">
+                <div class="col-12">
+                    <!-- Results will be dynamically inserted here -->
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -88,7 +95,7 @@ yearly-breakdow
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary no-print" data-bs-dismiss="modal">Fermer</button>
-                <button type="button" class="btn btn-primary no-print" id="btnExportPDF">
+                <button type="button" class="btn btn-primary no-print" id="btnExportPDF" style="display: none;">
                     <i class="fa fa-file-pdf"></i> Exporter PDF
                 </button>
             </div>
@@ -185,6 +192,7 @@ yearly-breakdow
                     $('#btnExportPDF').hide();
                 },
                 success: function(response) {
+                    console.log('Response:', response); // Debug log
                     if (response.status == 200 && response.data.months_data.length > 0) {
                         displayYearlyReport(response.data);
                         $('#resultsContainer').show();
@@ -199,7 +207,7 @@ yearly-breakdow
                 error: function(xhr, status, error) {
                     console.error("Error:", error);
                     new AWN().alert("Erreur lors de la récupération des données");
-                    $('#noDataMessage').hide();
+                    $('#noDataMessage').show();
                     $('#resultsContainer').hide();
                     $('#btnExportPDF').hide();
                 },
@@ -212,7 +220,7 @@ yearly-breakdow
 
         // Function to display yearly report data
         function displayYearlyReport(data) {
-            const container = $('#resultsContainer');
+            const container = $('#resultsContainer .col-12');
             container.empty();
             
             // Define category mappings
@@ -261,7 +269,7 @@ yearly-breakdow
                     // Add week header
                     tbody.append(`
                         <tr>
-                            <td colspan="9" class="text-center week-header">la Semaine du ${weekKey}</td>
+                            <td colspan="9" class="text-center week-header">Semaine du ${weekKey}</td>
                         </tr>
                     `);
                     
@@ -274,9 +282,50 @@ yearly-breakdow
                 
                 table.append(thead).append(tbody);
                 monthCardBody.append(table);
+                
+                // Add month totals
+                const monthTotals = monthData.data.month_totals;
+                monthCardBody.append(`
+                    <div class="row mt-3">
+                        <div class="col-md-4">
+                            <strong>Coût Total du Mois:</strong> ${formatCost(monthTotals.total_cost)} DH
+                        </div>
+                        <div class="col-md-4">
+                            <strong>Total Effectif:</strong> ${monthTotals.total_people}
+                        </div>
+                        <div class="col-md-4">
+                            <strong>Prix Moyen:</strong> ${formatCost(monthTotals.prix_moyen)} DH
+                        </div>
+                    </div>
+                `);
+                
                 monthCard.append(monthCardBody);
                 container.append(monthCard);
             });
+            
+            // Add year totals at the end
+            const yearTotals = data.year_totals;
+            const yearCard = $('<div>').addClass('card mt-3');
+            const yearCardBody = $('<div>').addClass('card-body');
+            yearCardBody.append(`
+                <h4 class="text-center mb-3">Totaux de l'Année ${data.year}</h4>
+                <div class="row">
+                    <div class="col-md-4 text-center">
+                        <h5>Coût Total</h5>
+                        <p class="h3 text-primary">${formatCost(yearTotals.total_cost)} DH</p>
+                    </div>
+                    <div class="col-md-4 text-center">
+                        <h5>Total Effectif</h5>
+                        <p class="h3 text-info">${yearTotals.total_people}</p>
+                    </div>
+                    <div class="col-md-4 text-center">
+                        <h5>Prix Moyen</h5>
+                        <p class="h3 text-success">${formatCost(yearTotals.prix_moyen)} DH</p>
+                    </div>
+                </div>
+            `);
+            yearCard.append(yearCardBody);
+            container.append(yearCard);
         }
         
         // Function to group days by week
