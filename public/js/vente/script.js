@@ -1062,37 +1062,71 @@ $('#BtnUpdateQteTmp').off('click').on('click', function(e) {
             }
         });
     });
+// Show/hide motif_refus field based on status selection
+$('#StatusVente').on('change', function() {
+    var selectedStatus = $(this).val();
+    
+    if (selectedStatus === 'Refus') {
+        $('#motif_refus_container').show();
+        $('#motif_refus').prop('required', true);
+    } else {
+        $('#motif_refus_container').hide();
+        $('#motif_refus').prop('required', false);
+        $('#motif_refus').val(''); // Clear the textarea when hiding
+    }
+});
 
+// Also handle when modal is shown - check current status
+$('#ModalEditVente').on('shown.bs.modal', function() {
+    var currentStatus = $('#StatusVente').val();
+    if (currentStatus === 'Refus') {
+        $('#motif_refus_container').show();
+        $('#motif_refus').prop('required', true);
+    } else {
+        $('#motif_refus_container').hide();
+        $('#motif_refus').prop('required', false);
+    }
+});
     // Update Vente functionality
 
 $('#BtnUpdateVente').on('click', function(e) {
     e.preventDefault();
     
-    // If already processing an update request, ignore this click
     if (ajaxInProgress.updateVente) {
         return;
     }
     
     let id = $(this).attr('data-id');
     let status = $('#StatusVente').val();
+    let motif_refus = $('#motif_refus').val();
     
-    // Mark update operation as in progress and disable the button
+    // Validate motif_refus if status is Refus
+    if (status === 'Refus' && (!motif_refus || motif_refus.trim() === '')) {
+        new AWN().warning('Veuillez indiquer le motif de refus', {durations: {warning: 5000}});
+        return;
+    }
+    
     ajaxInProgress.updateVente = true;
     $('#BtnUpdateVente').prop('disabled', true).text('Traitement...');
     
-    // If this is a status change to Validation or Visé, use the ChangeStatusVente endpoint
+    let requestData = {
+        '_token': csrf_token,
+        'id': id,
+        'status': status
+    };
+    
+    // Add motif_refus to request if status is Refus
+    if (status === 'Refus') {
+        requestData.motif_refus = motif_refus;
+    }
+    
     if (status === 'Validation' || status === 'Visé') {
         $.ajax({
             type: "POST",
             url: ChangeStatusVente,
-            data: {
-                '_token': csrf_token,
-                'id': id,
-                'status': status
-            },
+            data: requestData,
             dataType: "json",
             success: function(response) {
-                // Mark update operation as complete and re-enable the button
                 ajaxInProgress.updateVente = false;
                 $('#BtnUpdateVente').prop('disabled', false).text('Mettre à jour');
                 
@@ -1105,28 +1139,19 @@ $('#BtnUpdateVente').on('click', function(e) {
                 }
             },
             error: function(xhr, status, error) {
-                // Mark update operation as complete and re-enable the button
                 ajaxInProgress.updateVente = false;
                 $('#BtnUpdateVente').prop('disabled', false).text('Mettre à jour');
-                
                 console.error('Error:', xhr.responseText);
                 new AWN().alert("Une erreur est survenue, veuillez réessayer.", { durations: { alert: 5000 } });
             }
         });
-    } 
-    // Otherwise use the regular UpdateVente endpoint
-    else {
+    } else {
         $.ajax({
             type: "POST",
             url: UpdateVente,
-            data: {
-                '_token': csrf_token,
-                'id': id,
-                'status': status
-            },
+            data: requestData,
             dataType: "json",
             success: function(response) {
-                // Mark update operation as complete and re-enable the button
                 ajaxInProgress.updateVente = false;
                 $('#BtnUpdateVente').prop('disabled', false).text('Mettre à jour');
                 
@@ -1139,16 +1164,13 @@ $('#BtnUpdateVente').on('click', function(e) {
                 }
             },
             error: function(xhr, status, error) {
-                // Mark update operation as complete and re-enable the button
                 ajaxInProgress.updateVente = false;
                 $('#BtnUpdateVente').prop('disabled', false).text('Mettre à jour');
                 
                 try {
                     const response = JSON.parse(xhr.responseText);
                     if (response.status === 400 && response.errors) {
-                        const errorMessages = Object.values(response.errors)
-                            .flat()
-                            .join('<br>');
+                        const errorMessages = Object.values(response.errors).flat().join('<br>');
                         new AWN().warning(errorMessages, {durations: {warning: 5000}});
                     } else if (response.status === 404) {
                         new AWN().warning(response.message, {durations: {warning: 5000}});
