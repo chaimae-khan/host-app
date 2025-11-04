@@ -1306,7 +1306,7 @@ public function getCategoryCostsData(Request $request)
             ->where('type', 'sortie')
             ->where('type_commande', 'Alimentaire');
         
-        if ($typeMenu !== 'all') {
+       if ($typeMenu !== 'all' && $typeMenu !== 'tous') {
             $query->where('type_menu', $typeMenu);
         }
 
@@ -1396,9 +1396,9 @@ public function getMonthlyBreakdownData(Request $request)
         $venteDates = Vente::where('status', 'Validation')
             ->where('type_commande', $typeCommande)
             ->whereBetween('created_at', [$firstDayOfMonth, $lastDayOfMonth])
-            ->when($typeMenu !== 'all', function($query) use ($typeMenu) {
-                return $query->where('type_menu', $typeMenu);
-            })
+            ->when($typeMenu !== 'all' && $typeMenu !== 'tous', function($query) use ($typeMenu) {
+              return $query->where('type_menu', $typeMenu);
+})
             ->selectRaw('DATE(created_at) as date')
             ->distinct()
             ->pluck('date')
@@ -1577,46 +1577,108 @@ public function exportMonthlyBreakdownPDF(Request $request)
         
         // Create a descriptive title that includes menu type
         $reportTitle = "Consommation du mois " . $monthName;
-        if ($typeMenu && $typeMenu !== 'all') {
-            $reportTitle .= " - " . $typeMenu;
-        }
         
-        // Get the data directly from your existing method
-        $response = $this->getMonthlyBreakdownData($request);
-        
-        // Parse the JSON response
-        $responseData = json_decode($response->getContent(), true);
-        
-        // Check if we have data
-        if ($responseData['status'] !== 200 || empty($responseData['data']['days_data'])) {
-            return response()->json([
-                'status' => 404,
-                'message' => 'Aucune donnée trouvée pour ce mois et ces critères'
+        // ============================================
+        // NEW: Check if "tous" menus is selected
+        // ============================================
+        if ($typeMenu === 'tous') {
+            $reportTitle .= " - Tous menus";
+            
+            // Get data for all three menu types
+            $menuTypes = ['Menu eleves', 'Menu specials', 'Menu d\'application'];
+            $allMenusData = [];
+            
+            foreach ($menuTypes as $menuType) {
+                // Create a request for each menu type
+                $menuRequest = new Request([
+                    'month' => $request->month,
+                    'type_menu' => $menuType,
+                    'type_commande' => $request->type_commande
+                ]);
+                
+                // Get monthly data for this menu type
+                $response = $this->getMonthlyBreakdownData($menuRequest);
+                $responseData = json_decode($response->getContent(), true);
+                
+                // Only add menu if it has data
+                if ($responseData['status'] === 200 && !empty($responseData['data']['days_data'])) {
+                    $allMenusData[] = [
+                        'menu_type' => $menuType,
+                        'data' => $responseData['data']
+                    ];
+                }
+            }
+            
+            // Check if we have any data
+            if (empty($allMenusData)) {
+                return response()->json([
+                    'status' => 404,
+                    'message' => 'Aucune donnée trouvée pour ce mois et ces critères'
+                ]);
+            }
+            
+            // Get logo images
+            $imagePath = public_path('images/logo_top.png');
+            $imageData_top = base64_encode(file_get_contents($imagePath));
+            $logo_bottom = public_path('images/logo_bottom.png');
+            $imageData_bottom = base64_encode(file_get_contents($logo_bottom));
+            
+            // Generate PDF for all menus using NEW template
+            $pdf = Pdf::loadView('consumption.monthly_breakdown_all_menus_pdf', [
+                'all_menus_data' => $allMenusData,
+                'month' => $monthName,
+                'report_title' => $reportTitle,
+                'imageData_top' => $imageData_top,
+                'imageData_bottom' => $imageData_bottom
+            ]);
+            
+        } else {
+            // ============================================
+            // EXISTING: Single menu type selected
+            // ============================================
+            if ($typeMenu && $typeMenu !== 'all') {
+                $reportTitle .= " - " . $typeMenu;
+            }
+            
+            // Get the data directly from your existing method
+            $response = $this->getMonthlyBreakdownData($request);
+            
+            // Parse the JSON response
+            $responseData = json_decode($response->getContent(), true);
+            
+            // Check if we have data
+            if ($responseData['status'] !== 200 || empty($responseData['data']['days_data'])) {
+                return response()->json([
+                    'status' => 404,
+                    'message' => 'Aucune donnée trouvée pour ce mois et ces critères'
+                ]);
+            }
+            
+            // Get logo images
+            $imagePath = public_path('images/logo_top.png');
+            $imageData_top = base64_encode(file_get_contents($imagePath));
+            $logo_bottom = public_path('images/logo_bottom.png');
+            $imageData_bottom = base64_encode(file_get_contents($logo_bottom));
+            
+            // Generate PDF using the template
+            $pdf = Pdf::loadView('consumption.monthly_breakdown_pdf', [
+                'data' => $responseData['data'],
+                'month' => $monthName,
+                'report_title' => $reportTitle,
+                'type_menu' => $typeMenu,
+                'imageData_top' => $imageData_top,
+                'imageData_bottom' => $imageData_bottom
             ]);
         }
-        
-        // Get logo images
-        $imagePath = public_path('images/logo_top.png');
-        $imageData_top = base64_encode(file_get_contents($imagePath));
-        $logo_bottom = public_path('images/logo_bottom.png');
-        $imageData_bottom = base64_encode(file_get_contents($logo_bottom));
-        
-        // Generate PDF using the template
-        $pdf = Pdf::loadView('consumption.monthly_breakdown_pdf', [
-            'data' => $responseData['data'],
-            'month' => $monthName,
-            'report_title' => $reportTitle, // Pass the complete title
-            'type_menu' => $typeMenu, // Pass menu type separately if needed
-            'imageData_top' => $imageData_top,
-            'imageData_bottom' => $imageData_bottom
-        ]);
         
         // Set page size and orientation
         $pdf->setPaper('a4', 'portrait');
         
         // Generate filename that includes menu type
         $filename = 'reporting_mensuel_' . $monthDate->format('Y_m');
-        if ($typeMenu && $typeMenu !== 'all') {
+        if ($typeMenu === 'tous') {
+            $filename .= '_tous_menus';
+        } elseif ($typeMenu && $typeMenu !== 'all') {
             $filename .= '_' . str_replace(' ', '_', strtolower($typeMenu));
         }
         $filename .= '.pdf';

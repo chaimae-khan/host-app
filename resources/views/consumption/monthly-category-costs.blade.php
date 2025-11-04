@@ -34,11 +34,12 @@
                                 
                                 <div class="col-md-6">
                                     <label for="type_menu" class="form-label">Type de Menu</label>
-                                    <select class="form-select" id="type_menu" name="type_menu" required>
-                                        <option value="Menu eleves" selected>Menu standard</option>
-                                        <option value="Menu specials">Menu specials</option>
-                                        <option value="Menu d'application">Menu d'application</option>
-                                    </select>
+                                 <select class="form-select" id="type_menu" name="type_menu" required>
+    <option value="tous" selected>Tous menus</option>
+    <option value="Menu eleves">Menu standard</option>
+    <option value="Menu specials">Menu specials</option>
+    <option value="Menu d'application">Menu d'application</option>
+</select>
                                 </div>
                                 
                                 <!-- Hidden Type de Commande input -->
@@ -173,6 +174,12 @@
             max-width: 95%;
         }
     }
+    .menu-separator {
+    margin-top: 40px;
+    margin-bottom: 20px;
+    border-bottom: 2px solid #333;
+    padding-bottom: 10px;
+}
 </style>
 
 <script type="text/javascript">
@@ -186,84 +193,232 @@
         const currentMonth = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0');
         $('#month').val(currentMonth);
         
-        // Handle form submission
-        $('#monthlyBreakdownForm').on('submit', function(e) {
-            e.preventDefault();
-            
-            const month = $('#month').val();
-            const typeMenu = $('#type_menu').val();
-            const typeCommande = $('#type_commande').val();
-            
-            if (!month) {
-                new AWN().alert('Veuillez sélectionner un mois');
-                return;
-            }
-            
-            $.ajax({
-                type: "GET",
-                url: getMonthlyBreakdownData_url,
-                data: {
-                    month: month,
-                    type_menu: typeMenu,
-                    type_commande: typeCommande
-                },
-                dataType: "json",
-                beforeSend: function() {
-                    $('#btnSearch').prop('disabled', true);
-                    $('#btnSearch').html('<i class="fa fa-spinner fa-spin"></i> Chargement...');
-                    $('#noDataMessage').hide();
-                },
-                success: function(response) {
-                    if (response.status == 200 && response.data.days_data.length > 0) {
-                        displayMonthlyReport(response.data);
-                        // Show the modal
+      // Handle form submission
+$('#monthlyBreakdownForm').on('submit', function(e) {
+    e.preventDefault();
+    
+    const month = $('#month').val();
+    const typeMenu = $('#type_menu').val();
+    const typeCommande = $('#type_commande').val();
+    
+    if (!month) {
+        new AWN().alert('Veuillez sélectionner un mois');
+        return;
+    }
+    
+    // Check if "Tous menus" is selected
+    if (typeMenu === 'tous') {
+        fetchAllMenus(month, typeCommande);
+    } else {
+        fetchSingleMenu(month, typeMenu, typeCommande);
+    }
+});
+
+// Function to fetch all menus
+
+function fetchAllMenus(month, typeCommande) {
+    const menuTypes = ['Menu eleves', 'Menu specials', 'Menu d\'application'];
+    let allData = [];
+    let completedRequests = 0;
+    
+    $('#btnSearch').prop('disabled', true);
+    $('#btnSearch').html('<i class="fa fa-spinner fa-spin"></i> Chargement...');
+    $('#noDataMessage').hide();
+    
+    menuTypes.forEach(menuType => {
+        $.ajax({
+            type: "GET",
+            url: getMonthlyBreakdownData_url,
+            data: {
+                month: month,
+                type_menu: menuType,  // Send specific menu type, not 'tous'
+                type_commande: typeCommande
+            },
+            dataType: "json",
+            success: function(response) {
+                if (response.status == 200 && response.data.days_data.length > 0) {
+                    allData.push({
+                        menuType: menuType,
+                        data: response.data
+                    });
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error("Error for " + menuType + ":", error);
+            },
+            complete: function() {
+                completedRequests++;
+                
+                if (completedRequests === menuTypes.length) {
+                    $('#btnSearch').prop('disabled', false);
+                    $('#btnSearch').html('<i class="fa fa-search"></i> Rechercher');
+                    
+                    if (allData.length > 0) {
+                        displayAllMenusReport(allData, month);
                         $('#ModalMonthlyReport').modal('show');
-                        $('#noDataMessage').hide();
                     } else {
                         $('#noDataMessage').show();
                     }
-                },
-                error: function(xhr, status, error) {
-                    console.error("Error:", error);
-                    new AWN().alert("Erreur lors de la récupération des données");
-                    $('#noDataMessage').hide();
-                },
-                complete: function() {
-                    $('#btnSearch').prop('disabled', false);
-                    $('#btnSearch').html('<i class="fa fa-search"></i> Rechercher');
                 }
+            }
+        });
+    });
+}
+// Function to fetch single menu
+function fetchSingleMenu(month, typeMenu, typeCommande) {
+    $.ajax({
+        type: "GET",
+        url: getMonthlyBreakdownData_url,
+        data: {
+            month: month,
+            type_menu: typeMenu,
+            type_commande: typeCommande
+        },
+        dataType: "json",
+        beforeSend: function() {
+            $('#btnSearch').prop('disabled', true);
+            $('#btnSearch').html('<i class="fa fa-spinner fa-spin"></i> Chargement...');
+            $('#noDataMessage').hide();
+        },
+        success: function(response) {
+            if (response.status == 200 && response.data.days_data.length > 0) {
+                displayMonthlyReport(response.data);
+                $('#ModalMonthlyReport').modal('show');
+                $('#noDataMessage').hide();
+            } else {
+                $('#noDataMessage').show();
+            }
+        },
+        error: function(xhr, status, error) {
+            console.error("Error:", error);
+            new AWN().alert("Erreur lors de la récupération des données");
+            $('#noDataMessage').hide();
+        },
+        complete: function() {
+            $('#btnSearch').prop('disabled', false);
+            $('#btnSearch').html('<i class="fa fa-search"></i> Rechercher');
+        }
+    });
+}
+
+// Function to display all menus report
+function displayAllMenusReport(allData, month) {
+    $('#ModalMonthlyReportLabel').text('Consommation du mois - Tous menus');
+    
+    const contentDiv = $('#monthlyReportContent');
+    contentDiv.empty();
+    
+    // Create a table for each menu type
+    allData.forEach(menuData => {
+        // Add menu type header
+        contentDiv.append(`
+            <div class="menu-separator">
+                <h4>${menuData.menuType}</h4>
+            </div>
+        `);
+        
+        // Create table
+        const table = $('<table class="table table-bordered menu-table"></table>');
+        
+        // Add table header
+        table.append(`
+            <thead>
+                <tr>
+                    <th>Journée du</th>
+                    <th>Coût unitaire par stagiaire</th>
+                    <th>Légumes et Fruits</th>
+                    <th>Volailles et Œufs</th>
+                    <th>Poisson Frais</th>
+                    <th>Épicerie et Produits Laitiers</th>
+                    <th>Viandes</th>
+                    <th>Coût total de la journée</th>
+                    <th>Effectif</th>
+                </tr>
+            </thead>
+        `);
+        
+        // Add table body
+        const tbody = $('<tbody></tbody>');
+        
+        // Group days by week
+        const groupedDays = groupDaysByWeek(menuData.data.days_data);
+        
+        Object.keys(groupedDays).forEach(weekKey => {
+            const days = groupedDays[weekKey];
+            
+            // Add week header
+            tbody.append(`
+                <tr>
+                    <td colspan="9" class="text-center week-header">la Semaine du ${weekKey}</td>
+                </tr>
+            `);
+            
+            // Add each day in week
+            days.forEach(day => {
+                const row = buildDayRow(day);
+                tbody.append(row);
             });
         });
+        
+        table.append(tbody);
+        contentDiv.append(table);
+    });
+}
 
-        // Function to display monthly report data in modal
-        function displayMonthlyReport(data) {
-            // Set report title in modal
-            $('#ModalMonthlyReportLabel').text('Consommation du mois ' + data.month);
-            
-            // Group days by week
-            const groupedDays = groupDaysByWeek(data.days_data);
-            
-            // Generate table content
-            const tbody = $('#monthlyReportBody');
-            tbody.empty();
-            
-            Object.keys(groupedDays).forEach(weekKey => {
-                const days = groupedDays[weekKey];
-                
-                // Add week header
-                tbody.append(`
-                    <tr>
-                        <td colspan="9" class="text-center week-header">la Semaine du ${weekKey}</td>
-                    </tr>
-                `);
-                
-                // Add each day in week
-                days.forEach(day => {
-                    const row = buildDayRow(day);
-                    tbody.append(row);
-                });
-            });
-        }
+       function displayMonthlyReport(data) {
+    // Set report title in modal
+    $('#ModalMonthlyReportLabel').text('Consommation du mois ' + data.month);
+    
+    // Clear and rebuild the table structure
+    const contentDiv = $('#monthlyReportContent');
+    contentDiv.empty();
+    
+    // Create single table
+    const table = $('<table class="table table-bordered" id="monthlyReportTable"></table>');
+    
+    // Add table header
+    table.append(`
+        <thead>
+            <tr>
+                <th>Journée du</th>
+                <th>Coût unitaire par stagiaire</th>
+                <th>Légumes et Fruits</th>
+                <th>Volailles et Œufs</th>
+                <th>Poisson Frais</th>
+                <th>Épicerie et Produits Laitiers</th>
+                <th>Viandes</th>
+                <th>Coût total de la journée</th>
+                <th>Effectif</th>
+            </tr>
+        </thead>
+    `);
+    
+    // Group days by week
+    const groupedDays = groupDaysByWeek(data.days_data);
+    
+    // Generate table content
+    const tbody = $('<tbody></tbody>');
+    
+    Object.keys(groupedDays).forEach(weekKey => {
+        const days = groupedDays[weekKey];
+        
+        // Add week header
+        tbody.append(`
+            <tr>
+                <td colspan="9" class="text-center week-header">la Semaine du ${weekKey}</td>
+            </tr>
+        `);
+        
+        // Add each day in week
+        days.forEach(day => {
+            const row = buildDayRow(day);
+            tbody.append(row);
+        });
+    });
+    
+    table.append(tbody);
+    contentDiv.append(table);
+}
         
         // Function to group days by week
         function groupDaysByWeek(days) {
@@ -382,41 +537,41 @@
             return parseFloat(value).toFixed(2);
         }
         
-        // PDF Export functionality
-        $('#btnExportPDF').on('click', function(e) {
-            e.preventDefault();
-            
-            const month = $('#month').val();
-            const typeMenu = $('#type_menu').val();
-            const typeCommande = $('#type_commande').val();
-            
-            if (!month) {
-                new AWN().alert('Veuillez sélectionner un mois');
-                return;
-            }
-            
-            const form = document.createElement('form');
-            form.method = 'GET';
-            form.action = exportMonthlyBreakdownPDF_url;
-            
-            const fields = {
-                month: month,
-                type_menu: typeMenu,
-                type_commande: typeCommande
-            };
-            
-            for (const [key, value] of Object.entries(fields)) {
-                const hidden = document.createElement('input');
-                hidden.type = 'hidden';
-                hidden.name = key;
-                hidden.value = value;
-                form.appendChild(hidden);
-            }
-            
-            document.body.appendChild(form);
-            form.submit();
-            document.body.removeChild(form);
-        });
+    
+$('#btnExportPDF').on('click', function(e) {
+    e.preventDefault();
+    
+    const month = $('#month').val();
+    const typeMenu = $('#type_menu').val();
+    const typeCommande = $('#type_commande').val();
+    
+    if (!month) {
+        new AWN().alert('Veuillez sélectionner un mois');
+        return;
+    }
+    
+    const form = document.createElement('form');
+    form.method = 'GET';
+    form.action = exportMonthlyBreakdownPDF_url;
+    
+    const fields = {
+        month: month,
+        type_menu: typeMenu,
+        type_commande: typeCommande
+    };
+    
+    for (const [key, value] of Object.entries(fields)) {
+        const hidden = document.createElement('input');
+        hidden.type = 'hidden';
+        hidden.name = key;
+        hidden.value = value;
+        form.appendChild(hidden);
+    }
+    
+    document.body.appendChild(form);
+    form.submit();
+    document.body.removeChild(form);
+});
     });
 </script>
 

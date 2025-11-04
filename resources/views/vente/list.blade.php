@@ -52,6 +52,11 @@
          
 
 <!-- Status History Section -->
+ @if($bonVente->status === 'Refus' && $bonVente->motif_refus)
+    <div class="alert alert-danger">
+        <strong>Motif de refus :</strong> {{ $bonVente->motif_refus }}
+    </div>
+@endif
 @if(isset($statusHistory) && count($statusHistory) > 0)
 <div class="card card-body">
     <h5 class="card-title border p-2 bg-light rounded-2">
@@ -97,6 +102,7 @@
                 </tr>
                 @endforeach
             </tbody>
+            
         </table>
     </div>
 </div>

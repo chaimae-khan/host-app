@@ -202,91 +202,86 @@ class VenteController extends Controller
 //     }
 // }
 
-    public function PostInTmpVente(Request $request)
-    {
-        // Check permission before posting to temp vente
-        if (!auth()->user()->can('Commande-ajoute')) {
-            return response()->json([
-                'status' => 403,
-                'message' => 'Vous n\'avez pas la permission d\'ajouter une commande'
-            ], 403);
-        }
-        
-        $data = $request->all();
-        $data['id_user'] = Auth::user()->id;
-        $data['qte'] = 1;
-        
-        DB::beginTransaction();
+public function PostInTmpVente(Request $request)
+{
+    if (!auth()->user()->can('Commande-ajoute')) {
+        return response()->json([
+            'status' => 403,
+            'message' => 'Vous n\'avez pas la permission d\'ajouter une commande'
+        ], 403);
+    }
+    
+    $data = $request->all();
+    $data['id_user'] = Auth::user()->id;
+    // ✅ Use the quantity from request, default to 1 if not provided
+    $data['qte'] = $request->input('qte', 1);
+    
+    DB::beginTransaction();
 
-        try {
-            // Get stock for this product
-            $stock = Stock::where('id_product', $data['idproduit'])->first();
+    try {
+        $stock = Stock::where('id_product', $data['idproduit'])->first();
+        $product = DB::table('products')->where('id', $data['idproduit'])->first();
+        $productName = $product ? $product->name : 'Unknown Product';
+
+        $existingProduct = TempVente::where('idproduit', $data['idproduit'])
+            ->where('id_formateur', $data['id_formateur'])
+            ->where('id_user', $data['id_user'])
+            ->first();
+
+        // ✅ Calculate requested quantity based on whether product exists
+        $requestedQty = $existingProduct ? $existingProduct->qte + $data['qte'] : $data['qte'];
             
-            // Get product name for error message
-            $product = DB::table('products')->where('id', $data['idproduit'])->first();
-            $productName = $product ? $product->name : 'Unknown Product';
-
-            $existingProduct = TempVente::where('idproduit', $data['idproduit'])
-                ->where('id_formateur', $data['id_formateur'])
-                ->where('id_user', $data['id_user'])
-                ->first();
-
-            // Calculate the requested quantity (1 for new items or current+1 for existing)
-            $requestedQty = $existingProduct ? $existingProduct->qte + 1 : 1;
-                
-            // Check if requested quantity is available in stock
-            if (!$stock || $stock->quantite < $requestedQty) {
-                // Log the warning in the same format as ChangeStatusVente
-                \Log::warning('Insufficient stock for product: "' . $productName . 
-                          '" (Requested: ' . $requestedQty . ', Available: ' . 
-                          ($stock ? $stock->quantite : 0) . ')');
-                
-                DB::rollBack();
-                
-                // Return error in the format that will be displayed to the user
-                return response()->json([
-                    'status' => 400,
-                    'message' => 'ERROR',
-                    'details' => 'Stock insuffisant pour "' . $productName . '". Disponible: ' . 
-                               ($stock ? $stock->quantite : 0) . ', Demandé: ' . $requestedQty,
-                    'type' => 'error'
-                ]);
-            }
-
-            if ($existingProduct) {
-                $existingProduct->increment('qte', 1);
-                DB::commit();
-
-                return response()->json([
-                    'status' => 200,
-                    'message' => 'SUCCESS',
-                    'details' => 'La quantité a été mise à jour avec succès',
-                    'type' => 'success'
-                ]);
-            } else {
-                TempVente::create($data);
-                DB::commit();
-
-                return response()->json([
-                    'status' => 200,
-                    'message' => 'SUCCESS',
-                    'details' => 'Ajouté avec succès',
-                    'type' => 'success'
-                ]);
-            }
-        } catch (\Exception $e) {
+        if (!$stock || $stock->quantite < $requestedQty) {
+            \Log::warning('Insufficient stock for product: "' . $productName . 
+                      '" (Requested: ' . $requestedQty . ', Available: ' . 
+                      ($stock ? $stock->quantite : 0) . ')');
+            
             DB::rollBack();
-            \Log::error('Error in PostInTmpVente: ' . $e->getMessage());
-
+            
             return response()->json([
-                'status' => 500,
+                'status' => 400,
                 'message' => 'ERROR',
-                'details' => 'Une erreur s\'est produite. Veuillez réessayer.',
-                'type' => 'error',
-                'error' => $e->getMessage(),
+                'details' => 'Stock insuffisant pour "' . $productName . '". Disponible: ' . 
+                           ($stock ? $stock->quantite : 0) . ', Demandé: ' . $requestedQty,
+                'type' => 'error'
             ]);
         }
+
+        if ($existingProduct) {
+            // ✅ Increment by the specified quantity instead of always 1
+            $existingProduct->increment('qte', $data['qte']);
+            DB::commit();
+
+            return response()->json([
+                'status' => 200,
+                'message' => 'SUCCESS',
+                'details' => 'La quantité a été mise à jour avec succès',
+                'type' => 'success'
+            ]);
+        } else {
+            TempVente::create($data);
+            DB::commit();
+
+            return response()->json([
+                'status' => 200,
+                'message' => 'SUCCESS',
+                'details' => 'Ajouté avec succès',
+                'type' => 'success'
+            ]);
+        }
+    } catch (\Exception $e) {
+        DB::rollBack();
+        \Log::error('Error in PostInTmpVente: ' . $e->getMessage());
+
+        return response()->json([
+            'status' => 500,
+            'message' => 'ERROR',
+            'details' => 'Une erreur s\'est produite. Veuillez réessayer.',
+            'type' => 'error',
+            'error' => $e->getMessage(),
+        ]);
     }
+}
 
  public function GetTmpVenteByFormateur(Request $request)
 {
@@ -1004,7 +999,6 @@ public function update(Request $request)
         ], 404);
     }
 
-    // Prevent modification if status is already validated (except for admins)
     if ($vente->status === 'Validation' && !auth()->user()->hasRole('Administrateur')) {
         return response()->json([
             'status' => 422,
@@ -1012,23 +1006,24 @@ public function update(Request $request)
         ], 422);
     }
 
-    // Updated validator to include the new menu attributes and Visé status
     $validator = Validator::make($request->all(), [
         'status' => 'required|string|in:Création,Validation,Refus,Livraison,Réception,Visé',
+        'motif_refus' => 'required_if:status,Refus|nullable|string|max:500',
         'type_menu' => 'sometimes|string|in:Menu eleves,Menu specials,Menu d\'application',
         'type_commande' => 'sometimes|string|in:Alimentaire,Non Alimentaire,Fournitures et matériels',
         'entree' => 'sometimes|string|max:255|nullable',
         'plat_principal' => 'sometimes|string|max:255|nullable',
         'accompagnement' => 'sometimes|string|max:255|nullable',
         'dessert' => 'sometimes|string|max:255|nullable',
-        
     ], [
         'required' => 'Le champ :attribute est requis.',
+        'motif_refus.required_if' => 'Le motif de refus est obligatoire.',
         'in' => 'Le statut doit être l\'un des suivants: Création, Validation, Refus, Livraison, Réception, Visé',
         'string' => 'Le champ :attribute doit être du texte',
         'max' => 'Le champ :attribute ne peut pas dépasser :max caractères',
     ], [
         'status' => 'statut',
+        'motif_refus' => 'motif de refus',
         'type_menu' => 'type de menu',
         'type_commande' => 'type de commande',
         'entree' => 'Entrée',
@@ -1044,17 +1039,21 @@ public function update(Request $request)
         ], 400);
     }
 
-    // Store old values for audit comparison
     $oldStatus = $vente->status;
 
     $vente->status = $request->status;
     
-    // Update type_menu if provided
+    // Save motif_refus if status is Refus
+    if ($request->status === 'Refus') {
+        $vente->motif_refus = $request->motif_refus;
+    } else {
+        $vente->motif_refus = null;
+    }
+    
     if ($request->has('type_menu')) {
         $vente->type_menu = $request->type_menu;
     }
     
-    // Update menu attributes if provided
     if ($request->has('entree')) {
         $vente->entree = $request->entree;
     }
@@ -1072,29 +1071,27 @@ public function update(Request $request)
     }
     
     $vente->save();
-    if($request->status == 'Réception')
-    {
+    
+    if($request->status == 'Réception') {
         $path_signature = Auth::user()->signature;
-                Historique_Sig::create([
-                        'signature'   => $path_signature,
-                        'iduser'      => Auth::user()->id,
-                        'idvente'     => $vente->id,
-                        'status'      => 'Réception'  
-                    ]);
+        Historique_Sig::create([
+            'signature'   => $path_signature,
+            'iduser'      => Auth::user()->id,
+            'idvente'     => $vente->id,
+            'status'      => 'Réception'  
+        ]);
     }
-     if($request->status == 'Livraison')
-    {
+    
+    if($request->status == 'Livraison') {
         $path_signature = Auth::user()->signature;
-                Historique_Sig::create([
-                        'signature'   => $path_signature,
-                        'iduser'      => Auth::user()->id,
-                        'idvente'     => $vente->id,
-                        'status'      => 'Livraison'  
-                    ]);
+        Historique_Sig::create([
+            'signature'   => $path_signature,
+            'iduser'      => Auth::user()->id,
+            'idvente'     => $vente->id,
+            'status'      => 'Livraison'  
+        ]);
     }
 
-
-    // Log significant status changes
     if ($oldStatus !== $request->status) {
         \Log::info('Vente status changed from "' . $oldStatus . '" to "' . $request->status . '" for vente ID: ' . $vente->id . ' by user: ' . auth()->user()->id);
     }

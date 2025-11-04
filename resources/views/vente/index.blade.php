@@ -603,6 +603,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 <option value="Visé">Visé</option>
                                 <option value="Réception">Validation</option>
                                  <option value="Livraison">Livraison</option>
+                                 
                             @endif
                             @if (Auth::user()->getRoleNames()->contains('Économe'))
                             <option value="Visé">Visé</option>
@@ -618,6 +619,10 @@ document.addEventListener('DOMContentLoaded', function () {
                             <!-- <option value="Réception">Réception</option> -->
                         </select>
                     </div>
+                    <div class="form-group" id="motif_refus_container" style="display: none;">
+                   <label for="motif_refus">Motif de refus <span class="text-danger">*</span></label>
+                    <textarea class="form-control" id="motif_refus" rows="3" placeholder="Veuillez indiquer le motif de refus"></textarea>
+                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>

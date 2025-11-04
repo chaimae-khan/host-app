@@ -88,20 +88,13 @@
                                 <table class="table datatable TableLowStock">
                                     <thead>
                                         <tr>
-                                            <th>Code article</th>
                                             <th>Nom du Produit</th>
                                             <th>Unité</th>
                                             <th>Catégorie</th>
                                             <th>Famille</th>
                                             <th>Emplacement</th>
-                                            <th>Stock Actuel</th>
-                                            <th>Seuil</th>
-                                            <th>Déficit</th>
-                                            <th>Prix d'achat</th>
-                                            <th>TVA</th>
+                                            <th>Stock</th>
                                             <th>Statut</th>
-                                            <th>Photo</th>
-                                            <th>Date de réception</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -344,6 +337,10 @@ $(document).ready(function () {
                 exportOptions: {
                     columns: ':visible'
                 }
+            },
+            {
+                extend: 'colvis',
+                text: 'Colonnes'
             }
         ],
         processing: true,
@@ -362,30 +359,18 @@ $(document).ready(function () {
             }
         },
         columns: [
-            { data: 'code_article', name: 'p.code_article' },
             { data: 'name', name: 'p.name' },
             { data: 'unite_name', name: 'u.name' },
             { data: 'categorie', name: 'c.name' },
             { data: 'famille', name: 'sc.name' },
             { data: 'emplacement', name: 'p.emplacement' },
-            { data: 'quantite', name: 's.quantite' },
-            { data: 'seuil', name: 'p.seuil' },
-            { data: 'deficit', name: 'deficit' },
-            { data: 'price_achat', name: 'p.price_achat' },
-            { data: 'tva_value', name: 't.value' },
+            { data: 'quantite', name: 'quantite' },
             { 
                 data: 'stock_status', 
                 name: 'stock_status', 
                 orderable: false, 
                 searchable: false 
-            },
-            { 
-                data: 'photo_display', 
-                name: 'photo_display', 
-                orderable: false, 
-                searchable: false 
-            },
-            { data: 'created_at', name: 'p.created_at' }
+            }
         ],
         language: {
             "sInfo": "",
@@ -406,7 +391,7 @@ $(document).ready(function () {
         createdRow: function(row, data, dataIndex) {
             if (data.quantite == 0) {
                 $(row).addClass('out-of-stock-row');
-            } else {
+            } else if (data.quantite <= data.seuil) {
                 $(row).addClass('low-stock-row');
             }
         }

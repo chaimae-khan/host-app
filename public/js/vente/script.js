@@ -315,159 +315,85 @@ $(document).ready(function () {
         });
     }
 
-    function initializeTableProduct(selector, data) {
-        // Properly destroy DataTable if it exists
-        if (activeDataTables.productSearch) {
-            activeDataTables.productSearch.destroy();
-            activeDataTables.productSearch = null;
-        }
-    
-        // Initialize DataTable
-        activeDataTables.productSearch = $(selector).DataTable({
-            select: true,
-            data: data,
-            destroy: true,
-            processing: true,
-            serverSide: false,
-            autoWidth: false,
-            columns: [
-                { data: 'name', title: 'Produit' },
-                { data: 'quantite', title: 'Quantité' },
-                { data: 'seuil', title: 'Seuil' },
-                { data: 'name_local', title: 'Local' }
-            ],
-            rowCallback: function(row, data, index) {
-                $(row).attr('id', data.id); 
-            },
-            language: {
-                "sInfo": "",
-                "sInfoEmpty": "Affichage de l'élément 0 à 0 sur 0 élément",
-                "sInfoFiltered": "(filtré à partir de _MAX_ éléments au total)",
-                "sLengthMenu": "Afficher _MENU_ éléments",
-                "sLoadingRecords": "Chargement...",
-                "sProcessing": "Traitement...",
-                "sSearch": "Rechercher :",
-                "sZeroRecords": "Aucun élément correspondant trouvé",
-                "oPaginate": {
-                    "sFirst": "Premier",
-                    "sLast": "Dernier",
-                    "sNext": "Suivant",
-                    "sPrevious": "Précédent"
-                }
-            }
-        });
-    
-        $(selector + ' tbody').off('click', 'tr');
-        
-        $(selector + ' tbody').on('click', 'tr', function(e) {
-            e.preventDefault();
-            
-            // If a request is already in progress, ignore this click
-            if (ajaxInProgress.postInTmpVente) {
-                return;
-            }
-            
-            let id = $(this).attr('id');
-            let Formateur = $('#DropDown_formateur').val();
-            let clickedRow = $(this);
-            
-            if (!id || id === '') {
-                console.warn('No ID found for this row');
-                return;
-            }
-            
-            if (Formateur == 0) {
-                new AWN().alert('Veuillez sélectionner un demandeur', {durations: {success: 5000}});
-                return false;
-            }
-            
-            // Mark post operation as in progress and visually indicate processing
-            ajaxInProgress.postInTmpVente = true;
-            clickedRow.addClass('bg-secondary-subtle');
-            
-            $.ajax({
-                type: "POST",
-                url: PostInTmpVente,
-                data: {
-                    '_token': csrf_token,
-                    'idproduit': id,
-                    'id_formateur': Formateur,
-                },
-                dataType: "json",
-                success: function(response) {
-                    // Mark post operation as complete
-                    ajaxInProgress.postInTmpVente = false;
-                    clickedRow.removeClass('bg-secondary-subtle');
-                    
-                    if (response.status == 200) {
-                        // Success case - either new format or old format
-                        if (response.type === 'success') {
-                            // New response format
-                            new AWN().success(response.details, {
-                                labels: {
-                                    success: response.message
-                                },
-                                durations: {success: 5000}
-                            });
-                        } else {
-                            // Old response format
-                            new AWN().success(response.message, {durations: {success: 5000}});
-                        }
-                        
-                        // Refresh the TmpVente table
-                        initializeTableTmpVente('.TableTmpVente', Formateur);
-                        GetTotalTmpByFormateurAndUserScript(Formateur);
-                    } else if (response.status == 400) {
-                        // Error case
-                        if (response.type === 'error') {
-                            // New error format
-                            new AWN().warning(response.details, {
-                                labels: {
-                                    warning: response.message
-                                },
-                                durations: {warning: 5000}
-                            });
-                        } else {
-                            // Old error format or generic error
-                            new AWN().alert(response.message || 'Une erreur est survenue', {durations: {alert: 5000}});
-                        }
-                    } else {
-                        // Other status codes
-                        new AWN().alert(response.message || 'Une erreur est survenue', {durations: {alert: 5000}});
-                    }
-                },
-                error: function(xhr, status, error) {
-                    // Mark post operation as complete and restore visual state
-                    ajaxInProgress.postInTmpVente = false;
-                    clickedRow.removeClass('bg-secondary-subtle');
-                    
-                    console.error("Error adding product:", error);
-                    console.error("Response:", xhr.responseText);
-                    
-                    try {
-                        const errorData = JSON.parse(xhr.responseText);
-                        if (errorData.type === 'error') {
-                            // New error format
-                            new AWN().alert(errorData.details, {
-                                labels: {
-                                    alert: errorData.message
-                                },
-                                durations: {alert: 5000}
-                            });
-                        } else {
-                            // Old error format
-                            new AWN().alert(errorData.message || "Impossible d'ajouter le produit", {durations: {alert: 5000}});
-                        }
-                    } catch (e) {
-                        // Could not parse response as JSON
-                        new AWN().alert("Impossible d'ajouter le produit", {durations: {alert: 5000}});
-                    }
-                }
-            });
-        });
-        
-        return activeDataTables.productSearch;
+ function initializeTableProduct(selector, data) {
+    // Properly destroy DataTable if it exists
+    if (activeDataTables.productSearch) {
+        activeDataTables.productSearch.destroy();
+        activeDataTables.productSearch = null;
     }
+
+    // Initialize DataTable
+    activeDataTables.productSearch = $(selector).DataTable({
+        select: true,
+        data: data,
+        destroy: true,
+        processing: true,
+        serverSide: false,
+        autoWidth: false,
+        columns: [
+            { data: 'name', title: 'Produit' },
+            { data: 'quantite', title: 'Quantité' },
+            { data: 'seuil', title: 'Seuil' },
+            { data: 'name_local', title: 'Local' }
+        ],
+        rowCallback: function(row, data, index) {
+            $(row).attr('id', data.id); 
+        },
+        language: {
+            "sInfo": "",
+            "sInfoEmpty": "Affichage de l'élément 0 à 0 sur 0 élément",
+            "sInfoFiltered": "(filtré à partir de _MAX_ éléments au total)",
+            "sLengthMenu": "Afficher _MENU_ éléments",
+            "sLoadingRecords": "Chargement...",
+            "sProcessing": "Traitement...",
+            "sSearch": "Rechercher :",
+            "sZeroRecords": "Aucun élément correspondant trouvé",
+            "oPaginate": {
+                "sFirst": "Premier",
+                "sLast": "Dernier",
+                "sNext": "Suivant",
+                "sPrevious": "Précédent"
+            }
+        }
+    });
+
+    // ✅ NEW: Remove old click handler and add new one for quantity modal
+    $(selector + ' tbody').off('click', 'tr');
+    
+    $(selector + ' tbody').on('click', 'tr', function(e) {
+        e.preventDefault();
+        
+        let id = $(this).attr('id');
+        let Formateur = $('#DropDown_formateur').val();
+        let productName = $(this).find('td:eq(0)').text(); // Get product name from first column
+        
+        if (!id || id === '') {
+            console.warn('No ID found for this row');
+            return;
+        }
+        
+        if (Formateur == 0) {
+            new AWN().alert('Veuillez sélectionner un demandeur', {durations: {alert: 5000}});
+            return false;
+        }
+        
+        // ✅ Show the quantity modal instead of auto-adding
+        $('#ModalEditQteTmp').modal('show');
+        
+        // Store product ID and name in modal for later use
+        $('#ModalEditQteTmp').data('product-id', id);
+        $('#ModalEditQteTmp').data('product-name', productName);
+        $('#ModalEditQteTmp').data('formateur-id', Formateur);
+        
+        // Reset quantity input to 1 by default
+        $('#QteTmp').val(1);
+        
+        // Update modal title to show product name
+        $('#modalTitleId').text('Ajouter ' + productName);
+    });
+    
+    return activeDataTables.productSearch;
+}
             
     // Product search functionality
    let searchTimeoutt = null;
@@ -942,17 +868,100 @@ $(document).ready(function() {
     });
 });
     // Update quantity in tmp vente
-    $('#BtnUpdateQteTmp').off('click').on('click', function(e) {
-        e.preventDefault();
+// Add/Update quantity in tmp vente from product selection modal
+$('#BtnUpdateQteTmp').off('click').on('click', function(e) {
+    e.preventDefault();
+    
+    // Check if this is being called from product selection or from temp vente edit
+    let productId = $('#ModalEditQteTmp').data('product-id');
+    let tempVenteId = $(this).attr('data-id');
+    
+    // If we have a product-id, this is a new addition from product table
+    if (productId) {
+        let Qte = $('#QteTmp').val();
+        let Formateur = $('#ModalEditQteTmp').data('formateur-id');
         
+        if(Qte <= 0) {
+            new AWN().alert("La quantité doit être supérieure à zéro", {durations: {alert: 5000}});
+            return false;
+        }
+        
+        // Disable button to prevent double-clicks
+        $('#BtnUpdateQteTmp').prop('disabled', true).text('Enregistrement...');
+        
+        // Add product to temp vente with specified quantity
+        $.ajax({
+            type: "POST",
+            url: PostInTmpVente,
+            data: {
+                '_token': csrf_token,
+                'idproduit': productId,
+                'id_formateur': Formateur,
+                'qte': Qte  // Add the quantity parameter
+            },
+            dataType: "json",
+            success: function(response) {
+                $('#BtnUpdateQteTmp').prop('disabled', false).text('Sauvegarder');
+                
+                if (response.status == 200) {
+                    if (response.type === 'success') {
+                        new AWN().success(response.details, {
+                            labels: { success: response.message },
+                            durations: {success: 5000}
+                        });
+                    } else {
+                        new AWN().success(response.message, {durations: {success: 5000}});
+                    }
+                    
+                    // Refresh the TmpVente table
+                    initializeTableTmpVente('.TableTmpVente', Formateur);
+                    GetTotalTmpByFormateurAndUserScript(Formateur);
+                    
+                    // Close the modal and clear data
+                    $('#ModalEditQteTmp').modal('hide');
+                    $('#ModalEditQteTmp').removeData('product-id');
+                    $('#ModalEditQteTmp').removeData('product-name');
+                    
+                } else if (response.status == 400) {
+                    if (response.type === 'error') {
+                        new AWN().warning(response.details, {
+                            labels: { warning: response.message },
+                            durations: {warning: 5000}
+                        });
+                    } else {
+                        new AWN().alert(response.message || 'Une erreur est survenue', {durations: {alert: 5000}});
+                    }
+                }
+            },
+            error: function(xhr, status, error) {
+                $('#BtnUpdateQteTmp').prop('disabled', false).text('Sauvegarder');
+                console.error("Error adding product:", error);
+                
+                try {
+                    const errorData = JSON.parse(xhr.responseText);
+                    if (errorData.type === 'error') {
+                        new AWN().alert(errorData.details, {
+                            labels: { alert: errorData.message },
+                            durations: {alert: 5000}
+                        });
+                    } else {
+                        new AWN().alert(errorData.message || "Impossible d'ajouter le produit", {durations: {alert: 5000}});
+                    }
+                } catch (e) {
+                    new AWN().alert("Impossible d'ajouter le produit", {durations: {alert: 5000}});
+                }
+            }
+        });
+        
+    } 
+    // Otherwise, this is an update to existing temp vente item
+    else if (tempVenteId) {
         // If already processing an update request, ignore this click
         if (ajaxInProgress.updateQteTmp) {
             return;
         }
         
         let Qte = $('#QteTmp').val();
-        let id = $(this).attr('data-id');
-        // Get the current formateur value - this is crucial
         let currentFormateur = $('#DropDown_formateur').val();
         
         if(Qte <= 0) {
@@ -970,47 +979,30 @@ $(document).ready(function() {
             data: {
                 '_token': csrf_token,
                 'qte': Qte,
-                'id': id,
+                'id': tempVenteId,
             },
             dataType: "json",
             success: function(response) {
-                // Mark update operation as complete 
                 ajaxInProgress.updateQteTmp = false;
                 $('#BtnUpdateQteTmp').prop('disabled', false).text('Sauvegarder');
                 
                 if(response.status == 200) {
-                    // Success case
                     new AWN().success(response.details, {
-                        labels: {
-                            success: response.message
-                        },
+                        labels: { success: response.message },
                         durations: {success: 5000}
                     });
                     
-                    // Add console logs for debugging
-                    console.log("Update successful, refreshing table with formateur ID:", currentFormateur);
-                    
-                    // Explicitly refresh the DataTable with the current formateur
                     initializeTableTmpVente('.TableTmpVente', currentFormateur);
-                    
-                    // Update the total
                     GetTotalTmpByFormateurAndUserScript(currentFormateur);
-                    
-                    // Close the modal
                     $('#ModalEditQteTmp').modal('hide');
                 }
                 else if(response.status == 400) {
-                    // Error case for validation errors
                     if(response.message === 'ERROR') {
-                        // This is our custom error format with details
                         new AWN().warning(response.details, {
-                            labels: {
-                                warning: response.message
-                            },
+                            labels: { warning: response.message },
                             durations: {warning: 5000}
                         });
                     } else {
-                        // This is the old format with validation errors
                         $('.validationUpdateQteTmp').html("");
                         $('.validationUpdateQteTmp').addClass('alert alert-danger');
                         $.each(response.errors, function(key, list_err) {
@@ -1020,22 +1012,16 @@ $(document).ready(function() {
                 }
             },
             error: function(xhr, status, error) {
-                // Mark update operation as complete and re-enable button
                 ajaxInProgress.updateQteTmp = false;
                 $('#BtnUpdateQteTmp').prop('disabled', false).text('Sauvegarder');
                 
                 console.error("Error updating quantity:", error);
-                console.error("Status:", status);
-                console.error("Response:", xhr.responseText);
                 
                 try {
                     const response = JSON.parse(xhr.responseText);
                     if(response.message === 'ERROR') {
-                        // Display our formatted error message
                         new AWN().alert(response.details, {
-                            labels: {
-                                alert: response.message
-                            },
+                            labels: { alert: response.message },
                             durations: {alert: 5000}
                         });
                     } else {
@@ -1046,7 +1032,8 @@ $(document).ready(function() {
                 }
             }
         });
-    });
+    }
+});
 
     // Edit Vente functionality
     $('.TableVente tbody').on('click', '.bg-primary-subtle', function(e) {

@@ -638,10 +638,7 @@ class StockController extends Controller
         return view('stock.expiring', compact('class'));
     }
 
-    /**
-     * Display products with low stock (at or below threshold)
-     */
-   public function lowStockProducts(Request $request)
+public function lowStockProducts(Request $request)
 {
     if ($request->ajax()) {
         $dataLowStock = DB::table('stock as s')
@@ -649,7 +646,6 @@ class StockController extends Controller
                     ->leftJoin('categories as c', 'p.id_categorie', '=', 'c.id')
                     ->leftJoin('sub_categories as sc', 'p.id_subcategorie', '=', 'sc.id')
                     ->leftJoin('unite as u', 'p.id_unite', '=', 'u.id')
-                    ->leftJoin('tvas as t', 'p.id_tva', '=', 't.id')
                     ->whereNull('s.deleted_at')
                     ->whereNull('p.deleted_at')
                     ->select(
@@ -660,16 +656,13 @@ class StockController extends Controller
                         'sc.name as famille',
                         DB::raw('MIN(p.emplacement) as emplacement'),
                         DB::raw('SUM(s.quantite) as quantite'),
-                        't.value as tva_value',
-                        DB::raw('MAX(p.seuil) as seuil'),
-                        DB::raw('MIN(p.photo) as photo')
+                        DB::raw('MAX(p.seuil) as seuil')
                     )
                     ->groupBy(
                         'p.name',
                         'u.name',
                         'c.name',
-                        'sc.name',
-                        't.value'
+                        'sc.name'
                     )
                     ->havingRaw('SUM(s.quantite) <= MAX(p.seuil)');
         
@@ -704,19 +697,7 @@ class StockController extends Controller
                     return '<span class="badge bg-warning">Au Seuil</span>';
                 }
             })
-            ->addColumn('photo_display', function ($row) {
-                if ($row->photo) {
-                    return '<img src="' . asset('storage/' . $row->photo) . '" alt="Photo" style="width: 50px; height: 50px; object-fit: cover;" class="rounded">';
-                }
-                return '<span class="text-muted">Pas d\'image</span>';
-            })
-            ->addColumn('deficit', function ($row) {
-                return ($row->seuil - $row->quantite);
-            })
-            ->editColumn('tva_value', function ($row) {
-                return $row->tva_value ? number_format($row->tva_value, 2) . '%' : '0.00%';
-            })
-            ->rawColumns(['stock_status', 'photo_display'])
+            ->rawColumns(['stock_status'])
             ->make(true);
     }
     

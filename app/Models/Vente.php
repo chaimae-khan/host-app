@@ -29,6 +29,7 @@ class Vente extends Model implements Auditable
     protected $fillable = [
         'total',
         'status',
+        'motif_refus',
         'type_commande', 
         'type_menu',
         'id_client',
@@ -44,6 +45,7 @@ class Vente extends Model implements Auditable
         'plat_principal',
         'accompagnement',
         'dessert',
+
     ];
 
     /**
