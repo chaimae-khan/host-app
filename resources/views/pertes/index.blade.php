@@ -200,17 +200,42 @@
                                     <div class="col-md-6">
                                         <div class="form-group">
                                             <label>Nature de la perte <span class="text-danger">*</span></label>
-                                            <select name="nature" class="form-control" required>
-                                                <option value="">Sélectionner la nature</option>
+                                            <select name="nature" class="form-control" id="natureDropDown" required>
+                                                <option value="0">Please select</option>
+                                                <option value="stock">stock</option>
+                                                
+                                                <option value="produit fini">produit fini</option>
+                                               {{--  <option value="">Sélectionner la nature</option>
                                                 <option value="Casse">Casse</option>
                                                 <option value="Péremption">Péremption</option>
                                                 <option value="Vol">Vol</option>
                                                 <option value="Détérioration">Détérioration</option>
-                                                <option value="Autre">Autre</option>
+                                                <option value="Autre">Autre</option> --}}
                                             </select>
                                         </div>
                                     </div>
                                 </div>
+                                <script>
+                                    $('#natureDropDown').on('change',function(e)
+                                    {
+                                        let value = $(this).val();
+                                        if(value == 0 || value === "stock")
+                                        {
+                                            if(value == 0)
+                                            {
+                                                 alert("please selected nature");
+                                                  return false;
+                                            }
+                                           
+                                            $('#divtets').css('display','none');
+                                           
+                                        }
+                                        else
+                                        {
+                                            $('#divtets').css('display','block');
+                                        }
+                                    });
+                                </script>
 
                                 <!-- Date de perte -->
                                 <div class="row mb-3">
@@ -218,6 +243,15 @@
                                         <div class="form-group">
                                             <label>Date de la perte <span class="text-danger">*</span></label>
                                             <input type="date" name="date_perte" class="form-control" required max="{{ date('Y-m-d') }}">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6" id="divtets" style="display: none">
+                                        <div class="form-group">
+                                            <label>Date de la perte <span class="text-danger">*</span></label>
+                                            <select name="" id="" class="form-select">
+                                                <option value="entér">entér</option>
+                                                <option value="suit ">entér </option>
+                                            </select>
                                         </div>
                                     </div>
                                 </div>
