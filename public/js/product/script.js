@@ -473,10 +473,13 @@ function initializeFilters() {
         categorySelect.empty().append('<option value="">Toutes les catégories</option>');
         subcategorySelect.empty().append('<option value="">Toutes les familles</option>');
         
+        // Clear designation filter and suggestions
+        $('#filter_designation').val('');
+        $('#designation_suggestions').hide().empty();
+        
         if (className) {
             loadFilterCategoriesByClass(className);
         } else {
-            // If no class selected, reload all categories via AJAX
             loadAllCategories();
         }
         
@@ -486,8 +489,14 @@ function initializeFilters() {
     // Category filter change
     $('#filter_categorie').on('change', function() {
         var categoryId = $(this).val();
+        var subcategorySelect = $('#filter_subcategorie');
         
-        $('#filter_subcategorie').empty().append('<option value="">Toutes les familles</option>');
+        // Reset subcategory dropdown
+        subcategorySelect.empty().append('<option value="">Toutes les familles</option>');
+        
+        // Clear designation filter and suggestions
+        $('#filter_designation').val('');
+        $('#designation_suggestions').hide().empty();
         
         if (categoryId) {
             loadFilterSubcategories(categoryId);
@@ -496,32 +505,38 @@ function initializeFilters() {
         $('.TableProducts').DataTable().ajax.reload();
     });
     
-    // Subcategory filter change
-    $('#filter_subcategorie').on('change', function() 
-    {
-        $.ajax({ 
-        type: "get",
-        url: GetProductByCategoryAndFamille,
-        data:
-        {
-            category : category,
-            Famille  : dropdownFamille,
-        },
-        dataType: "json",
-        success: function (response)  
-        {
-            if (response.status === 200 && response.ProductByCategoryAndFamille.length > 0) 
-            {
-                let suggestions = '';
-                $.each(response.ProductByCategoryAndFamille, function(key, product) {
-                    suggestions += '<a href="#" class="list-group-item list-group-item-action designation-item" data-id="' + product.id + '" data-name="' + product.name + '">' + product.name + '</a>';
-                });
-                $('#designation_suggestions').html(suggestions).show();
-            } else {
-                $('#designation_suggestions').hide().empty();
-            }
+    // ✅ CORRECTED: Subcategory filter change
+    $('#filter_subcategorie').on('change', function() {
+        var categoryId = $('#filter_categorie').val();
+        var subcategoryId = $(this).val();
+        
+        // Clear designation filter and suggestions
+        $('#filter_designation').val('');
+        $('#designation_suggestions').hide().empty();
+        
+        // Optionally load products for designation autocomplete
+        if (categoryId && subcategoryId) {
+            $.ajax({ 
+                type: "GET",
+                url: GetProductByCategoryAndFamille,
+                data: {
+                    category: categoryId,
+                    Famille: subcategoryId
+                },
+                dataType: "json",
+                success: function (response) {
+                    if (response.status === 200 && response.ProductByCategoryAndFamille && response.ProductByCategoryAndFamille.length > 0) {
+                        console.log('Products loaded for subcategory:', response.ProductByCategoryAndFamille.length);
+                        // Products are now available for designation autocomplete
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('Error loading products:', error);
+                }
+            });
         }
-    });
+        
+        // Reload DataTable with new filter
         $('.TableProducts').DataTable().ajax.reload();
     });
     
@@ -530,7 +545,6 @@ function initializeFilters() {
     $('#filter_designation').on('keyup', function() {
         clearTimeout(designationTimeout);
         const query = $(this).val();
-        
         
         if (query.length < 2) {
             $('#designation_suggestions').hide().empty();
@@ -545,8 +559,9 @@ function initializeFilters() {
                 url: searchProductNames_url,
                 type: 'GET',
                 data: { query: query },
+                dataType: 'json',
                 success: function(response) {
-                    if (response.status === 200 && response.products.length > 0) {
+                    if (response.status === 200 && response.products && response.products.length > 0) {
                         let suggestions = '';
                         $.each(response.products, function(key, product) {
                             suggestions += '<a href="#" class="list-group-item list-group-item-action designation-item" data-id="' + product.id + '" data-name="' + product.name + '">' + product.name + '</a>';
@@ -555,18 +570,24 @@ function initializeFilters() {
                     } else {
                         $('#designation_suggestions').hide().empty();
                     }
+                },
+                error: function(xhr, status, error) {
+                    console.error('Error searching products:', error);
+                    $('#designation_suggestions').hide().empty();
                 }
             });
         }, 300);
     });
     
-    // Click on suggestion
+    // Click on designation suggestion
     $(document).on('click', '.designation-item', function(e) {
         e.preventDefault();
         const name = $(this).data('name');
         $('#filter_designation').val(name);
         $('#designation_suggestions').hide().empty();
-         if ($.fn.DataTable.isDataTable('.TableProducts')) {
+        
+        // Destroy and reinitialize DataTable with designation filter
+        if ($.fn.DataTable.isDataTable('.TableProducts')) {
             $('.TableProducts').DataTable().destroy();
         }
         
@@ -576,9 +597,11 @@ function initializeFilters() {
             ajax: {
                 url: products_url,
                 data: function(d) {
-                    // Add filter parameters
+                    // Add all filter parameters
+                    d.filter_class = $('#filter_class').val();
+                    d.filter_categorie = $('#filter_categorie').val();
+                    d.filter_subcategorie = $('#filter_subcategorie').val();
                     d.filter_designation = name;
-                    
                 },
                 dataSrc: function (json) {
                     if (json.data.length === 0) {
@@ -600,14 +623,12 @@ function initializeFilters() {
                 { data: 'emplacement', name: 'p.emplacement' },
                 { data: 'stock', name: 's.quantite' },
                 { data: 'price_achat', name: 'p.price_achat' },
-                // { data: 'taux_taxe', name: 't.value' },
                 { data: 'seuil', name: 'p.seuil' },
                 { 
                     data: 'date_expiration', 
                     name: 'p.date_expiration',
                     render: function(data) {
                         if (data) {
-                            // Format date as DD/MM/YYYY
                             const date = new Date(data);
                             return date.toLocaleDateString('fr-FR');
                         } else {
@@ -615,30 +636,29 @@ function initializeFilters() {
                         }
                     }
                 },
-                  { 
-        data: 'date_reception', 
-        name: 'p.date_reception',
-        defaultContent: '<span class="text-muted">Non définie</span>',
-        render: function(data) {
-            if (data && data !== null && data !== '') {
-                try {
-                    const date = new Date(data);
-                    if (!isNaN(date.getTime())) {
-                        return date.toLocaleDateString('fr-FR');
+                { 
+                    data: 'date_reception', 
+                    name: 'p.date_reception',
+                    defaultContent: '<span class="text-muted">Non définie</span>',
+                    render: function(data) {
+                        if (data && data !== null && data !== '') {
+                            try {
+                                const date = new Date(data);
+                                if (!isNaN(date.getTime())) {
+                                    return date.toLocaleDateString('fr-FR');
+                                }
+                            } catch (e) {
+                                console.error('Error parsing date_reception:', e);
+                            }
+                        }
+                        return '<span class="text-muted">Non définie</span>';
                     }
-                } catch (e) {
-                    console.error('Error parsing date_reception:', e);
-                }
-            }
-            return '<span class="text-muted">Non définie</span>';
-        }
-    },
+                },
                 {
                     data: 'created_at',
                     name: 'p.created_at',
                     render: function(data) {
                         if (data) {
-                            // Format date and time as DD/MM/YYYY HH:MM
                             const date = new Date(data);
                             return date.toLocaleDateString('fr-FR') + ' ' + date.toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'});
                         } else {
@@ -665,19 +685,18 @@ function initializeFilters() {
                 }
             }
         });
-        //$('.TableProducts').DataTable().ajax.reload();
     });
     
     // Hide suggestions when clicking outside
     $(document).on('click', function(e) {
         if (!$(e.target).closest('#filter_designation, #designation_suggestions').length) {
             $('#designation_suggestions').hide();
-            
         }
     });
     
     // Reset filters button
     $('#btn_reset_filter').on('click', function() {
+        // Reset all filter inputs
         $('#filter_class').val('');
         $('#filter_designation').val('');
         $('#designation_suggestions').hide().empty();
@@ -689,11 +708,10 @@ function initializeFilters() {
         // Reset subcategory dropdown
         $('#filter_subcategorie').empty().append('<option value="">Toutes les familles</option>');
         
-        // Reload table
+        // Reload table without filters
         $('.TableProducts').DataTable().ajax.reload();
     });
 }
-
 // Load all categories (used when no class filter is selected)
 function loadAllCategories() {
     var categorySelect = $('#filter_categorie');
