@@ -171,20 +171,22 @@ class AchatController extends Controller
 
 public function getProduct(Request $request)
 {
-    $name_product = $request->product;
-    $category = $request->category;
+    $name_product        = $request->product;
+    $category            = $request->category;
     $filter_subcategorie = $request->filter_subcategorie;
-    $type_command = $request->type_commande;
-    $order_by = $request->order_by; // 'date_exp' or 'date_reception'
-    $order_direction = $request->order_direction ?? 'asc'; // 'asc' or 'desc'
-    
+    $type_command        = $request->type_commande;
+    $order_by            = $request->order_by; // 'date_exp' or 'date_reception'
+    $order_direction     = $request->order_direction ?? 'asc'; // 'asc' or 'desc'
+
+    // Determine class based on command type
     $classe = $type_command == "Non Alimentaire" ? "NON ALIMENTAIRE" : "DENREES ALIMENTAIRES";
-    
+
     if ($request->ajax()) 
     {
-        // Get category IDs that belong to the selected classe
+        // Get all category IDs that belong to the selected class
         $get_id_category = Category::where('classe', $classe)->pluck('id')->toArray();
-        
+
+        // Base query
         $Data_Product = DB::table('products as p')
             ->join('stock as s', 'p.id', '=', 's.id_product')
             ->join('locals as l', 'p.id_local', '=', 'l.id')
@@ -202,36 +204,39 @@ public function getProduct(Request $request)
                 'u.name as unite_name',
                 'u.id as id_unite',
                 'p.date_expiration',
-                'p.created_at as date_reception' // Add these fields to the select
+                'p.created_at as date_reception'
             );
-            
+
+        // 🔍 Filter by product name
         $Data_Product->when($name_product, function ($q, $name_product) {
-            return $q->where('p.name', 'like',  $name_product . '%');
+            return $q->where('p.name', 'like', $name_product . '%');
         });
-        
+
+        // 🔍 Filter by category
         $Data_Product->when($category, function ($q, $category) {
             return $q->where('p.id_categorie', $category);
         });
-        
+
+        // 🔍 Filter by subcategory
         $Data_Product->when($filter_subcategorie, function ($q, $filter_subcategorie) {
             return $q->where('p.id_subcategorie', $filter_subcategorie);
         });
-        
-        // Apply class-based category filter
-        $Data_Product->when($get_id_category, function ($q) use ($get_id_category) {
+
+        // ✅ Apply class-based category filter only if no specific category is chosen
+        $Data_Product->when(!$category && !empty($get_id_category), function ($q) use ($get_id_category) {
             return $q->whereIn('p.id_categorie', $get_id_category);
         });
-        
-        // Apply ordering
+
+        // 🧭 Sorting
         if ($order_by === 'date_exp') {
             $Data_Product->orderBy('p.date_expiration', $order_direction);
         } elseif ($order_by === 'date_reception') {
             $Data_Product->orderBy('p.created_at', $order_direction);
         } else {
-            // Default ordering
             $Data_Product->orderBy('p.name', 'asc');
         }
-        
+
+        // ✅ Execute query
         $results = $Data_Product->get();
         
         return response()->json([

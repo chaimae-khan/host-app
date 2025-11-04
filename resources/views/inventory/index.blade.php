@@ -899,7 +899,7 @@ $('#dropdownFamille').on('change',function(e)
         alert("Please select a famille");
         return false;
     }
-    $.ajax({
+    $.ajax({ 
         type: "get",
         url: GetProductByCategoryAndFamille,
         data:

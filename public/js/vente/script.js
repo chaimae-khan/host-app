@@ -1499,7 +1499,8 @@ $('#filter_categorie').on('change', function() {
         $.get(getProduct, { 
             product: name_product,
             filter_subcategorie: '',  // ← EMPTY! Just category filter
-            category: categoryId 
+            category: categoryId ,
+            type_commande : $('#type_commande').val(),
         }, function(secondResponse) {
             if (secondResponse.status === 200) {
                 $('.input_products').prop('disabled', false);

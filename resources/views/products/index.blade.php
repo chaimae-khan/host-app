@@ -46,6 +46,7 @@ document.addEventListener('DOMContentLoaded', function () {
     var getProduct             = "{{ url('getProduct') }}";
     var GetProductByFamaille             = "{{ url('GetProductByFamaille') }}";
     var getUnitebyProduct             = "{{ url('getUnitebyProduct') }}";
+    var GetProductByCategoryAndFamille = "{{url('GetProductByCategoryAndFamille')}}";
 </script>
 <script src="{{ asset('js/product/script.js') }}"></script>
 
@@ -632,6 +633,12 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         });
     });
+
+
+
+
+
+    
 
     /* $('#') */
 </script>
