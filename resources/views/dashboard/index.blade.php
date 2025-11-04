@@ -327,6 +327,7 @@
 </li>
 @endcan
 
+
 @can('Voir-Consommation-Complète')
 <li>
     <a class='tp-link' href="{{url('consumption/all')}}">
@@ -335,6 +336,13 @@
     </a>
 </li>
 @endcan
+<li>
+    <a class="tp-link" href="{{ url('consumption/yearly-breakdown') }}">
+        <i class="fa-solid fa-chart-pie"></i>
+        <span>FEUILLE DE CONSOMMATION ANNUELLE</span>
+    </a>
+</li>
+
  @can('Fournisseurs')
                             <li class="menu-title">Fournisseur</li>
 

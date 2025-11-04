@@ -1570,37 +1570,34 @@ public function exportMonthlyBreakdownPDF(Request $request)
     ]);
 
     try {
+        // ✅ SET FRENCH LOCALE FOR CARBON
+        \Carbon\Carbon::setLocale('fr');
+        setlocale(LC_TIME, 'fr_FR.UTF-8', 'fr_FR', 'fr');
+        
         // Parse month for display
         $monthDate = Carbon::createFromFormat('Y-m', $request->month);
-        $monthName = $monthDate->format('F Y');
+        $monthName = $monthDate->translatedFormat('F Y'); // Use translatedFormat instead of format
         $typeMenu = $request->type_menu;
         
-        // Create a descriptive title that includes menu type
+        // Rest of your code remains the same...
         $reportTitle = "Consommation du mois " . $monthName;
         
-        // ============================================
-        // NEW: Check if "tous" menus is selected
-        // ============================================
         if ($typeMenu === 'tous') {
             $reportTitle .= " - Tous menus";
             
-            // Get data for all three menu types
             $menuTypes = ['Menu eleves', 'Menu specials', 'Menu d\'application'];
             $allMenusData = [];
             
             foreach ($menuTypes as $menuType) {
-                // Create a request for each menu type
                 $menuRequest = new Request([
                     'month' => $request->month,
                     'type_menu' => $menuType,
                     'type_commande' => $request->type_commande
                 ]);
                 
-                // Get monthly data for this menu type
                 $response = $this->getMonthlyBreakdownData($menuRequest);
                 $responseData = json_decode($response->getContent(), true);
                 
-                // Only add menu if it has data
                 if ($responseData['status'] === 200 && !empty($responseData['data']['days_data'])) {
                     $allMenusData[] = [
                         'menu_type' => $menuType,
@@ -1609,7 +1606,6 @@ public function exportMonthlyBreakdownPDF(Request $request)
                 }
             }
             
-            // Check if we have any data
             if (empty($allMenusData)) {
                 return response()->json([
                     'status' => 404,
@@ -1617,13 +1613,11 @@ public function exportMonthlyBreakdownPDF(Request $request)
                 ]);
             }
             
-            // Get logo images
             $imagePath = public_path('images/logo_top.png');
             $imageData_top = base64_encode(file_get_contents($imagePath));
             $logo_bottom = public_path('images/logo_bottom.png');
             $imageData_bottom = base64_encode(file_get_contents($logo_bottom));
             
-            // Generate PDF for all menus using NEW template
             $pdf = Pdf::loadView('consumption.monthly_breakdown_all_menus_pdf', [
                 'all_menus_data' => $allMenusData,
                 'month' => $monthName,
@@ -1633,20 +1627,13 @@ public function exportMonthlyBreakdownPDF(Request $request)
             ]);
             
         } else {
-            // ============================================
-            // EXISTING: Single menu type selected
-            // ============================================
             if ($typeMenu && $typeMenu !== 'all') {
                 $reportTitle .= " - " . $typeMenu;
             }
             
-            // Get the data directly from your existing method
             $response = $this->getMonthlyBreakdownData($request);
-            
-            // Parse the JSON response
             $responseData = json_decode($response->getContent(), true);
             
-            // Check if we have data
             if ($responseData['status'] !== 200 || empty($responseData['data']['days_data'])) {
                 return response()->json([
                     'status' => 404,
@@ -1654,13 +1641,11 @@ public function exportMonthlyBreakdownPDF(Request $request)
                 ]);
             }
             
-            // Get logo images
             $imagePath = public_path('images/logo_top.png');
             $imageData_top = base64_encode(file_get_contents($imagePath));
             $logo_bottom = public_path('images/logo_bottom.png');
             $imageData_bottom = base64_encode(file_get_contents($logo_bottom));
             
-            // Generate PDF using the template
             $pdf = Pdf::loadView('consumption.monthly_breakdown_pdf', [
                 'data' => $responseData['data'],
                 'month' => $monthName,
@@ -1671,10 +1656,8 @@ public function exportMonthlyBreakdownPDF(Request $request)
             ]);
         }
         
-        // Set page size and orientation
         $pdf->setPaper('a4', 'portrait');
         
-        // Generate filename that includes menu type
         $filename = 'reporting_mensuel_' . $monthDate->format('Y_m');
         if ($typeMenu === 'tous') {
             $filename .= '_tous_menus';
@@ -1683,7 +1666,6 @@ public function exportMonthlyBreakdownPDF(Request $request)
         }
         $filename .= '.pdf';
         
-        // Download the PDF
         return $pdf->download($filename);
         
     } catch (\Exception $e) {
@@ -1716,15 +1698,47 @@ public function getYearlyBreakdownData(Request $request)
         $typeMenu = $request->type_menu;
         $typeCommande = $request->type_commande;
         
+        Log::info('Starting yearly breakdown', [
+            'year' => $year,
+            'type_menu' => $typeMenu,
+            'type_commande' => $typeCommande
+        ]);
+        
         // Get all food-related categories
         $foodCategories = \App\Models\Category::where('classe', 'DENRÉES ALIMENTAIRES')
             ->get();
         
         $yearlyData = [];
+        $yearTotalCost = 0;
+        $yearTotalPeople = 0;
         
         // Loop through all 12 months
         for ($month = 1; $month <= 12; $month++) {
             $monthDate = Carbon::create($year, $month, 1);
+            $firstDayOfMonth = $monthDate->copy()->startOfMonth();
+            $lastDayOfMonth = $monthDate->copy()->endOfMonth();
+            
+            Log::info("Processing month", [
+                'month' => $month,
+                'date_range' => $firstDayOfMonth->format('Y-m-d') . ' to ' . $lastDayOfMonth->format('Y-m-d')
+            ]);
+            
+            // Check if there are any ventes for this month first
+            $venteCount = Vente::where('status', 'Validation')
+                ->where('type_commande', $typeCommande)
+                ->whereBetween('created_at', [$firstDayOfMonth, $lastDayOfMonth])
+                ->when($typeMenu !== 'all' && $typeMenu !== 'tous', function($query) use ($typeMenu) {
+                    return $query->where('type_menu', $typeMenu);
+                })
+                ->count();
+            
+            Log::info("Vente count for month $month: $venteCount");
+            
+            // Skip month if no ventes
+            if ($venteCount === 0) {
+                Log::info("Skipping month $month - no ventes found");
+                continue;
+            }
             
             // Create a request for this specific month
             $monthRequest = new Request([
@@ -1737,15 +1751,61 @@ public function getYearlyBreakdownData(Request $request)
             $response = $this->getMonthlyBreakdownData($monthRequest);
             $responseData = json_decode($response->getContent(), true);
             
-            // Only add month if it has data
+            Log::info("Monthly response for month $month", [
+                'status' => $responseData['status'] ?? 'unknown',
+                'has_days_data' => !empty($responseData['data']['days_data'] ?? []),
+                'days_count' => count($responseData['data']['days_data'] ?? [])
+            ]);
+            
+            // Add month if it has data
             if ($responseData['status'] === 200 && !empty($responseData['data']['days_data'])) {
-                $yearlyData[] = [
-                    'month' => $monthDate->format('F Y'),
+                // Use French locale for month name
+                \Carbon\Carbon::setLocale('fr');
+                $monthName = $monthDate->translatedFormat('F Y');
+                
+                $monthData = [
+                    'month' => $monthName,
                     'month_number' => $month,
                     'data' => $responseData['data']
                 ];
+                
+                $yearlyData[] = $monthData;
+                
+                // Accumulate yearly totals
+                if (isset($responseData['data']['month_totals'])) {
+                    $yearTotalCost += $responseData['data']['month_totals']['total_cost'];
+                    $yearTotalPeople += $responseData['data']['month_totals']['total_people'];
+                }
+                
+                Log::info("Added month $month to yearly data", [
+                    'month_total_cost' => $responseData['data']['month_totals']['total_cost'] ?? 0,
+                    'month_total_people' => $responseData['data']['month_totals']['total_people'] ?? 0
+                ]);
+            } else {
+                Log::warning("Month $month excluded - no valid data", [
+                    'status' => $responseData['status'] ?? 'unknown',
+                    'message' => $responseData['message'] ?? 'No message'
+                ]);
             }
         }
+        
+        Log::info('Yearly breakdown complete', [
+            'months_with_data' => count($yearlyData),
+            'year_total_cost' => $yearTotalCost,
+            'year_total_people' => $yearTotalPeople
+        ]);
+        
+        // Check if we have any data
+        if (empty($yearlyData)) {
+            Log::warning('No data found for entire year');
+            return response()->json([
+                'status' => 404,
+                'message' => 'Aucune donnée trouvée pour cette année et ces critères'
+            ]);
+        }
+        
+        // Calculate yearly average
+        $yearPrixMoyen = $yearTotalPeople > 0 ? $yearTotalCost / $yearTotalPeople : 0;
         
         // Format the response
         $responseData = [
@@ -1753,6 +1813,11 @@ public function getYearlyBreakdownData(Request $request)
             'type_menu' => $typeMenu,
             'type_commande' => $typeCommande,
             'months_data' => $yearlyData,
+            'year_totals' => [
+                'total_cost' => $yearTotalCost,
+                'total_people' => $yearTotalPeople,
+                'prix_moyen' => $yearPrixMoyen
+            ],
             'all_categories' => $foodCategories->map(function($category) {
                 return [
                     'id' => $category->id,
@@ -1760,13 +1825,6 @@ public function getYearlyBreakdownData(Request $request)
                 ];
             })
         ];
-        
-        if (empty($yearlyData)) {
-            return response()->json([
-                'status' => 404,
-                'message' => 'Aucune donnée trouvée pour cette année et ces critères'
-            ]);
-        }
         
         return response()->json([
             'status' => 200,

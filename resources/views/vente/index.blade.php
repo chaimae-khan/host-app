@@ -179,7 +179,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 <div class="form-group mt-2">
                                     <label for="type_commande" class="form-label">Type de commande</label>
                                     <select name="type_commande" class="form-select" id="type_commande">
-                                        <option value="0" selected>Please selected type order</option>
+                                        <option value="0" selected>Veuillez sélectionner le type de commande.</option>
                                         <option value="Alimentaire" >Alimentaire</option>
                                         <option value="Non Alimentaire">Non Alimentaire</option>
                                         <!-- <option value="Fournitures et matériels">Fournitures et matériels</option> -->
