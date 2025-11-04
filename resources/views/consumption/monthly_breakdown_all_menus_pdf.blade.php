@@ -17,33 +17,28 @@
             padding: 0;
             font-size: 12px;
         }
-        .page {
-            page-break-after: always;
-            position: relative;
-            min-height: 297mm;
-        }
-        .page:last-child {
-            page-break-after: avoid;
-        }
         .header img {
             width: 100%;
             display: block;
-            margin-bottom: 10px;
         }
         .footer img {
             width: 100%;
             display: block;
-            margin-top: 10px;
         }
         .container {
             padding: 20px;
-            min-height: calc(297mm - 80px);
         }
         .title {
             text-align: center;
             font-weight: bold;
             font-size: 16px;
-            margin: 20px 0;
+            margin: 10px 0 20px 0;
+        }
+        .menu-section {
+            page-break-before: always;
+        }
+        .menu-section:first-child {
+            page-break-before: avoid;
         }
         .menu-separator {
             text-align: center;
@@ -103,10 +98,10 @@
         }
     @endphp
     
-    <!-- Loop through each menu type - each gets its own page -->
+    <!-- Loop through each menu type -->
     @foreach($all_menus_data as $menuIndex => $menuData)
-        <div class="page">
-            <!-- Header for this page -->
+        <div class="menu-section">
+            <!-- Header -->
             <div class="header">
                 <img src="data:image/png;base64,{{ $imageData_top }}" alt="Header">
             </div>
@@ -206,7 +201,7 @@
                 </table>
             </div>
             
-            <!-- Footer for this page -->
+            <!-- Footer -->
             <div class="footer">
                 <img src="data:image/png;base64,{{ $imageData_bottom }}" alt="Footer">
             </div>
