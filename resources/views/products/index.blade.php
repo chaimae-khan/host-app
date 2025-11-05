@@ -47,6 +47,9 @@ document.addEventListener('DOMContentLoaded', function () {
     var GetProductByFamaille             = "{{ url('GetProductByFamaille') }}";
     var getUnitebyProduct             = "{{ url('getUnitebyProduct') }}";
     var GetProductByCategoryAndFamille = "{{url('GetProductByCategoryAndFamille')}}";
+     var GetCategooryAndProduct = "{{url('GetCategooryAndProduct')}}";
+    var GetFamilleAndProduct = "{{url('GetFamilleAndProduct')}}";
+   
 </script>
 <script src="{{ asset('js/product/script.js') }}"></script>
 
@@ -95,7 +98,7 @@ document.addEventListener('DOMContentLoaded', function () {
     <div class="card-body">
         <h5 class="card-title">Filtrer les produits</h5>
         <div class="row mb-3">
-            <div class="col-md-3">
+            {{-- <div class="col-md-3">
                 <div class="form-group">
                     <label for="filter_class">Classe</label>
                     <select id="filter_class" class="form-control">
@@ -130,6 +133,40 @@ document.addEventListener('DOMContentLoaded', function () {
                     <label for="filter_designation">Désignation</label>
                     <input type="text" id="filter_designation" class="form-control" placeholder="Rechercher un produit..." autocomplete="off">
                     <div id="designation_suggestions" class="list-group position-absolute" style="z-index: 1000; max-height: 200px; overflow-y: auto; display: none;"></div>
+                </div>
+            </div> --}}
+            <div class="col-md-3">
+                <div class="form-group">
+                    <label for="" class="form-label">Class</label>
+                    <select name="" id="dropdownclass" class="form-select">
+                        <option value="0">Sélectionner un class</option>
+                        @foreach ($class as $item)
+                            <option value="{{ $item->classe }}">{{ $item->classe }}</option>
+                        @endforeach
+                    </select>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="form-group">
+                    <label for="" class="form-label">Catégorie</label>
+                    <select name="" id="dropdowncategory" class="form-select"></select>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="form-group">
+                    <label for="" class="form-label">Famille</label>
+                    <select name="" id="dropdownFamille" class="form-select"></select>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="form-group">
+                    <label for="product_selector" class="form-label">Produit</label>
+                    <select class="form-select" id="product_selector">
+                        <option value="">Sélectionner un produit</option>
+                        @foreach ($products as $product)
+                            <option value="{{ $product->id }}">{{ $product->name }}</option>
+                        @endforeach
+                    </select>
                 </div>
             </div>
         </div>
@@ -640,6 +677,564 @@ document.addEventListener('DOMContentLoaded', function () {
 
     
 
-    /* $('#') */
+    $('#dropdownclass').on('change', function (e) {
+    e.preventDefault(); // optional, useful if inside a form
+
+    let selectedClass = $(this).val();
+
+    if (selectedClass == 0 || selectedClass === "") {
+        alert("Please select a class");
+        return false;
+    }
+
+    $.ajax({
+        type: "GET",
+        url: GetCategooryAndProduct,
+        data: { class: selectedClass },
+        dataType: "json",
+        success: function (response) {
+            if (response.status == 200) 
+            {
+                let $dropdowncategory = $('#dropdowncategory');
+                $dropdowncategory.empty();
+                $dropdowncategory.append('<option value="0">Please select category</option>');
+
+                $.each(response.Categorys, function (index, value) {
+                    $dropdowncategory.append(
+                        '<option value="' + value.id + '">' + value.name + '</option>'
+                    );
+                });
+
+                let $product_selector = $('#product_selector');
+                $product_selector.empty();
+                $product_selector.append('<option value="0">Sélectionner un produit</option>');
+
+                $.each(response.ProductByClass, function (index, value) {
+                    $product_selector.append(
+                        '<option value="' + value.id + '">' + value.name + '</option>'
+                    );
+                });
+
+                /**** */
+                 if ($.fn.DataTable.isDataTable('.TableProducts')) {
+                    $('.TableProducts').DataTable().destroy();
+                }
+        
+                // Initialize DataTable
+                var tableProducts = $('.TableProducts').DataTable({
+                    processing: true,
+                    serverSide: true,
+                    ajax: {
+                        url: products_url,
+                        data: function(d) {
+                            // Add filter parameters
+                            d.filter_class = selectedClass;
+                        
+                        },
+                        dataSrc: function (json) {
+                            if (json.data.length === 0) {
+                                $('.paging_full_numbers').css('display', 'none');
+                            }
+                            return json.data;
+                        },
+                        error: function(xhr, error, thrown) {
+                            console.error('DataTables error:', error, thrown);
+                            new AWN().alert("Erreur de chargement des données", { durations: { alert: 5000 } });
+                        }
+                    },
+                    columns: [
+                        { data: 'code_article', name: 'p.code_article' },
+                        { data: 'name', name: 'p.name' },
+                        { data: 'unite', name: 'u.name' },
+                        { data: 'categorie', name: 'c.name' },
+                        { data: 'famille', name: 'sc.name' },
+                        { data: 'emplacement', name: 'p.emplacement' },
+                        { data: 'stock', name: 's.quantite' },
+                        { data: 'price_achat', name: 'p.price_achat' },
+                        // { data: 'taux_taxe', name: 't.value' },
+                        { data: 'seuil', name: 'p.seuil' },
+                        { 
+                            data: 'date_expiration', 
+                            name: 'p.date_expiration',
+                            render: function(data) {
+                                if (data) {
+                                    // Format date as DD/MM/YYYY
+                                    const date = new Date(data);
+                                    return date.toLocaleDateString('fr-FR');
+                                } else {
+                                    return '<span class="text-muted">Non définie</span>';
+                                }
+                            }
+                        },
+                        { 
+                            data: 'date_reception', 
+                            name: 'p.date_reception',
+                            defaultContent: '<span class="text-muted">Non définie</span>',
+                            render: function(data) {
+                                if (data && data !== null && data !== '') {
+                                    try {
+                                        const date = new Date(data);
+                                        if (!isNaN(date.getTime())) {
+                                            return date.toLocaleDateString('fr-FR');
+                                        }
+                                    } catch (e) {
+                                        console.error('Error parsing date_reception:', e);
+                                    }
+                                }
+                                return '<span class="text-muted">Non définie</span>';
+                            }
+                        },
+                        {
+                            data: 'created_at',
+                            name: 'p.created_at',
+                            render: function(data) {
+                                if (data) {
+                                    // Format date and time as DD/MM/YYYY HH:MM
+                                    const date = new Date(data);
+                                    return date.toLocaleDateString('fr-FR') + ' ' + date.toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'});
+                                } else {
+                                    return '<span class="text-muted">Non définie</span>';
+                                }
+                            }
+                        },
+                        { data: 'action', name: 'action', orderable: false, searchable: false }
+                    ],
+                    language: 
+                    {
+                        "sInfo": "",
+                        "sInfoEmpty": "Affichage de l'élément 0 à 0 sur 0 élément",
+                        "sInfoFiltered": "(filtré à partir de _MAX_ éléments au total)",
+                        "sLengthMenu": "Afficher _MENU_ éléments",
+                        "sLoadingRecords": "Chargement...",
+                        "sProcessing": "Traitement...",
+                        "sSearch": "Rechercher :",
+                        "sZeroRecords": "Aucun élément correspondant trouvé",
+                        "oPaginate": {
+                            "sFirst": "Premier",
+                            "sLast": "Dernier",
+                            "sNext": "Suivant",
+                            "sPrevious": "Précédent"
+                        }
+                    }
+                });
+                /**/
+            }
+        },
+        error: function (xhr, status, error) {
+            console.error("AJAX Error:", error);
+        }
+    });
+});
+
+
+
+$('#dropdowncategory').on('change', function (e) {
+    e.preventDefault(); 
+
+   
+    let selectedCategory= $(this).val(); 
+
+    
+
+    if (selectedCategory == 0 || selectedCategory === "") {
+        alert("Please select a categories");
+        return false;
+    }
+
+    $.ajax({
+        type: "GET",
+        url: GetFamilleAndProduct,
+        data: 
+        { 
+           
+            category : selectedCategory
+        },
+        dataType: "json",
+        success: function (response) {
+            if (response.status == 200) 
+            {
+                let $dropdownFamille = $('#dropdownFamille');
+                $dropdownFamille.empty();
+                $dropdownFamille.append('<option value="0">Please select famille</option>');
+
+                $.each(response.Famille, function (index, value) {
+                    $dropdownFamille.append(
+                        '<option value="' + value.id + '">' + value.name + '</option>'
+                    );
+                });
+
+                let $product_selector = $('#product_selector');
+                $product_selector.empty();
+                $product_selector.append('<option value="0">Sélectionner un produit</option>');
+
+                $.each(response.ProductByCategory, function (index, value) {
+                    $product_selector.append(
+                        '<option value="' + value.id + '">' + value.name + '</option>'
+                    );
+                });
+                if ($.fn.DataTable.isDataTable('.TableProducts')) {
+                    $('.TableProducts').DataTable().destroy();
+                }
+                var tableProducts = $('.TableProducts').DataTable({
+                    processing: true,
+                    serverSide: true,
+                    ajax: {
+                        url: products_url,
+                        data: function(d) {
+                            // Add filter parameters
+                            d.filter_categorie = selectedCategory;
+                        
+                        },
+                        dataSrc: function (json) {
+                            if (json.data.length === 0) {
+                                $('.paging_full_numbers').css('display', 'none');
+                            }
+                            return json.data;
+                        },
+                        error: function(xhr, error, thrown) {
+                            console.error('DataTables error:', error, thrown);
+                            new AWN().alert("Erreur de chargement des données", { durations: { alert: 5000 } });
+                        }
+                    },
+                    columns: [
+                        { data: 'code_article', name: 'p.code_article' },
+                        { data: 'name', name: 'p.name' },
+                        { data: 'unite', name: 'u.name' },
+                        { data: 'categorie', name: 'c.name' },
+                        { data: 'famille', name: 'sc.name' },
+                        { data: 'emplacement', name: 'p.emplacement' },
+                        { data: 'stock', name: 's.quantite' },
+                        { data: 'price_achat', name: 'p.price_achat' },
+                        // { data: 'taux_taxe', name: 't.value' },
+                        { data: 'seuil', name: 'p.seuil' },
+                        { 
+                            data: 'date_expiration', 
+                            name: 'p.date_expiration',
+                            render: function(data) {
+                                if (data) {
+                                    // Format date as DD/MM/YYYY
+                                    const date = new Date(data);
+                                    return date.toLocaleDateString('fr-FR');
+                                } else {
+                                    return '<span class="text-muted">Non définie</span>';
+                                }
+                            }
+                        },
+                        { 
+                            data: 'date_reception', 
+                            name: 'p.date_reception',
+                            defaultContent: '<span class="text-muted">Non définie</span>',
+                            render: function(data) {
+                                if (data && data !== null && data !== '') {
+                                    try {
+                                        const date = new Date(data);
+                                        if (!isNaN(date.getTime())) {
+                                            return date.toLocaleDateString('fr-FR');
+                                        }
+                                    } catch (e) {
+                                        console.error('Error parsing date_reception:', e);
+                                    }
+                                }
+                                return '<span class="text-muted">Non définie</span>';
+                            }
+                        },
+                        {
+                            data: 'created_at',
+                            name: 'p.created_at',
+                            render: function(data) {
+                                if (data) {
+                                    // Format date and time as DD/MM/YYYY HH:MM
+                                    const date = new Date(data);
+                                    return date.toLocaleDateString('fr-FR') + ' ' + date.toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'});
+                                } else {
+                                    return '<span class="text-muted">Non définie</span>';
+                                }
+                            }
+                        },
+                        { data: 'action', name: 'action', orderable: false, searchable: false }
+                    ],
+                    language: 
+                    {
+                        "sInfo": "",
+                        "sInfoEmpty": "Affichage de l'élément 0 à 0 sur 0 élément",
+                        "sInfoFiltered": "(filtré à partir de _MAX_ éléments au total)",
+                        "sLengthMenu": "Afficher _MENU_ éléments",
+                        "sLoadingRecords": "Chargement...",
+                        "sProcessing": "Traitement...",
+                        "sSearch": "Rechercher :",
+                        "sZeroRecords": "Aucun élément correspondant trouvé",
+                        "oPaginate": {
+                            "sFirst": "Premier",
+                            "sLast": "Dernier",
+                            "sNext": "Suivant",
+                            "sPrevious": "Précédent"
+                        }
+                    }
+                });
+
+            }
+        },
+        error: function (xhr, status, error) {
+            console.error("AJAX Error:", error);
+        }
+    });
+});
+
+$('#dropdownFamille').on('change',function(e)
+{
+    e.preventDefault(); 
+    let category = $('#dropdowncategory').val();
+    let dropdownFamille = $(this).val();
+
+    if (category == 0 || category === "") {
+        alert("Please select a categories");
+        return false;
+    }
+
+    if (dropdownFamille == 0 || dropdownFamille === "") {
+        alert("Please select a famille");
+        return false;
+    }
+    $.ajax({ 
+        type: "get",
+        url: GetProductByCategoryAndFamille,
+        data:
+        {
+            category : category,
+            Famille  : dropdownFamille,
+        },
+        dataType: "json",
+        success: function (response) 
+        {
+            if(response.status == 200)
+            {
+                let $product_selector = $('#product_selector');
+                $product_selector.empty();
+                $product_selector.append('<option value="0">Sélectionner un produit</option>');
+
+                $.each(response.ProductByCategoryAndFamille, function (index, value) {
+                    $product_selector.append(
+                        '<option value="' + value.id + '">' + value.name + '</option>'
+                    );
+                });
+
+                if ($.fn.DataTable.isDataTable('.TableProducts')) {
+                    $('.TableProducts').DataTable().destroy();
+                }
+                var tableProducts = $('.TableProducts').DataTable({
+                    processing: true,
+                    serverSide: true,
+                    ajax: {
+                        url: products_url,
+                        data: function(d) {
+                            // Add filter parameters
+                            d.filter_subcategorie = dropdownFamille;
+                        
+                        },
+                        dataSrc: function (json) {
+                            if (json.data.length === 0) {
+                                $('.paging_full_numbers').css('display', 'none');
+                            }
+                            return json.data;
+                        },
+                        error: function(xhr, error, thrown) {
+                            console.error('DataTables error:', error, thrown);
+                            new AWN().alert("Erreur de chargement des données", { durations: { alert: 5000 } });
+                        }
+                    },
+                    columns: [
+                        { data: 'code_article', name: 'p.code_article' },
+                        { data: 'name', name: 'p.name' },
+                        { data: 'unite', name: 'u.name' },
+                        { data: 'categorie', name: 'c.name' },
+                        { data: 'famille', name: 'sc.name' },
+                        { data: 'emplacement', name: 'p.emplacement' },
+                        { data: 'stock', name: 's.quantite' },
+                        { data: 'price_achat', name: 'p.price_achat' },
+                        // { data: 'taux_taxe', name: 't.value' },
+                        { data: 'seuil', name: 'p.seuil' },
+                        { 
+                            data: 'date_expiration', 
+                            name: 'p.date_expiration',
+                            render: function(data) {
+                                if (data) {
+                                    // Format date as DD/MM/YYYY
+                                    const date = new Date(data);
+                                    return date.toLocaleDateString('fr-FR');
+                                } else {
+                                    return '<span class="text-muted">Non définie</span>';
+                                }
+                            }
+                        },
+                        { 
+                            data: 'date_reception', 
+                            name: 'p.date_reception',
+                            defaultContent: '<span class="text-muted">Non définie</span>',
+                            render: function(data) {
+                                if (data && data !== null && data !== '') {
+                                    try {
+                                        const date = new Date(data);
+                                        if (!isNaN(date.getTime())) {
+                                            return date.toLocaleDateString('fr-FR');
+                                        }
+                                    } catch (e) {
+                                        console.error('Error parsing date_reception:', e);
+                                    }
+                                }
+                                return '<span class="text-muted">Non définie</span>';
+                            }
+                        },
+                        {
+                            data: 'created_at',
+                            name: 'p.created_at',
+                            render: function(data) {
+                                if (data) {
+                                    // Format date and time as DD/MM/YYYY HH:MM
+                                    const date = new Date(data);
+                                    return date.toLocaleDateString('fr-FR') + ' ' + date.toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'});
+                                } else {
+                                    return '<span class="text-muted">Non définie</span>';
+                                }
+                            }
+                        },
+                        { data: 'action', name: 'action', orderable: false, searchable: false }
+                    ],
+                    language: 
+                    {
+                        "sInfo": "",
+                        "sInfoEmpty": "Affichage de l'élément 0 à 0 sur 0 élément",
+                        "sInfoFiltered": "(filtré à partir de _MAX_ éléments au total)",
+                        "sLengthMenu": "Afficher _MENU_ éléments",
+                        "sLoadingRecords": "Chargement...",
+                        "sProcessing": "Traitement...",
+                        "sSearch": "Rechercher :",
+                        "sZeroRecords": "Aucun élément correspondant trouvé",
+                        "oPaginate": {
+                            "sFirst": "Premier",
+                            "sLast": "Dernier",
+                            "sNext": "Suivant",
+                            "sPrevious": "Précédent"
+                        }
+                    }
+                });
+            }    
+        }
+    });
+});
+
+$('#product_selector').on('change',function(e)
+{
+    e.preventDefault();
+    let product = $(this).val();
+    let productText="";
+    if(product == 0)
+    {
+        alert("Please selected porduct")
+        return false;   
+    }
+    else
+    {
+         productText = $(this).find("option:selected").text();
+    }
+    if ($.fn.DataTable.isDataTable('.TableProducts')) {
+        $('.TableProducts').DataTable().destroy();
+    }
+    var tableProducts = $('.TableProducts').DataTable({
+        processing: true,
+        serverSide: true,
+        ajax: {
+            url: products_url,
+            data: function(d) {
+                // Add filter parameters
+                d.filter_designation = productText;
+            
+            },
+            dataSrc: function (json) {
+                if (json.data.length === 0) {
+                    $('.paging_full_numbers').css('display', 'none');
+                }
+                return json.data;
+            },
+            error: function(xhr, error, thrown) {
+                console.error('DataTables error:', error, thrown);
+                new AWN().alert("Erreur de chargement des données", { durations: { alert: 5000 } });
+            }
+        },
+        columns: [
+            { data: 'code_article', name: 'p.code_article' },
+            { data: 'name', name: 'p.name' },
+            { data: 'unite', name: 'u.name' },
+            { data: 'categorie', name: 'c.name' },
+            { data: 'famille', name: 'sc.name' },
+            { data: 'emplacement', name: 'p.emplacement' },
+            { data: 'stock', name: 's.quantite' },
+            { data: 'price_achat', name: 'p.price_achat' },
+            // { data: 'taux_taxe', name: 't.value' },
+            { data: 'seuil', name: 'p.seuil' },
+            { 
+                data: 'date_expiration', 
+                name: 'p.date_expiration',
+                render: function(data) {
+                    if (data) {
+                        // Format date as DD/MM/YYYY
+                        const date = new Date(data);
+                        return date.toLocaleDateString('fr-FR');
+                    } else {
+                        return '<span class="text-muted">Non définie</span>';
+                    }
+                }
+            },
+            { 
+                data: 'date_reception', 
+                name: 'p.date_reception',
+                defaultContent: '<span class="text-muted">Non définie</span>',
+                render: function(data) {
+                    if (data && data !== null && data !== '') {
+                        try {
+                            const date = new Date(data);
+                            if (!isNaN(date.getTime())) {
+                                return date.toLocaleDateString('fr-FR');
+                            }
+                        } catch (e) {
+                            console.error('Error parsing date_reception:', e);
+                        }
+                    }
+                    return '<span class="text-muted">Non définie</span>';
+                }
+            },
+            {
+                data: 'created_at',
+                name: 'p.created_at',
+                render: function(data) {
+                    if (data) {
+                        // Format date and time as DD/MM/YYYY HH:MM
+                        const date = new Date(data);
+                        return date.toLocaleDateString('fr-FR') + ' ' + date.toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'});
+                    } else {
+                        return '<span class="text-muted">Non définie</span>';
+                    }
+                }
+            },
+            { data: 'action', name: 'action', orderable: false, searchable: false }
+        ],
+        language: 
+        {
+            "sInfo": "",
+            "sInfoEmpty": "Affichage de l'élément 0 à 0 sur 0 élément",
+            "sInfoFiltered": "(filtré à partir de _MAX_ éléments au total)",
+            "sLengthMenu": "Afficher _MENU_ éléments",
+            "sLoadingRecords": "Chargement...",
+            "sProcessing": "Traitement...",
+            "sSearch": "Rechercher :",
+            "sZeroRecords": "Aucun élément correspondant trouvé",
+            "oPaginate": {
+                "sFirst": "Premier",
+                "sLast": "Dernier",
+                "sNext": "Suivant",
+                "sPrevious": "Précédent"
+            }
+        }
+    });
+});
 </script>
 @endsection

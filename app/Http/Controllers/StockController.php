@@ -22,7 +22,8 @@ class StockController extends Controller
     /**
      * Display a listing of the resource.
      */
-   public function index(Request $request)
+
+public function index(Request $request)
 {
     if ($request->ajax()) {
         $dataStock = DB::table('stock as s')
@@ -59,22 +60,16 @@ class StockController extends Controller
                         'us.nom'
                     );
         
-        // Apply class filter if provided
+        // Apply filters
         if ($request->filled('filter_class')) {
             $dataStock->where('c.classe', $request->filter_class);
         }
-
-        // Apply category filter if provided
         if ($request->filled('filter_categorie')) {
             $dataStock->where('p.id_categorie', $request->filter_categorie);
         }
-
-        // Apply subcategory filter if provided
         if ($request->filled('filter_subcategorie')) {
             $dataStock->where('p.id_subcategorie', $request->filter_subcategorie);
         }
-
-        // Apply designation (name) filter if provided
         if ($request->filled('filter_designation')) {
             $dataStock->where('p.name', 'LIKE', '%' . $request->filter_designation . '%');
         }
@@ -109,8 +104,13 @@ class StockController extends Controller
                 ->map(function($classe) {
                     return (object)['classe' => $classe];
                 });
+    
+    // ⭐ ADD: Fetch products for the dropdown
+    $products = Product::whereNull('deleted_at')
+        ->orderBy('name', 'asc')
+        ->get(['id', 'name']);
          
-    return view('stock.index', compact('class'));
+    return view('stock.index', compact('class', 'products'));
 }
 
     /**

@@ -27,138 +27,147 @@ class ProductController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index(Request $request)
-    {
-        $countCategories = Category::count();
-        $countSubCategories = SubCategory::count();
-        $countLocals = Local::count();
-        $countRayons = Rayon::count();
-        $countFournisseur = Fournisseur::count();
-        
-        // Check for required tables first
-        if ($countCategories == 0) {
-            return view('Error.index')
-                ->withErrors('Tu n\'as pas de catégories');
-        }
-        if ($countFournisseur == 0) {
-            return view('Error.index')
-                ->withErrors('Tu n\'as pas de fournisseur');
-        }
-        
-        if ($countSubCategories == 0) {
-            return view('Error.index')
-                ->withErrors('Tu n\'as pas de famille');
-        }
-        
-        if ($countLocals == 0) {
-            return view('Error.index')
-                ->withErrors('Tu n\'as pas de locaux');
-        }
-        
-        if ($countRayons == 0) {
-            return view('Error.index')
-                ->withErrors('Tu n\'as pas de rayons');
-        }
-        
-        // Optional checks for nullable fields
-        $countTvas = Tva::count();
-        if ($countTvas == 0) {
-            return view('Error.index')
-                ->withErrors('Tu n\'as pas de TVAs');
-        }
-        
-        $countUnites = Unite::count();
-        if ($countUnites == 0) {
-            return view('Error.index')
-                ->withErrors('Tu n\'as pas d\'unités');
-        }
-        
-        if ($request->ajax()) {
-            $query = DB::table('products as p')
-                ->leftJoin('stock as s', 'p.id', '=', 's.id_product')
-                ->leftJoin('categories as c', 'p.id_categorie', '=', 'c.id')
-                ->leftJoin('sub_categories as sc', 'p.id_subcategorie', '=', 'sc.id')
-                ->leftJoin('locals as l', 'p.id_local', '=', 'l.id')
-                ->leftJoin('rayons as r', 'p.id_rayon', '=', 'r.id')
-                ->leftJoin('tvas as t', 's.id_tva', '=', 't.id')
-                ->leftJoin('unite as u', 's.id_unite', '=', 'u.id')
-                ->leftJoin('users as us', 'p.id_user', '=', 'us.id')
-                ->whereNull('p.deleted_at');
-            
-          // Apply class filter if provided
-if ($request->filled('filter_class')) {
-    $query->where('c.classe', $request->filter_class);
-}
-
-// Apply category filter if provided
-if ($request->filled('filter_categorie')) {
-    $query->where('p.id_categorie', $request->filter_categorie);
-}
-
-// Apply subcategory filter if provided
-if ($request->filled('filter_subcategorie')) {
-    $query->where('p.id_subcategorie', $request->filter_subcategorie);
-}
-
-// Apply designation (name) filter if provided
-if ($request->filled('filter_designation')) {
-    $query->where('p.name', 'LIKE', '%' . $request->filter_designation . '%');
-}
-            $products = $query->select(
-                'p.id',
-                'p.name',
-                'p.code_article',
-                'u.name as unite',
-                'c.name as categorie',
-                'sc.name as famille',
-                'p.emplacement',
-                's.quantite as stock',
-                'p.price_achat',
-                't.value as taux_taxe',
-                'p.seuil',
-                'p.code_barre',
-                'p.photo',
-                'p.date_expiration',
-                'p.date_reception',
-                DB::raw("CONCAT(us.prenom, ' ', us.nom) as username"),
-                'p.created_at',
-                'p.id_tva', 
-                'p.id_unite' 
-            )
-            ->orderBy('p.id', 'desc');
+public function index(Request $request)
+{
+    $countCategories = Category::count();
+    $countSubCategories = SubCategory::count();
+    $countLocals = Local::count();
+    $countRayons = Rayon::count();
+    $countFournisseur = Fournisseur::count();
     
-            return DataTables::of($products)
-                ->addIndexColumn()
-                ->addColumn('action', function ($row) {
-                    $btn = '';
-                    if (auth()->user()->can('Products-modifier')) {
-                        $btn .= '<a href="#" class="btn btn-sm bg-primary-subtle me-1 editProduct" data-id="'.$row->id.'">
-                                <i class="fa-solid fa-pen-to-square text-primary"></i></a>';
-                    }
-                    if (auth()->user()->can('Products-supprimer')) {
-                        $btn .= '<a href="#" class="btn btn-sm bg-danger-subtle deleteProduct" data-id="'.$row->id.'">
-                                <i class="fa-solid fa-trash text-danger"></i></a>';
-                    }
-                    return $btn;
-                })
-                ->rawColumns(['action'])
-                ->make(true);
+    // Check for required tables first
+    if ($countCategories == 0) {
+        return view('Error.index')
+            ->withErrors('Tu n\'as pas de catégories');
+    }
+    if ($countFournisseur == 0) {
+        return view('Error.index')
+            ->withErrors('Tu n\'as pas de fournisseur');
+    }
+    
+    if ($countSubCategories == 0) {
+        return view('Error.index')
+            ->withErrors('Tu n\'as pas de famille');
+    }
+    
+    if ($countLocals == 0) {
+        return view('Error.index')
+            ->withErrors('Tu n\'as pas de locaux');
+    }
+    
+    if ($countRayons == 0) {
+        return view('Error.index')
+            ->withErrors('Tu n\'as pas de rayons');
+    }
+    
+    // Optional checks for nullable fields
+    $countTvas = Tva::count();
+    if ($countTvas == 0) {
+        return view('Error.index')
+            ->withErrors('Tu n\'as pas de TVAs');
+    }
+    
+    $countUnites = Unite::count();
+    if ($countUnites == 0) {
+        return view('Error.index')
+            ->withErrors('Tu n\'as pas d\'unités');
+    }
+    
+    // ====== AJAX REQUEST (DataTables) ======
+    if ($request->ajax()) {
+        $query = DB::table('products as p')
+            ->leftJoin('stock as s', 'p.id', '=', 's.id_product')
+            ->leftJoin('categories as c', 'p.id_categorie', '=', 'c.id')
+            ->leftJoin('sub_categories as sc', 'p.id_subcategorie', '=', 'sc.id')
+            ->leftJoin('locals as l', 'p.id_local', '=', 'l.id')
+            ->leftJoin('rayons as r', 'p.id_rayon', '=', 'r.id')
+            ->leftJoin('tvas as t', 's.id_tva', '=', 't.id')
+            ->leftJoin('unite as u', 's.id_unite', '=', 'u.id')
+            ->leftJoin('users as us', 'p.id_user', '=', 'us.id')
+            ->whereNull('p.deleted_at');
+        
+        // Apply class filter if provided
+        if ($request->filled('filter_class')) {
+            $query->where('c.classe', $request->filter_class);
+        }
+
+        // Apply category filter if provided
+        if ($request->filled('filter_categorie')) {
+            $query->where('p.id_categorie', $request->filter_categorie);
+        }
+
+        // Apply subcategory filter if provided
+        if ($request->filled('filter_subcategorie')) {
+            $query->where('p.id_subcategorie', $request->filter_subcategorie);
+        }
+
+        // Apply designation (name) filter if provided
+        if ($request->filled('filter_designation')) {
+            $query->where('p.name', 'LIKE', '%' . $request->filter_designation . '%');
         }
         
-        // Get required data for dropdowns
-        $categories = Category::all();
-        $subcategories = SubCategory::all();
-        $locals = Local::all();
-        $rayons = Rayon::all();
-        $tvas = Tva::all();
-        $unites = Unite::all();
-        $Fournisseur=Fournisseur::all();
-        
-        $class  = DB::select("select distinct(classe) as classe from categories");
-        
-        return view('products.index',
-         compact('categories', 'subcategories', 'locals', 'rayons', 'tvas', 'unites','class','Fournisseur'));
+        $products = $query->select(
+            'p.id',
+            'p.name',
+            'p.code_article',
+            'u.name as unite',
+            'c.name as categorie',
+            'sc.name as famille',
+            'p.emplacement',
+            's.quantite as stock',
+            'p.price_achat',
+            't.value as taux_taxe',
+            'p.seuil',
+            'p.code_barre',
+            'p.photo',
+            'p.date_expiration',
+            'p.date_reception',
+            DB::raw("CONCAT(us.prenom, ' ', us.nom) as username"),
+            'p.created_at',
+            'p.id_tva', 
+            'p.id_unite' 
+        )
+        ->orderBy('p.id', 'desc');
+
+        return DataTables::of($products)
+            ->addIndexColumn()
+            ->addColumn('action', function ($row) {
+                $btn = '';
+                if (auth()->user()->can('Products-modifier')) {
+                    $btn .= '<a href="#" class="btn btn-sm bg-primary-subtle me-1 editProduct" data-id="'.$row->id.'">
+                            <i class="fa-solid fa-pen-to-square text-primary"></i></a>';
+                }
+                if (auth()->user()->can('Products-supprimer')) {
+                    $btn .= '<a href="#" class="btn btn-sm bg-danger-subtle deleteProduct" data-id="'.$row->id.'">
+                            <i class="fa-solid fa-trash text-danger"></i></a>';
+                }
+                return $btn;
+            })
+            ->rawColumns(['action'])
+            ->make(true);
     }
+    
+    // ====== INITIAL PAGE LOAD (NON-AJAX) ======
+    // Get required data for dropdowns
+    $categories = Category::all();
+    $subcategories = SubCategory::all();
+    $locals = Local::all();
+    $rayons = Rayon::all();
+    $tvas = Tva::all();
+    $unites = Unite::all();
+    $Fournisseur = Fournisseur::all();
+    
+    // ⭐ ADD THIS LINE - Fetch products for the dropdown
+    $products = Product::whereNull('deleted_at')
+        ->orderBy('name', 'asc')
+        ->get(['id', 'name']); // Only select needed columns for performance
+    
+    $class = DB::select("select distinct(classe) as classe from categories");
+    
+    // ⭐ ADD 'products' to the compact() function
+    return view('products.index',
+        compact('categories', 'subcategories', 'locals', 'rayons', 'tvas', 'unites', 'class', 'Fournisseur', 'products'));
+}
 
     /**
      * Get subcategories for a category.
