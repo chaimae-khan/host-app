@@ -57,6 +57,7 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/vente/{id}/approve', [AdminController::class, 'approveVente'])->name('vente.approve');
         Route::post('/vente/{id}/reject', [AdminController::class, 'rejectVente'])->name('vente.reject');
     });
+    
 
     // TVA Routes
     Route::get('tva', [TvaController::class, 'index']);

@@ -969,5 +969,7 @@ $(document).ready(function() {
     initializeTableTmpVente('.TableTmpVente', Formateur,"Plat");
 });
 
+
 </script>
+
 </div>@endsection

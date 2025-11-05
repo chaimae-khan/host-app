@@ -23,6 +23,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\Stock;
 use App\Notifications\SystemNotification;
 use App\Models\Historique_Sig;
+use App\Models\Plat;
 
 use function PHPUnit\Framework\isNull;
 
@@ -35,11 +36,8 @@ class VenteController extends Controller
         $this->inventoryService = $inventoryService;
     }
     
-   public function index(Request $request)
+public function index(Request $request)
 {
-    /* $user = Auth::user();
-    $role = $user->getRoleNames()->first();
-    dd(Auth::user()->hasRole('Formateur')); */
     $this->autoDeleteOldVentes();
 
     if($request->ajax())
@@ -55,14 +53,13 @@ class VenteController extends Controller
                      'v.eleves', 'v.personnel', 'v.invites', 'v.divers',
                      'v.entree', 'v.plat_principal', 'v.accompagnement', 'v.dessert', 'v.date_usage')
             ->whereNull('v.deleted_at');
-            if(Auth::user()->hasRole('Formateur'))
-            {
-                $query->where('v.id_formateur',Auth::id());
-            }
-            $Data_Vente = $query->orderBy('v.id','desc')->get();
-            //dd($Data_Vente);
-            /* ->orderBy('v.id','desc')
-            ->get(); */
+            
+        if(Auth::user()->hasRole('Formateur'))
+        {
+            $query->where('v.id_formateur',Auth::id());
+        }
+        
+        $Data_Vente = $query->orderBy('v.id','desc')->get();
 
         return DataTables::of($Data_Vente)
             ->addIndexColumn()
@@ -75,47 +72,47 @@ class VenteController extends Controller
                     ->where('roles.name', 'Administrateur')
                     ->exists();
 
-                 if ($row->status === 'Refus' && !$isAdmin) {
-                        return '';
-                    }
+                if ($row->status === 'Refus' && !$isAdmin) {
+                    return '';
+                }
 
-                    // Edit button - don't show if status is "Validation"
-                    if (auth()->user()->can('Commande-modifier') && $row->status !== 'Validation') {
-                        $btn .= '<a href="#" class="btn btn-sm bg-primary-subtle me-1"
-                                    data-id="' . $row->id . '">
-                                    <i class="fa-solid fa-pen-to-square text-primary"></i>
-                                </a>';
-                    }
-                    
-                    // Detail button with hash ID - show for all statuses
-                    if (auth()->user()->can('Commande')) {
-                        $btn .= '<a href="' . url('ShowBonVente/' . $hashids->encode($row->id)) . '" 
-                                    class="btn btn-sm bg-success-subtle me-1" 
-                                    data-id="' . $row->id . '" 
-                                    target="_blank">
-                                    <i class="fa-solid fa-eye text-success"></i>
-                                </a>';
-                    }
-                    
-                    // Print invoice button - don't show if status is "Refus"
-                    if (auth()->user()->can('Commande') && $row->status !== 'Refus') {
-                        $btn .= '<a href="' . url('FactureVente/' . $hashids->encode($row->id)) . '" 
-                                    class="btn btn-sm bg-info-subtle me-1" 
-                                    data-id="' . $row->id . '" 
-                                    target="_blank">
-                                    <i class="fa-solid fa-print text-info"></i>
-                                </a>';
-                    }
+                // Edit button - don't show if status is "Validation"
+                if (auth()->user()->can('Commande-modifier') && $row->status !== 'Validation') {
+                    $btn .= '<a href="#" class="btn btn-sm bg-primary-subtle me-1"
+                                data-id="' . $row->id . '">
+                                <i class="fa-solid fa-pen-to-square text-primary"></i>
+                            </a>';
+                }
+                
+                // Detail button with hash ID - show for all statuses
+                if (auth()->user()->can('Commande')) {
+                    $btn .= '<a href="' . url('ShowBonVente/' . $hashids->encode($row->id)) . '" 
+                                class="btn btn-sm bg-success-subtle me-1" 
+                                data-id="' . $row->id . '" 
+                                target="_blank">
+                                <i class="fa-solid fa-eye text-success"></i>
+                            </a>';
+                }
+                
+                // Print invoice button - don't show if status is "Refus"
+                if (auth()->user()->can('Commande') && $row->status !== 'Refus') {
+                    $btn .= '<a href="' . url('FactureVente/' . $hashids->encode($row->id)) . '" 
+                                class="btn btn-sm bg-info-subtle me-1" 
+                                data-id="' . $row->id . '" 
+                                target="_blank">
+                                <i class="fa-solid fa-print text-info"></i>
+                            </a>';
+                }
 
-                    // Delete button - don't show if status is "Validation"
-                    if (auth()->user()->can('Commande-supprimer') && $row->status !== 'Validation') {
-                        $btn .= '<a href="#" class="btn btn-sm bg-danger-subtle DeleteVente"
-                                    data-id="' . $row->id . '" 
-                                    data-bs-toggle="tooltip" 
-                                    title="Supprimer Vente">
-                                    <i class="fa-solid fa-trash text-danger"></i>
-                                </a>';
-                    }
+                // Delete button - don't show if status is "Validation"
+                if (auth()->user()->can('Commande-supprimer') && $row->status !== 'Validation') {
+                    $btn .= '<a href="#" class="btn btn-sm bg-danger-subtle DeleteVente"
+                                data-id="' . $row->id . '" 
+                                data-bs-toggle="tooltip" 
+                                title="Supprimer Vente">
+                                <i class="fa-solid fa-trash text-danger"></i>
+                            </a>';
+                }
 
                 return $btn;
             })
@@ -132,10 +129,10 @@ class VenteController extends Controller
     $unites = Unite::all();
     $class = DB::select("select distinct(classe) as classe from categories");
 
-
-    $Plat_Entre = DB::select("select * from plats where type='Entrée'");
-    $Plat_Dessert = DB::select("select * from plats where type='Dessert'");
-    $Plat_Principal = DB::select("select * from plats where type='Plat Principal'");
+    // ✅ FIX: Use Plat model instead of raw SQL to respect soft deletes
+    $Plat_Entre = Plat::where('type', 'Entrée')->get();
+    $Plat_Dessert = Plat::where('type', 'Dessert')->get();
+    $Plat_Principal = Plat::where('type', 'Plat Principal')->get();
 
     return view('vente.index')
         ->with('formateurs', $formateurs)
@@ -149,7 +146,6 @@ class VenteController extends Controller
         ->with('Plat_Dessert', $Plat_Dessert)
         ->with('Plat_Principal', $Plat_Principal)
         ->with('class',$class); 
-        
 }
 
 
@@ -202,86 +198,91 @@ class VenteController extends Controller
 //     }
 // }
 
-public function PostInTmpVente(Request $request)
-{
-    if (!auth()->user()->can('Commande-ajoute')) {
-        return response()->json([
-            'status' => 403,
-            'message' => 'Vous n\'avez pas la permission d\'ajouter une commande'
-        ], 403);
-    }
-    
-    $data = $request->all();
-    $data['id_user'] = Auth::user()->id;
-    // ✅ Use the quantity from request, default to 1 if not provided
-    $data['qte'] = $request->input('qte', 1);
-    
-    DB::beginTransaction();
+    public function PostInTmpVente(Request $request)
+    {
+        // Check permission before posting to temp vente
+        if (!auth()->user()->can('Commande-ajoute')) {
+            return response()->json([
+                'status' => 403,
+                'message' => 'Vous n\'avez pas la permission d\'ajouter une commande'
+            ], 403);
+        }
+        
+        $data = $request->all();
+        $data['id_user'] = Auth::user()->id;
+        $data['qte'] = 1;
+        
+        DB::beginTransaction();
 
-    try {
-        $stock = Stock::where('id_product', $data['idproduit'])->first();
-        $product = DB::table('products')->where('id', $data['idproduit'])->first();
-        $productName = $product ? $product->name : 'Unknown Product';
-
-        $existingProduct = TempVente::where('idproduit', $data['idproduit'])
-            ->where('id_formateur', $data['id_formateur'])
-            ->where('id_user', $data['id_user'])
-            ->first();
-
-        // ✅ Calculate requested quantity based on whether product exists
-        $requestedQty = $existingProduct ? $existingProduct->qte + $data['qte'] : $data['qte'];
+        try {
+            // Get stock for this product
+            $stock = Stock::where('id_product', $data['idproduit'])->first();
             
-        if (!$stock || $stock->quantite < $requestedQty) {
-            \Log::warning('Insufficient stock for product: "' . $productName . 
-                      '" (Requested: ' . $requestedQty . ', Available: ' . 
-                      ($stock ? $stock->quantite : 0) . ')');
-            
+            // Get product name for error message
+            $product = DB::table('products')->where('id', $data['idproduit'])->first();
+            $productName = $product ? $product->name : 'Unknown Product';
+
+            $existingProduct = TempVente::where('idproduit', $data['idproduit'])
+                ->where('id_formateur', $data['id_formateur'])
+                ->where('id_user', $data['id_user'])
+                ->first();
+
+            // Calculate the requested quantity (1 for new items or current+1 for existing)
+            $requestedQty = $existingProduct ? $existingProduct->qte + 1 : 1;
+                
+            // Check if requested quantity is available in stock
+            if (!$stock || $stock->quantite < $requestedQty) {
+                // Log the warning in the same format as ChangeStatusVente
+                \Log::warning('Insufficient stock for product: "' . $productName . 
+                          '" (Requested: ' . $requestedQty . ', Available: ' . 
+                          ($stock ? $stock->quantite : 0) . ')');
+                
+                DB::rollBack();
+                
+                // Return error in the format that will be displayed to the user
+                return response()->json([
+                    'status' => 400,
+                    'message' => 'ERROR',
+                    'details' => 'Stock insuffisant pour "' . $productName . '". Disponible: ' . 
+                               ($stock ? $stock->quantite : 0) . ', Demandé: ' . $requestedQty,
+                    'type' => 'error'
+                ]);
+            }
+
+            if ($existingProduct) {
+                $existingProduct->increment('qte', 1);
+                DB::commit();
+
+                return response()->json([
+                    'status' => 200,
+                    'message' => 'SUCCESS',
+                    'details' => 'La quantité a été mise à jour avec succès',
+                    'type' => 'success'
+                ]);
+            } else {
+                TempVente::create($data);
+                DB::commit();
+
+                return response()->json([
+                    'status' => 200,
+                    'message' => 'SUCCESS',
+                    'details' => 'Ajouté avec succès',
+                    'type' => 'success'
+                ]);
+            }
+        } catch (\Exception $e) {
             DB::rollBack();
-            
+            \Log::error('Error in PostInTmpVente: ' . $e->getMessage());
+
             return response()->json([
-                'status' => 400,
+                'status' => 500,
                 'message' => 'ERROR',
-                'details' => 'Stock insuffisant pour "' . $productName . '". Disponible: ' . 
-                           ($stock ? $stock->quantite : 0) . ', Demandé: ' . $requestedQty,
-                'type' => 'error'
+                'details' => 'Une erreur s\'est produite. Veuillez réessayer.',
+                'type' => 'error',
+                'error' => $e->getMessage(),
             ]);
         }
-
-        if ($existingProduct) {
-            // ✅ Increment by the specified quantity instead of always 1
-            $existingProduct->increment('qte', $data['qte']);
-            DB::commit();
-
-            return response()->json([
-                'status' => 200,
-                'message' => 'SUCCESS',
-                'details' => 'La quantité a été mise à jour avec succès',
-                'type' => 'success'
-            ]);
-        } else {
-            TempVente::create($data);
-            DB::commit();
-
-            return response()->json([
-                'status' => 200,
-                'message' => 'SUCCESS',
-                'details' => 'Ajouté avec succès',
-                'type' => 'success'
-            ]);
-        }
-    } catch (\Exception $e) {
-        DB::rollBack();
-        \Log::error('Error in PostInTmpVente: ' . $e->getMessage());
-
-        return response()->json([
-            'status' => 500,
-            'message' => 'ERROR',
-            'details' => 'Une erreur s\'est produite. Veuillez réessayer.',
-            'type' => 'error',
-            'error' => $e->getMessage(),
-        ]);
     }
-}
 
  public function GetTmpVenteByFormateur(Request $request)
 {
@@ -1837,5 +1838,6 @@ public function getcategorybytypemenu(Request $request)
 //         ], 500);
 //     }
 // }
+
 
 }
