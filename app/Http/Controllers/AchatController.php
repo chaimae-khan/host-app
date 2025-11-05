@@ -227,6 +227,8 @@ public function getProduct(Request $request)
             return $q->whereIn('p.id_categorie', $get_id_category);
         });
 
+
+
         // 🧭 Sorting
         if ($order_by === 'date_exp') {
             $Data_Product->orderBy('p.date_expiration', $order_direction);

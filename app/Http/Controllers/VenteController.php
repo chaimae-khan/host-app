@@ -391,6 +391,27 @@ public function store(Request $request)
             DB::raw('t.qte * p.price_achat as total_by_product'))
         ->get();
 
+    foreach($TempVente as $item)
+    {
+        $stock = DB::select("select * from stock where id_product = ?",[$item->idproduit]);
+        if($stock->quantite < $item->qte)
+        {
+            return response()->json([
+                'status'   => 400,
+                'message'  => "quanitité demande superieur qte stock"
+            ]);
+        }
+        else
+        {
+            if($stock->quantite >= $item->qte)
+            {
+                $update_stock_product = DB::select("update set quantite = quantite - ? where id_product = ?",[$item->qte, $item->idproduit]);
+                
+            }
+        }
+
+    }
+
     if ($TempVente->isEmpty()) {
         return response()->json([
             'status'  => 400,
