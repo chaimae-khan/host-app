@@ -1,6 +1,77 @@
 //command js file 
 $(document).ready(function () {
-    // Helper function to format menu names for display
+   // Function to clear all temporary vente data
+function clearTmpVente() {
+    let Formateur = $('#DropDown_formateur').val();
+    
+    if (!Formateur || Formateur == 0) {
+        return;
+    }
+    
+    $.ajax({
+        type: "POST",
+        url: "{{ url('ClearAllTmpVente') }}",
+        data: {
+            '_token': csrf_token,
+            'id_formateur': Formateur,
+        },
+        dataType: "json",
+        success: function(response) {
+            if(response.status == 200) {
+                console.log("TmpVente cleared successfully");
+                // Refresh the table
+                if ($.fn.DataTable.isDataTable('.TableTmpVente')) {
+                    $('.TableTmpVente').DataTable().clear().draw();
+                }
+                // Reset the total
+                $('.TotalByFormateurAndUser').text("0.00 DH");
+            }
+        },
+        error: function(xhr, status, error) {
+            console.error("Error clearing TmpVente:", error);
+        }
+    });
+}
+
+// Clear TmpVente when modal is opened
+$('#ModalAddVente').on('show.bs.modal', function () {
+    clearTmpVente();
+});
+
+// Clear TmpVente when modal is closed (by any method: X, Fermer, or outside click)
+$('#ModalAddVente').on('hidden.bs.modal', function () {
+    clearTmpVente();
+    
+    // Also clear the product search table
+    if ($.fn.DataTable.isDataTable('.TableProductVente')) {
+        $('.TableProductVente').DataTable().clear().draw();
+    }
+    
+    // Clear all form fields
+    $('#eleves').val(0);
+    $('#personnel').val(0);
+    $('#invites').val(0);
+    $('#divers').val(0);
+    
+    // Clear TomSelect fields if they exist
+    if (typeof tomselect_entree !== 'undefined') {
+        tomselect_entree.clear();
+    }
+    if (typeof tomselect_principal !== 'undefined') {
+        tomselect_principal.clear();
+    }
+    if (typeof tomselect_dessert !== 'undefined') {
+        tomselect_dessert.clear();
+    }
+    
+    $('#date_usage').val('');
+    $('#type_commande').val('Alimentaire');
+    $('#type_menu').val('Menu eleves');
+    $('.input_products').val('');
+    
+    // Reset validation messages
+    $('.validationVente').html('').removeClass('alert alert-danger');
+});
     function formatMenuName(menuType) {
         if (menuType === 'Menu eleves') {
             return 'Menu standard';

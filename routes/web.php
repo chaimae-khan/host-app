@@ -49,6 +49,8 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
     Route::post('/notifications/{id}/mark-as-read', [NotificationController::class, 'markAsRead'])->name('notifications.markAsRead');
     Route::post('/notifications/mark-all-as-read', [NotificationController::class, 'markAllAsRead'])->name('notifications.markAllAsRead');
+    Route::delete('/notifications/{id}', [\App\Http\Controllers\NotificationController::class, 'delete'])->name('notifications.delete');
+    Route::get('/notifications/unread-count', [\App\Http\Controllers\NotificationController::class, 'unreadCount'])->name('notifications.unreadCount');
     
     // Admin routes for approval/rejection
     Route::middleware(['role:Administrateur'])->prefix('admin')->name('admin.')->group(function () {
@@ -57,6 +59,7 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/vente/{id}/approve', [AdminController::class, 'approveVente'])->name('vente.approve');
         Route::post('/vente/{id}/reject', [AdminController::class, 'rejectVente'])->name('vente.reject');
     });
+    Route::post('ClearAllTmpVente', [VenteController::class, 'clearAllTmpVente']);
 
     // TVA Routes
     Route::get('tva', [TvaController::class, 'index']);

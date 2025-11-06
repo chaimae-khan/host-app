@@ -35,34 +35,32 @@ class VenteController extends Controller
         $this->inventoryService = $inventoryService;
     }
     
-   public function index(Request $request)
+public function index(Request $request)
 {
-    /* $user = Auth::user();
-    $role = $user->getRoleNames()->first();
-    dd(Auth::user()->hasRole('Formateur')); */
     $this->autoDeleteOldVentes();
 
-    if($request->ajax())
-    {
+    if ($request->ajax()) {
         $hashids = new Hashids();
-       
+
         $query = DB::table('ventes as v')
-            ->join('users as f','f.id','=','v.id_formateur')
-            ->join('users as u','u.id','=','v.id_user')
-            ->select('v.id', 'v.total', 'v.status', 'v.type_commande', 'v.type_menu',
-                     DB::raw("CONCAT(f.prenom, ' ', f.nom) as formateur_name"),
-                     DB::raw("CONCAT(u.prenom, ' ', u.nom) as name"), 'v.created_at',
-                     'v.eleves', 'v.personnel', 'v.invites', 'v.divers',
-                     'v.entree', 'v.plat_principal', 'v.accompagnement', 'v.dessert', 'v.date_usage')
+            ->join('users as f', 'f.id', '=', 'v.id_formateur')
+            ->join('users as u', 'u.id', '=', 'v.id_user')
+            ->select(
+                'v.id', 'v.total', 'v.status', 'v.type_commande', 'v.type_menu',
+                DB::raw("CONCAT(f.prenom, ' ', f.nom) as formateur_name"),
+                DB::raw("CONCAT(u.prenom, ' ', u.nom) as name"),
+                'v.created_at', 'v.eleves', 'v.personnel', 'v.invites', 'v.divers',
+                'v.entree', 'v.plat_principal', 'v.accompagnement', 'v.dessert', 'v.date_usage',
+                'v.id_formateur'
+            )
             ->whereNull('v.deleted_at');
-            if(Auth::user()->hasRole('Formateur'))
-            {
-                $query->where('v.id_formateur',Auth::id());
-            }
-            $Data_Vente = $query->orderBy('v.id','desc')->get();
-            //dd($Data_Vente);
-            /* ->orderBy('v.id','desc')
-            ->get(); */
+
+        // If user is a formateur, show only their sales
+        if (Auth::user()->hasRole('Formateur')) {
+            $query->where('v.id_formateur', Auth::id());
+        }
+
+        $Data_Vente = $query->orderBy('v.id', 'desc')->get();
 
         return DataTables::of($Data_Vente)
             ->addIndexColumn()
@@ -75,47 +73,56 @@ class VenteController extends Controller
                     ->where('roles.name', 'Administrateur')
                     ->exists();
 
-                 if ($row->status === 'Refus' && !$isAdmin) {
-                        return '';
-                    }
+                $isFormateur = ($row->id_formateur == auth()->id());
 
-                    // Edit button - don't show if status is "Validation"
+                // 🔹 If status is Refus and user is not admin
+                if ($row->status === 'Refus' && !$isAdmin) {
+                    // Allow only formateur to see detail page
+                    if ($isFormateur) {
+                        $btn .= '<a href="' . url('ShowBonVente/' . $hashids->encode($row->id)) . '" 
+                                    class="btn btn-sm bg-success-subtle me-1" 
+                                    target="_blank">
+                                    <i class="fa-solid fa-eye text-success"></i>
+                                </a>';
+                    }
+                    return $btn;
+                }
+
+                // 🔹 Normal users and admin actions
+                if (auth()->user()->can('Commande')) {
+                    // Edit button (not shown if Validation)
                     if (auth()->user()->can('Commande-modifier') && $row->status !== 'Validation') {
                         $btn .= '<a href="#" class="btn btn-sm bg-primary-subtle me-1"
                                     data-id="' . $row->id . '">
                                     <i class="fa-solid fa-pen-to-square text-primary"></i>
                                 </a>';
                     }
-                    
-                    // Detail button with hash ID - show for all statuses
-                    if (auth()->user()->can('Commande')) {
-                        $btn .= '<a href="' . url('ShowBonVente/' . $hashids->encode($row->id)) . '" 
-                                    class="btn btn-sm bg-success-subtle me-1" 
-                                    data-id="' . $row->id . '" 
-                                    target="_blank">
-                                    <i class="fa-solid fa-eye text-success"></i>
-                                </a>';
-                    }
-                    
-                    // Print invoice button - don't show if status is "Refus"
-                    if (auth()->user()->can('Commande') && $row->status !== 'Refus') {
+
+                    // Detail button (always visible)
+                    $btn .= '<a href="' . url('ShowBonVente/' . $hashids->encode($row->id)) . '" 
+                                class="btn btn-sm bg-success-subtle me-1" 
+                                target="_blank">
+                                <i class="fa-solid fa-eye text-success"></i>
+                            </a>';
+
+                    // Print button (not for Refus)
+                    if ($row->status !== 'Refus') {
                         $btn .= '<a href="' . url('FactureVente/' . $hashids->encode($row->id)) . '" 
                                     class="btn btn-sm bg-info-subtle me-1" 
-                                    data-id="' . $row->id . '" 
                                     target="_blank">
                                     <i class="fa-solid fa-print text-info"></i>
                                 </a>';
                     }
 
-                    // Delete button - don't show if status is "Validation"
+                    // Delete button (not for Validation)
                     if (auth()->user()->can('Commande-supprimer') && $row->status !== 'Validation') {
                         $btn .= '<a href="#" class="btn btn-sm bg-danger-subtle DeleteVente"
                                     data-id="' . $row->id . '" 
-                                    data-bs-toggle="tooltip" 
                                     title="Supprimer Vente">
                                     <i class="fa-solid fa-trash text-danger"></i>
                                 </a>';
                     }
+                }
 
                 return $btn;
             })
@@ -123,6 +130,7 @@ class VenteController extends Controller
             ->make(true);
     }
 
+    // Load data for view
     $formateurs = User::where('id', Auth::id())->get();
     $categories = Category::all();
     $subcategories = SubCategory::all();
@@ -130,27 +138,19 @@ class VenteController extends Controller
     $rayons = Rayon::all();
     $tvas = Tva::all();
     $unites = Unite::all();
-    $class = DB::select("select distinct(classe) as classe from categories");
+    $class = DB::select("SELECT DISTINCT(classe) AS classe FROM categories");
 
+    $Plat_Entre = DB::select("SELECT * FROM plats WHERE type='Entrée'");
+    $Plat_Dessert = DB::select("SELECT * FROM plats WHERE type='Dessert'");
+    $Plat_Principal = DB::select("SELECT * FROM plats WHERE type='Plat Principal'");
 
-    $Plat_Entre = DB::select("select * from plats where type='Entrée'");
-    $Plat_Dessert = DB::select("select * from plats where type='Dessert'");
-    $Plat_Principal = DB::select("select * from plats where type='Plat Principal'");
-
-    return view('vente.index')
-        ->with('formateurs', $formateurs)
-        ->with('categories', $categories)
-        ->with('subcategories', $subcategories)
-        ->with('locals', $locals)
-        ->with('rayons', $rayons)
-        ->with('tvas', $tvas)
-        ->with('unites', $unites)
-        ->with('Plat_Entre', $Plat_Entre)
-        ->with('Plat_Dessert', $Plat_Dessert)
-        ->with('Plat_Principal', $Plat_Principal)
-        ->with('class',$class); 
-        
+    return view('vente.index', compact(
+        'formateurs', 'categories', 'subcategories', 'locals',
+        'rayons', 'tvas', 'unites', 'Plat_Entre', 'Plat_Dessert',
+        'Plat_Principal', 'class'
+    ));
 }
+
 
 
 //   public function getProduct(Request $request)
@@ -330,7 +330,6 @@ public function PostInTmpVente(Request $request)
 
 public function store(Request $request)
 {
-   
     if (!auth()->user()->can('Commande-ajoute')) {
         return response()->json([
             'status' => 403,
@@ -376,7 +375,6 @@ public function store(Request $request)
             'errors' => $validator->messages(),
         ], 400);
     }
-  
     
     $userId = Auth::id();
     $formateur = $request->id_formateur;
@@ -457,24 +455,19 @@ public function store(Request $request)
             'message' => 'Échec de la création de l\'enregistrement de commande'
         ]);
     }
-    $path_signature = Auth::user()->signature;
-                Historique_Sig::create([
-                        'signature'   => $path_signature,
-                        'iduser'      => Auth::user()->id,
-                        'idvente'     => $Vente->id,
-                        'status'      => 'Création'  
-                    ]);
-
-
-  
     
- 
-    // Get all admin users
-    $adminUserIds = DB::table('model_has_roles')
-        ->join('roles', 'model_has_roles.role_id', '=', 'roles.id')
-        ->where('roles.name', 'Administrateur')
-        ->pluck('model_has_roles.model_id');
-    $adminUsers = User::whereIn('id', $adminUserIds)->get();
+    $path_signature = Auth::user()->signature;
+    Historique_Sig::create([
+        'signature'   => $path_signature,
+        'iduser'      => Auth::user()->id,
+        'idvente'     => $Vente->id,
+        'status'      => 'Création'  
+    ]);
+
+    // ✅ Formateur creates → Notify Admin & Directeur
+    $notifyUsers = User::whereHas('roles', function($query) {
+        $query->whereIn('name', ['Administrateur', 'Directeur']);
+    })->get();
     
     // Create hashids for secure URL
     $hashids = new Hashids();
@@ -484,13 +477,11 @@ public function store(Request $request)
     $currentUser = User::find(Auth::id());
     $userName = $currentUser->prenom . ' ' . $currentUser->nom;
     
-    // Notify each admin
-    foreach ($adminUsers as $admin) {
-        $admin->notify(new \App\Notifications\SystemNotification([
-            'message' => 'Nouvelle commande créée par ' . $userName,
+    // Notify Admin & Directeur
+    foreach ($notifyUsers as $user) {
+        $user->notify(new \App\Notifications\SystemNotification([
+            'message' => 'Nouvelle commande #' . $Vente->id . ' créée par ' . $userName,
             'status' => 'Création',
-            'approve_url' => route('admin.vente.approve', $Vente->id),
-            'reject_url' => route('admin.vente.reject', $Vente->id),
             'view_url' => url('ShowBonVente/' . $encodedId)
         ]));
     }
@@ -1071,6 +1062,73 @@ public function update(Request $request)
     }
     
     $vente->save();
+    // 🔔 Notification logic after updating status
+$hashids = new \Hashids\Hashids();
+$encodedId = $hashids->encode($vente->id);
+
+$currentUser = \App\Models\User::find(\Auth::id());
+$currentUserName = $currentUser->prenom . ' ' . $currentUser->nom;
+
+// Notify based on status
+$creatorUser = \App\Models\User::find($vente->id_user);
+
+if ($creatorUser) {
+    switch ($request->status) {
+        case 'Validation':
+            $creatorUser->notify(new \App\Notifications\SystemNotification([
+                'message' => 'Votre commande #' . $vente->id . ' a été approuvée par ' . $currentUserName,
+                'status'  => 'Validation',
+                'view_url' => url('ShowBonVente/' . $encodedId),
+            ]));
+            break;
+
+        case 'Refus':
+            $creatorUser->notify(new \App\Notifications\SystemNotification([
+                'message' => 'Votre commande #' . $vente->id . ' a été refusée par ' . $currentUserName,
+                'status'  => 'Refus',
+                'view_url' => url('ShowBonVente/' . $encodedId),
+            ]));
+            break;
+
+        case 'Livraison':
+            $creatorUser->notify(new \App\Notifications\SystemNotification([
+                'message' => 'Votre commande #' . $vente->id . ' a été livrée',
+                'status'  => 'Livraison',
+                'view_url' => url('ShowBonVente/' . $encodedId),
+            ]));
+            break;
+
+        case 'Visé':
+            $creatorUser->notify(new \App\Notifications\SystemNotification([
+                'message' => 'Votre commande #' . $vente->id . ' a été visée par l\'économe',
+                'status'  => 'Visé',
+                'view_url' => url('ShowBonVente/' . $encodedId),
+            ]));
+            break;
+
+        case 'Réception':
+            $creatorUser->notify(new \App\Notifications\SystemNotification([
+                'message' => 'Votre commande #' . $vente->id . ' est en cours de réception au magasin',
+                'status'  => 'Réception',
+                'view_url' => url('ShowBonVente/' . $encodedId),
+            ]));
+
+            // Notify all Magasiniers
+            $magasinierUsers = \App\Models\User::whereHas('roles', function($query) {
+                $query->where('name', 'Magasinier');
+            })->get();
+
+            foreach ($magasinierUsers as $magasinier) {
+                $magasinier->notify(new \App\Notifications\SystemNotification([
+                    'message' => 'Nouvelle commande #' . $vente->id . ' prête pour la livraison',
+                    'status'  => 'Réception',
+                    'view_url' => url('ShowBonVente/' . $encodedId),
+                ]));
+            }
+            break;
+    }
+}
+
     
     if($request->status == 'Réception') {
         $path_signature = Auth::user()->signature;
@@ -1101,6 +1159,7 @@ public function update(Request $request)
         'message' => 'Commande mise à jour avec succès',
     ]);
 }
+
 
     public function deleteVente(Request $request)
     {
@@ -1196,222 +1255,7 @@ public function update(Request $request)
         \Log::error("Error in autoDeleteOldVentes method: " . $e->getMessage());
     }
 }
-    
-// public function ChangeStatusVente(Request $request) 
-// {
-//     if (!auth()->user()->can('Commande-modifier')) {
-//         return response()->json([
-//             'status' => 403,
-//             'message' => 'Vous n\'avez pas la permission de modifier le statut d\'une commande'
-//         ], 403);
-//     }
 
-//     try {
-//         $data = $request->all();
-//         \Log::info('ChangeStatusVente called with data:', $data);
-
-//         $vente = Vente::find($data['id']);
-        
-//         if (!$vente) {
-//             return response()->json([
-//                 'status' => 404,
-//                 'message' => 'Vente non trouvée'
-//             ], 404);
-//         }
-
-//         $oldStatus = $vente->status;
-
-//         // ✅ Simple status update for Validation (no stock changes)
-//         if($data['status'] == 'Validation') {
-//             $vente->status = 'Validation';
-//             $result = $vente->save();
-            
-//             \Log::info('Updated vente status to Validation. Result: ' . ($result ? 'success' : 'failed'));
-            
-//             $creatorUser = User::find($vente->id_user);
-//             if ($creatorUser) {
-//                 $hashids = new Hashids();
-//                 $encodedId = $hashids->encode($vente->id);
-                
-//                 $creatorUser->notify(new \App\Notifications\SystemNotification([
-//                     'message' => 'Votre commande a été approuvée',
-//                     'status' => 'Validation',
-//                     'view_url' => url('ShowBonVente/' . $encodedId)
-//                 ]));
-//             }
-
-//             \Log::info('Vente status changed from "' . $oldStatus . '" to "Validation" for vente ID: ' . $vente->id . ' by user: ' . auth()->user()->id);
-            
-//             return response()->json([
-//                 'status' => 200,
-//                 'message' => 'Opération réussie'
-//             ]);
-//         }
-
-//         else if($data['status'] == 'Refus') {
-//             $vente->status = 'Refus';
-//             $result = $vente->save();
-            
-//             \Log::info('Updated vente status to Refus. Result: ' . ($result ? 'success' : 'failed'));
-            
-//             $creatorUser = User::find($vente->id_user);
-//             if ($creatorUser) {
-//                 $hashids = new Hashids();
-//                 $encodedId = $hashids->encode($vente->id);
-                
-//                 $creatorUser->notify(new \App\Notifications\SystemNotification([
-//                     'message' => 'Votre commande a été refusée',
-//                     'status' => 'Refus',
-//                     'view_url' => url('ShowBonVente/' . $encodedId)
-//                 ]));
-//             }
-
-//             \Log::info('Vente status changed from "' . $oldStatus . '" to "Refus" for vente ID: ' . $vente->id . ' by user: ' . auth()->user()->id);
-            
-//             return response()->json([
-//                 'status' => 200,
-//                 'message' => 'Opération réussie'
-//             ]);
-//         }
-
-//         else if($data['status'] == 'Livraison') {
-//             $vente->status = 'Livraison';
-//             $result = $vente->save();
-            
-//             \Log::info('Updated vente status to Livraison. Result: ' . ($result ? 'success' : 'failed'));
-//             \Log::info('Vente status changed from "' . $oldStatus . '" to "Livraison" for vente ID: ' . $vente->id . ' by user: ' . auth()->user()->id);
-            
-//             return response()->json([
-//                 'status' => 200,
-//                 'message' => 'Opération réussie'
-//             ]);
-//         }
-
-//         else if($data['status'] == 'Visé') {
-//             $vente->status = 'Visé';
-//             $result = $vente->save();
-            
-//             \Log::info('Updated vente status to Visé. Result: ' . ($result ? 'success' : 'failed'));
-            
-//             $creatorUser = User::find($vente->id_user);
-//             if ($creatorUser) {
-//                 $hashids = new Hashids();
-//                 $encodedId = $hashids->encode($vente->id);
-                
-//                 $creatorUser->notify(new \App\Notifications\SystemNotification([
-//                     'message' => 'Votre commande a été visée par l\'économe',
-//                     'status' => 'Visé',
-//                     'view_url' => url('ShowBonVente/' . $encodedId)
-//                 ]));
-//             }
-
-//             \Log::info('Vente status changed from "' . $oldStatus . '" to "Visé" for vente ID: ' . $vente->id . ' by user: ' . auth()->user()->id);
-            
-//             return response()->json([
-//                 'status' => 200,
-//                 'message' => 'Opération réussie'
-//             ]);
-//         }
-
-//         // ✅ Stock reduction logic AND formateur stock assignment for Réception
-//         else if($data['status'] == 'Réception') {
-//             DB::beginTransaction();
-            
-//             try {
-//                 $vente->status = 'Réception';
-//                 $vente->save();
-                
-//                 $data_ligne_product = LigneVente::where('idvente', $data['id'])->get();
-
-//                 foreach($data_ligne_product as $value) {
-//                     $product = DB::table('products')->where('id', $value->idproduit)->first();
-//                     $productName = $product ? $product->name : 'Unknown Product';
-
-//                     // ✅ THIS IS THE MISSING PIECE - Assign to formateur stock
-//                     $value->contete_formateur = (string)$value->qte;
-//                     $value->save();
-
-//                     $stock = Stock::where('id_product', $value->idproduit)->first();
-
-//                     if($stock) {
-//                         if($stock->quantite >= $value->qte) {
-//                             $stock->quantite -= $value->qte;
-//                             $stock->save();
-
-//                             if($stock->quantite <= $product->seuil) {
-//                                 $adminUsers = User::whereHas('roles', function($query) {
-//                                     $query->where('name', 'Administrateur');
-//                                 })->get();
-
-//                                 foreach ($adminUsers as $admin) {
-//                                     $admin->notify(new SystemNotification([
-//                                         'message' => "Stock faible: {$productName} - Quantité: {$stock->quantite}, Seuil: {$product->seuil}",
-//                                         'status' => 'Stock Bas',
-//                                         'view_url' => url('stock')
-//                                     ]));
-//                                 }
-//                             }
-
-//                         } else {
-//                             throw new \Exception('Stock insuffisant pour le produit: "' . $productName . '"');
-//                         }
-//                     } else {
-//                         throw new \Exception('Aucun stock trouvé pour le produit: "' . $productName . '"');
-//                     }
-//                 }
-
-//                 $this->inventoryService->updateInventoryForSale($vente);
-//                 DB::commit();
-
-//                 $creatorUser = User::find($vente->id_user);
-//                 if ($creatorUser) {
-//                     $hashids = new Hashids();
-//                     $encodedId = $hashids->encode($vente->id);
-
-//                     $creatorUser->notify(new \App\Notifications\SystemNotification([
-//                         'message' => 'Votre commande a été reçue et le stock a été mis à jour',
-//                         'status' => 'Réception',
-//                         'view_url' => url('ShowBonVente/' . $encodedId)
-//                     ]));
-//                 }
-
-//                 \Log::info('Vente status changed from "' . $oldStatus . '" to "Réception" for vente ID: ' . $vente->id . ' by user: ' . auth()->user()->id);
-
-//                 return response()->json([
-//                     'status' => 200,
-//                     'message' => 'Opération réussie'
-//                 ]);
-
-//             } catch (\Exception $e) {
-//                 DB::rollBack();
-//                 \Log::error('Error in reception process: ' . $e->getMessage());
-
-//                 return response()->json([
-//                     'status' => 500,
-//                     'message' => 'Une erreur est survenue lors de la réception: ' . $e->getMessage(),
-//                     'error' => $e->getMessage()
-//                 ]);
-//             }
-//         }
-
-//         // If no match
-//         else {
-//             return response()->json([
-//                 'status' => 400,
-//                 'message' => 'Statut inconnu'
-//             ]);
-//         }
-
-//     } catch (\Exception $e) {
-//         \Log::error('Error in ChangeStatusVente: ' . $e->getMessage());
-
-//         return response()->json([
-//             'status' => 500,
-//             'message' => 'Une erreur est survenue lors du changement de statut: ' . $e->getMessage(),
-//             'error' => $e->getMessage()
-//         ]);
-//     }
-// }
  public function ChangeStatusVente(Request $request)
     {
         if (!auth()->user()->can('Commande-modifier')) {
@@ -1837,5 +1681,19 @@ public function getcategorybytypemenu(Request $request)
 //         ], 500);
 //     }
 // }
+public function clearAllTmpVente(Request $request)
+{
+    $userId = Auth::id();
+    $formateur = $request->id_formateur;
+    
+    TempVente::where('id_user', $userId)
+        ->where('id_formateur', $formateur)
+        ->delete();
+    
+    return response()->json([
+        'status' => 200,
+        'message' => 'TmpVente cleared successfully'
+    ]);
+}
 
 }
