@@ -390,6 +390,41 @@ public function store(Request $request)
         ->select('t.id_formateur', 't.qte', 't.idproduit',
             DB::raw('t.qte * p.price_achat as total_by_product'))
         ->get();
+    foreach($TempVente as $value)
+    {
+        $extract_id_product = DB::table('products')
+        ->where('id', $value->idproduit)
+        ->select('name')
+        ->first();
+
+        // 2️⃣ Get all stock entries for products with the same name
+        $extract_name_product = DB::table('products as p')
+        ->join('stock as s', 'p.id', '=', 's.id_product')
+        ->where('p.name', 'like', '%' . $extract_id_product->name . '%')
+        ->select('p.id', 'p.name', 's.quantite')
+        ->orderBy('p.id', 'asc')
+        ->get();
+
+        if ($extract_name_product->count() > 1) 
+        {
+            foreach($extract_name_product as $item)
+            {
+                $SumVente = DB::select('select (avg(price_achat) * ? ) as total_by_product from products where name = ?',[$value->qte,$item->name]);
+            }
+           
+        }
+        else
+        {
+            // Calculate total sales amount
+            $SumVente = $TempVente->sum('total_by_product');
+        }
+
+    }
+    
+
+   
+
+    
 
     if ($TempVente->isEmpty()) {
         return response()->json([
@@ -398,8 +433,7 @@ public function store(Request $request)
         ]);
     }
 
-    // Calculate total sales amount
-    $SumVente = $TempVente->sum('total_by_product');
+   
     
     // Helper function to convert empty strings to null
     $convertEmptyToNull = function($value) {
