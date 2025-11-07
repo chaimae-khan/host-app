@@ -19,6 +19,8 @@ class PlatsController extends Controller
      */
     public function index(Request $request)
     {
+        
+        
         if ($request->ajax()) {
             $dataPlat = DB::table('plats as p')
                 ->join('users as us', 'us.id', '=', 'p.iduser')
@@ -60,6 +62,8 @@ class PlatsController extends Controller
                 ->rawColumns(['action'])
                 ->make(true);
         }
+
+       
              
         return view('plats.index');
     }
@@ -102,6 +106,14 @@ class PlatsController extends Controller
                 'status' => 422,
                 'message' => 'Ce plat existe déjà',
             ], 422);
+        }
+        $check_plat  = DB::table('plats')->where('name',trim($request->name))->where('type',$request->type)->count();
+        if($check_plat > 0)
+        {
+            return response()->json([
+                'status'   => 500,
+                'message'  => 'Cette plat existe déjà'
+            ]);
         }
     
         $plat = Plat::create([

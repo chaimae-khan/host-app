@@ -54,7 +54,8 @@ class VenteController extends Controller
                      DB::raw("CONCAT(u.prenom, ' ', u.nom) as name"), 'v.created_at',
                      'v.eleves', 'v.personnel', 'v.invites', 'v.divers',
                      'v.entree', 'v.plat_principal', 'v.accompagnement', 'v.dessert', 'v.date_usage')
-            ->whereNull('v.deleted_at');
+            ->whereNull('v.deleted_at')
+            ->Orderby('v.id','desc');
             if(Auth::user()->hasRole('Formateur'))
             {
                 $query->where('v.id_formateur',Auth::id());
@@ -430,8 +431,42 @@ public function store(Request $request)
         $plat_principal = $convertEmptyToNull($request->plat_principal);
         $accompagnement = $convertEmptyToNull($request->accompagnement);
         $dessert = $convertEmptyToNull($request->dessert);
+
+        foreach ($TempVente as $item) 
+        {
+            $getNameProduct = DB::table('stock as s')
+                ->join('products as p', 'p.id', '=', 's.id_product')
+                ->where('s.id_product', $item->idproduit)
+                ->select("p.name")
+                ->first();
+
+                
+            $getStockProduct = DB::table('stock as s')
+            ->join('products as p', 'p.id', '=', 's.id_product')
+            ->where('p.name', 'like', '%' . $getNameProduct->name . '%')
+            ->groupBy('p.name')
+            ->selectRaw('p.name, SUM(s.quantite) as quantite')
+            ->first();
+
+
+            if ($getStockProduct) 
+            {
+                // 150  < 60
+                if (intval($getStockProduct->quantite) < $item->qte) 
+                {
+                    return response()->json([
+                        'status'  => 600,
+                        'message' => 'Stock insuffisant pour ' . $getStockProduct->name .
+                                    ' — Disponible: ' . $getStockProduct->quantite .
+                                    ', Demandé: ' . $item->qte
+                    ]);
+                }
+            }
+        
+        }
     }
 
+   
     // Create new sale with audit trail (id_user will be tracked automatically)
     $Vente = Vente::create([
         'total'     => $SumVente,
@@ -1441,9 +1476,9 @@ public function update(Request $request)
             if($data['status'] == 'Validation')
             {
                 // Begin transaction
-                DB::beginTransaction();
+                /* DB::beginTransaction();
                 
-                try {
+                try { */
                     // First, update the vente status (this will trigger audit trail)
                     $vente->status = 'Validation';
                     $vente->save();
@@ -1458,7 +1493,7 @@ public function update(Request $request)
                     // Extract product from ligne vente 
                     $data_ligne_product = LigneVente::where('idvente', $data['id'])->get();
                     \Log::info('Found ' . $data_ligne_product->count() . ' line items for vente ID: ' . $data['id']);
-
+                    
                     foreach($data_ligne_product as $value)
                     {
                         // Get product name
@@ -1473,19 +1508,119 @@ public function update(Request $request)
                         
                         // Get stock for this product
                         $stock = Stock::where('id_product', $value->idproduit)->first();
+
+
+                        /************************* Start youssef ********************/
+                      
+                        // 1️⃣ Get product name by ID
+                        $extract_id_product = DB::table('products')
+                            ->where('id', $value->idproduit)
+                            ->select('name')
+                            ->first();
+
+                        // 2️⃣ Get all stock entries for products with the same name
+                        $extract_name_product = DB::table('products as p')
+                            ->join('stock as s', 'p.id', '=', 's.id_product')
+                            ->where('p.name', 'like', '%' . $extract_id_product->name . '%')
+                            ->select('p.id', 'p.name', 's.quantite')
+                            ->orderBy('p.id', 'asc')
+                            ->get();
+
+                        // 3️⃣ Only if more than one stock entry exists
+                        if ($extract_name_product->count() > 1) 
+                        {
+
+                            $qteDemandee = $value->qte;
+
+                            foreach ($extract_name_product as $product) 
+                                {
+                                if ($qteDemandee <= 0) break;
+
+                                $qteDispo = $product->quantite;
+
+                                if ($qteDispo >= $qteDemandee) {
+                                    DB::table('stock')
+                                        ->where('id_product', $product->id)
+                                        ->update([
+                                            'quantite' => DB::raw('quantite - ' . (int) $qteDemandee)
+                                        ]);
+                                    $qteDemandee = 0;
+                                } else {
+                                    DB::table('stock')
+                                        ->where('id_product', $product->id)
+                                        ->update([
+                                            'quantite' => 0
+                                        ]);
+                                    $qteDemandee -= $qteDispo;
+                                }
+                            }
+
+                            /* // Not enough stock
+                            if ($qteDemandee > 0) {
+                                return response()->json([
+                                    'status' => 400,
+                                    'message' => 'Stock insuffisant pour ' . $extract_id_product->name
+                                ]);
+                            } */
+                        }
+                        else
+                        {
+                            if($stock) 
+                                {
+                                \Log::info('Current stock quantity for "' . $productName . '": ' . $stock->quantite);
+                                
+                                if($stock->quantite >= $value->qte) 
+                                {
+                                
+                                    $stock->quantite -= $value->qte;
+                                    $stock->save();
+                                    \Log::info('Updated stock quantity for "' . $productName . '": ' . $stock->quantite);
+                                    
+                                    
+                                    if($stock->quantite <= $product->seuil) {
+                                    
+                                        $adminUsers = User::whereHas('roles', function($query) {
+                                            $query->where('name', 'Administrateur');
+                                        })->get();
+                                        
+                                        foreach ($adminUsers as $admin) {
+                                            $admin->notify(new SystemNotification([
+                                                'message' => "Stock faible: {$productName} - Quantité: {$stock->quantite}, Seuil: {$product->seuil}",
+                                                'status' => 'Stock Bas',
+                                                'view_url' => url('stock')
+                                            ]));
+                                        }
+                                    }
+                                    
+                                } else {
+                                    \Log::warning('Insufficient stock for product: "' . $productName . 
+                                                '" (Requested: ' . $value->qte . ', Available: ' . $stock->quantite . ')');
+                                    
+                                    throw new \Exception('Stock insuffisant pour le produit: "' . $productName . '"');
+                                }
+                            } 
+                            else 
+                            {
+                                \Log::warning('No stock found for product: "' . $productName . '"');
+                                throw new \Exception('Aucun stock trouvé pour le produit: "' . $productName . '"');
+                            }
+                        }
+
+
+                        /************************* ENDyoussef ********************/
                         
-                        if($stock) {
+                       /*  if($stock) {
                             \Log::info('Current stock quantity for "' . $productName . '": ' . $stock->quantite);
                             
                             if($stock->quantite >= $value->qte) {
-                                // Subtract quantity from stock
+                               
                                 $stock->quantite -= $value->qte;
                                 $stock->save();
                                 \Log::info('Updated stock quantity for "' . $productName . '": ' . $stock->quantite);
                                 
-                                // Check if this product is now low stock after validation
+                                
                                 if($stock->quantite <= $product->seuil) {
-                                    // Get administrators
+                                   
                                     $adminUsers = User::whereHas('roles', function($query) {
                                         $query->where('name', 'Administrateur');
                                     })->get();
@@ -1508,14 +1643,14 @@ public function update(Request $request)
                         } else {
                             \Log::warning('No stock found for product: "' . $productName . '"');
                             throw new \Exception('Aucun stock trouvé pour le produit: "' . $productName . '"');
-                        }
+                        } */
                     }
                     
                     // Update inventory using the service - this only records the movement, doesn't modify stock
                     $this->inventoryService->updateInventoryForSale($vente);
                     \Log::info('Updated inventory for sale ID: ' . $vente->id);
                     
-                    DB::commit();
+                    /* DB::commit(); */
                     
                     // Notify the user who created this sale
                     $creatorUser = User::find($vente->id_user);
@@ -1539,7 +1674,7 @@ public function update(Request $request)
                         'message' => 'Opération réussie'
                     ]);
                     
-                } catch (\Exception $e) {
+               /*  } catch (\Exception $e) {
                     DB::rollBack();
                     \Log::error('Error in validation process: ' . $e->getMessage());
                     \Log::error($e->getTraceAsString());
@@ -1549,7 +1684,7 @@ public function update(Request $request)
                         'message' => 'Une erreur est survenue lors de la validation: ' . $e->getMessage(),
                         'error' => $e->getMessage()
                     ]);
-                }
+                } */
             }
             else if($data['status'] == 'Refus')
             {
@@ -1837,5 +1972,17 @@ public function getcategorybytypemenu(Request $request)
 //         ], 500);
 //     }
 // }
+
+    public function ClearTmpVente(Request $request)
+    {
+        $id_formateur = $request->id_formateur;
+        $TempVente = TempVente::where('id_formateur',$id_formateur)->delete();
+
+        return response()->json([
+             'status' => 200,
+            
+             
+        ]);
+    }
 
 }

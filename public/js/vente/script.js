@@ -8,9 +8,30 @@ $(document).ready(function () {
         return menuType;
     }
 
+
+   
     let Formateur = 0;
     Formateur = $('#DropDown_formateur').val();
-        
+    function ClearAllProductTmp()
+    {
+        $.ajax({
+            type: "get",
+            url: ClearTmpVente,
+            data: 
+            {
+                id_formateur : Formateur
+            },
+            dataType: "json",
+            success: function (response) 
+            {
+                if(response.status == 200)
+                {
+                    console.log('clear tmp vente');
+                }   
+            }
+        });    
+    } 
+    ClearAllProductTmp();
     // Initialize tables for this user
     /* if (Formateur != 0) {
         initializeTableTmpVente('.TableTmpVente', Formateur);
@@ -820,7 +841,12 @@ $('#BtnSaveVente').on('click', function(e) {
                 $.each(response.errors, function(key, list_err) {
                     $('.validationVente').append('<li>' + list_err + '</li>');
                 });
-            } else {
+            }
+            else if(response.status == 600)
+            {
+                new AWN().alert(response.message , {durations: {alert: 5000}});
+            }
+            else {
                 new AWN().alert(response.message || "Une erreur est survenue", {durations: {alert: 5000}});
             }
         },

@@ -64,6 +64,7 @@ document.addEventListener('DOMContentLoaded', function () {
     var searchVenteProducts_url = "{{ route('vente.search.products') }}";
     var getcategorybytypemenu = "{{ url('getcategorybytypemenu') }}";
     var sendPlatToTmpVente   = "{{ url('sendPlatToTmpVente') }}";
+    var ClearTmpVente           = "{{ url('ClearTmpVente') }}";
 </script>
 
 <style>
