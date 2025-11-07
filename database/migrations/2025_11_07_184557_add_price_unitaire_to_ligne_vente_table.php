@@ -11,8 +11,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('products', function (Blueprint $table) {
-            $table->date('date_reception')->nullable();
+         Schema::table('ligne_vente', function (Blueprint $table) {
+            $table->decimal('price_unitaire', 10, 2)->default(0)->after('qte');
         });
     }
 
@@ -21,8 +21,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('products', function (Blueprint $table) {
-            //
+         Schema::table('ligne_vente', function (Blueprint $table) {
+            $table->dropColumn('price_unitaire');
         });
     }
 };

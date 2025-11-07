@@ -142,7 +142,7 @@
                                             <span class="badge bg-secondary">0</span>
                                         @endif
                                     </td>
-                                    <td class="text-end">{{ number_format($value->price_achat, 2, ',', ' ') }}</td>
+                                  <td class="text-end">{{ number_format($value->avg_price ?? $value->price_achat, 2, ',', ' ') }}</td>
                                     <td class="text-end">{{ number_format($value->total, 2, ',', ' ') }}</td>
                                     <td>
                                         @if(isset($transferDetails[$value->idproduit]))

@@ -127,7 +127,8 @@ function initializeDataTable() {
         });
     
      
-   // Edit Product Handler
+
+// Edit Product Handler
 $('.TableProducts tbody').on('click', '.editProduct', function(e) {
     e.preventDefault();
     var productId = $(this).attr('data-id');
@@ -143,7 +144,6 @@ $('.TableProducts tbody').on('click', '.editProduct', function(e) {
             // Enable edit button
             $('.editProduct').prop('disabled', false);
             
-            // Detailed logging
             console.log("Données du produit:", response);
             
             // Clear any previous dropdown options to prevent duplicates
@@ -163,7 +163,7 @@ $('.TableProducts tbody').on('click', '.editProduct', function(e) {
             $('#edit_price_achat').val(response.price_achat);
             $('#edit_code_barre').val(response.code_barre);
             
-            // Handle photo path - ensure it's properly captured
+            // Handle photo path
             if (!$('#current_photo_path').length) {
                 $('<input>').attr({
                     type: 'hidden',
@@ -172,46 +172,81 @@ $('.TableProducts tbody').on('click', '.editProduct', function(e) {
                 }).appendTo('#FormUpdateProduct');
             }
             
-            // Set the current photo path and show the image
             if (response.photo) {
                 $('#current_photo_path').val(response.photo);
                 $('#current_photo_container').html('<img src="/storage/' + response.photo + '" alt="Current Photo" class="img-thumbnail" style="width: 100px; height: 100px;"><p class="mt-2">Photo actuelle</p>');
                 $('#current_photo_container').show();
-                console.log("Photo path stored:", response.photo);
             } else {
                 $('#current_photo_path').val('');
                 $('#current_photo_container').hide();
-                console.log("No photo path to store");
             }
             
-            // Reset file input to ensure it doesn't retain previous selection
+            // Reset file input
             $('#edit_photo').val('');
             $('#edit_photo_preview').hide();
             
-            // Set date_expiration if exists
-            if (response.date_expiration) {
-                const expDate = new Date(response.date_expiration);
-                const formattedDate = expDate.toISOString().split('T')[0];
-                $('#edit_date_expiration').val(formattedDate);
-                console.log("Setting expiration date:", formattedDate);
-            } else {
-                $('#edit_date_expiration').val('');
-                console.log("No expiration date found");
-            }
-            if (response.date_reception) {
-    const recDate = new Date(response.date_reception);
-    const formattedRecDate = recDate.toISOString().split('T')[0];
-    $('#edit_date_reception').val(formattedRecDate);
-    console.log("Setting reception date:", formattedRecDate);
-} else {
-    $('#edit_date_reception').val('');
-    console.log("No reception date found");
-}
+            // ========== DATE HANDLING - START ==========
             
-            // Set seuil value directly from product
+            // Parse and prepare dates
+            let expDate = null;
+            let recDate = null;
+            
+            // Set date_expiration
+            if (response.date_expiration) {
+                expDate = response.date_expiration.includes(' ') 
+                    ? response.date_expiration.split(' ')[0] 
+                    : response.date_expiration;
+                console.log("Expiration date parsed:", expDate);
+            }
+            
+            // Set date_reception
+            if (response.date_reception) {
+                recDate = response.date_reception.includes(' ') 
+                    ? response.date_reception.split(' ')[0] 
+                    : response.date_reception;
+                console.log("Reception date parsed:", recDate);
+            }
+            
+            // Destroy existing Flatpickr instances first
+            $('#edit_date_expiration, #edit_date_reception').each(function() {
+                if (this._flatpickr) {
+                    this._flatpickr.destroy();
+                }
+            });
+            
+            // Initialize Flatpickr for date_expiration with defaultDate
+            flatpickr('#edit_date_expiration', {
+                locale: "fr",
+                dateFormat: "Y-m-d",
+                altInput: true,
+                altFormat: "j F Y",
+                allowInput: false,
+                clickOpens: true,
+                defaultDate: expDate  // Set the date here
+            });
+            
+            // Initialize Flatpickr for date_reception with defaultDate
+            flatpickr('#edit_date_reception', {
+                locale: "fr",
+                dateFormat: "Y-m-d",
+                altInput: true,
+                altFormat: "j F Y",
+                allowInput: false,
+                clickOpens: true,
+                defaultDate: recDate  // Set the date here
+            });
+            
+            console.log("Flatpickr initialized with dates:", {
+                expiration: expDate,
+                reception: recDate
+            });
+            
+            // ========== DATE HANDLING - END ==========
+            
+            // Set seuil value
             $('#edit_seuil').val(response.seuil);
             
-            // Display code_article in a disabled field if you want to show it
+            // Display code_article
             if ($('#edit_code_article').length) {
                 $('#edit_code_article').val(response.code_article);
             }
@@ -224,10 +259,8 @@ $('.TableProducts tbody').on('click', '.editProduct', function(e) {
             
             // Handle class and category cascading dropdowns
             if (response.class) {
-                // Set class value
                 $('#edit_Class_Categorie').val(response.class);
                 
-                // Load categories for this class, then set the category
                 $.ajax({
                     type: "GET",
                     url: GetCategorieByClass,
@@ -242,74 +275,62 @@ $('.TableProducts tbody').on('click', '.editProduct', function(e) {
                                 categorySelect.append('<option value="' + item.id + '">' + item.name + '</option>');
                             });
                             
-                            // Set the category value after categories are loaded
                             categorySelect.val(response.id_categorie);
-                            
-                            // Load subcategories after category is set
                             loadSubcategories('#edit_Categorie_Class', '#edit_id_subcategorie', response.id_subcategorie);
                         }
                     },
                     error: function(xhr, status, error) {
                         console.error("Erreur de chargement des catégories:", error);
-                        // Fallback: load subcategories directly if class loading fails
                         loadSubcategories('#edit_id_categorie', '#edit_id_subcategorie', response.id_subcategorie);
                     }
                 });
             } else {
-                // Fallback for existing products without class - use old category dropdown
                 $('#edit_id_categorie').val(response.id_categorie);
                 loadSubcategories('#edit_id_categorie', '#edit_id_subcategorie', response.id_subcategorie);
             }
             
-            // Set TVA and Unite from product
-            // if (response.id_tva) {
-            //     $('#edit_id_tva').val(response.id_tva);
-            // } else if (response.stock && response.stock.id_tva) {
-            //     // Fallback to stock if product doesn't have it yet
-            //     $('#edit_id_tva').val(response.stock.id_tva);
-            // }
-            
+            // Set Unite
             if (response.id_unite) {
                 $('#edit_id_unite').val(response.id_unite);
             } else if (response.stock && response.stock.id_unite) {
-                // Fallback to stock if product doesn't have it yet
                 $('#edit_id_unite').val(response.stock.id_unite);
             }
             
-            // Set stock quantity if stock exists
+            // Set Fournisseur
+            if (response.id_fournisseur) {
+                $('#edit_id_fournisseur').val(response.id_fournisseur);
+                console.log("Setting fournisseur:", response.id_fournisseur);
+            } else {
+                $('#edit_id_fournisseur').val('');
+            }
+            
+            // Set stock quantity
             if (response.stock) {
                 $('#edit_quantite').val(response.stock.quantite);
             } else {
-                // Reset stock quantity field if no stock data
                 $('#edit_quantite').val('');
             }
         },
         error: function(xhr, status, error) {
-            // Enable edit button
             $('.editProduct').prop('disabled', false);
             
-            // Detailed error logging
             console.error("Erreur lors de la récupération du produit:", {
                 status: status,
                 error: error,
                 responseText: xhr.responseText
             });
             
-            // User-friendly error notification
             let errorMessage = "Erreur de chargement du produit";
             
             try {
-                // Try to parse error response
                 var errorResponse = JSON.parse(xhr.responseText);
                 if (errorResponse && errorResponse.message) {
                     errorMessage = errorResponse.message;
                 }
             } catch(e) {
                 errorMessage = "Le format de la réponse est invalide. Veuillez contacter l'administrateur.";
-                console.error("Erreur d'analyse JSON:", e);
             }
             
-            // Show error notification
             new AWN().alert(errorMessage, { 
                 durations: { alert: 5000 } 
             });

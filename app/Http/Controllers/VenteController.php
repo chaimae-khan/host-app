@@ -350,6 +350,7 @@ public function store(Request $request)
         'accompagnement' => 'sometimes|string|max:255|nullable',
         'dessert' => 'sometimes|string|max:255|nullable',
         'date_usage' => 'sometimes|date|nullable',
+        
     ], [
         'integer' => 'Le nombre doit être un nombre entier',
         'min' => 'Le nombre doit être positif',
@@ -560,6 +561,7 @@ public function store(Request $request)
             'idvente'   => $Vente->id,
             'idproduit' => $item->idproduit,
             'qte'       => $item->qte,
+            'price_unitaire' => $avgPrice 
         ]);
     }
 
@@ -828,27 +830,71 @@ public function ShowBonVente($id)
         $bonVente->dessert_names = null;
     }
     
-    // Rest of the existing code...
+    // Get Formateur info
     $Formateur = DB::table('users as f')
         ->join('ventes as v', 'v.id_formateur', '=', 'f.id')
         ->select('f.*')
         ->where('v.id', $id)
         ->first();
         
+    // ✅ GET DATA WITH STORED UNIT PRICE
     $Data_Vente = DB::table('ventes as v')
         ->join('ligne_vente as l', 'v.id', '=', 'l.idvente')
         ->join('products as p', 'l.idproduit', '=', 'p.id')
         ->select(
-            'p.price_achat', 
+            'p.price_achat',  // Keep for fallback (old orders)
             'l.qte', 
-            DB::raw('p.price_achat * l.qte as total'), 
             'p.name',
             'l.idproduit',
-            'l.contente_transfert'
+            'l.contente_transfert',
+            'l.price_unitaire'  // ✅ Get stored unit price
         )
         ->where('v.id', $id)
         ->get();
     
+    // ✅ Use stored price_unitaire or calculate for backward compatibility
+    foreach ($Data_Vente as $item) {
+        // If price_unitaire exists and is greater than 0, use it (new orders)
+        if (isset($item->price_unitaire) && $item->price_unitaire > 0) {
+            $item->avg_price = $item->price_unitaire;
+            $item->total = $item->price_unitaire * $item->qte;
+            
+            \Log::info("Using stored price - Product: {$item->name}, Qty: {$item->qte}, Price: {$item->price_unitaire}, Total: {$item->total}");
+        } 
+        // Otherwise calculate it (old orders before migration)
+        else {
+            // Get the product name
+            $extract_id_product = DB::table('products')
+                ->where('id', $item->idproduit)
+                ->select('name')
+                ->first();
+
+            // Get all products with the same name
+            $extract_name_product = DB::table('products as p')
+                ->join('stock as s', 'p.id', '=', 's.id_product')
+                ->where('p.name', 'like', '%' . $extract_id_product->name . '%')
+                ->select('p.id', 'p.name', 'p.price_achat', 's.quantite')
+                ->orderBy('p.id', 'asc')
+                ->get();
+
+            // If multiple products with same name exist, calculate average price
+            if ($extract_name_product->count() > 1) {
+                $avgPrice = $extract_name_product->avg('price_achat');
+                $item->avg_price = $avgPrice;
+                $item->total = $avgPrice * $item->qte;
+                
+                \Log::info("Calculated avg price - Product: {$extract_id_product->name}, Qty: {$item->qte}, Avg Price: {$avgPrice}, Total: {$item->total}");
+            } else {
+                // Single product, use its direct price
+                $item->avg_price = $item->price_achat;
+                $item->total = $item->price_achat * $item->qte;
+                
+                \Log::info("Using direct price - Product: {$extract_id_product->name}, Qty: {$item->qte}, Price: {$item->price_achat}, Total: {$item->total}");
+            }
+        }
+    }
+    
+    // Get transfer details
     $transferDetails = [];
     foreach ($Data_Vente as $item) {
         $transfers = DB::table('line_transfer as lt')
@@ -870,6 +916,7 @@ public function ShowBonVente($id)
         }
     }
     
+    // Get return details
     $returnDetails = [];
     foreach ($Data_Vente as $item) {
         $returns = DB::table('line_transfer as lt')
@@ -891,6 +938,7 @@ public function ShowBonVente($id)
         }
     }
 
+    // Get status history
     $statusHistory = $this->getStatusHistory($id);
     
     $creatorUser = DB::table('users')
@@ -909,7 +957,7 @@ public function ShowBonVente($id)
     return view('vente.list', compact('bonVente', 'Formateur', 'Data_Vente', 'transferDetails', 'returnDetails', 'statusHistory'));
 }
 
-    public function FactureVente($id)
+public function FactureVente($id)
 {
     if (!auth()->user()->can('Commande')) {
         abort(403, 'Vous n\'avez pas la permission de voir cette facture');
@@ -976,20 +1024,63 @@ public function ShowBonVente($id)
     $livraison = $getHistorique_sig->firstWhere('status', 'Livraison');
     $reception = $getHistorique_sig->firstWhere('status', 'Réception');
     
+    // ✅ GET DATA WITH STORED UNIT PRICE (same logic as ShowBonVente)
     $Data_Vente = DB::table('ventes as v')
         ->join('ligne_vente as l', 'v.id', '=', 'l.idvente')
         ->join('products as p', 'l.idproduit', '=', 'p.id')
         ->select(
-            'p.price_achat', 
+            'p.price_achat',  // Keep for fallback (old orders)
             'l.qte', 
-            DB::raw('p.price_achat * l.qte as total'), 
             'p.name', 
             'v.created_at', 
             'v.type_menu', 
-            'v.type_commande'
+            'v.type_commande',
+            'l.price_unitaire'  // ✅ Get stored unit price
         )
         ->where('v.id', $id)
         ->get();
+
+    // ✅ Use stored price_unitaire or calculate for backward compatibility
+    foreach ($Data_Vente as $item) {
+        // If price_unitaire exists and is greater than 0, use it (new orders)
+        if (isset($item->price_unitaire) && $item->price_unitaire > 0) {
+            $item->avg_price = $item->price_unitaire;
+            $item->total = $item->price_unitaire * $item->qte;
+        } 
+        // Otherwise calculate it (old orders before migration)
+        else {
+            // Get the product name
+            $extract_id_product = DB::table('products')
+                ->where('name', $item->name)
+                ->select('name')
+                ->first();
+
+            if ($extract_id_product) {
+                // Get all products with the same name
+                $extract_name_product = DB::table('products as p')
+                    ->join('stock as s', 'p.id', '=', 's.id_product')
+                    ->where('p.name', 'like', '%' . $extract_id_product->name . '%')
+                    ->select('p.id', 'p.name', 'p.price_achat', 's.quantite')
+                    ->orderBy('p.id', 'asc')
+                    ->get();
+
+                // If multiple products with same name exist, calculate average price
+                if ($extract_name_product->count() > 1) {
+                    $avgPrice = $extract_name_product->avg('price_achat');
+                    $item->avg_price = $avgPrice;
+                    $item->total = $avgPrice * $item->qte;
+                } else {
+                    // Single product, use its direct price
+                    $item->avg_price = $item->price_achat;
+                    $item->total = $item->price_achat * $item->qte;
+                }
+            } else {
+                // Fallback if product not found
+                $item->avg_price = $item->price_achat;
+                $item->total = $item->price_achat * $item->qte;
+            }
+        }
+    }
 
     $imagePath = public_path('images/logo_top.png');
     $imageData = base64_encode(file_get_contents($imagePath));
@@ -1016,7 +1107,6 @@ public function ShowBonVente($id)
         $headers
     );
 }
-
 
     public function edit(Request $request, $id)
     {
@@ -1254,222 +1344,7 @@ public function update(Request $request)
         \Log::error("Error in autoDeleteOldVentes method: " . $e->getMessage());
     }
 }
-    
-// public function ChangeStatusVente(Request $request) 
-// {
-//     if (!auth()->user()->can('Commande-modifier')) {
-//         return response()->json([
-//             'status' => 403,
-//             'message' => 'Vous n\'avez pas la permission de modifier le statut d\'une commande'
-//         ], 403);
-//     }
 
-//     try {
-//         $data = $request->all();
-//         \Log::info('ChangeStatusVente called with data:', $data);
-
-//         $vente = Vente::find($data['id']);
-        
-//         if (!$vente) {
-//             return response()->json([
-//                 'status' => 404,
-//                 'message' => 'Vente non trouvée'
-//             ], 404);
-//         }
-
-//         $oldStatus = $vente->status;
-
-//         // ✅ Simple status update for Validation (no stock changes)
-//         if($data['status'] == 'Validation') {
-//             $vente->status = 'Validation';
-//             $result = $vente->save();
-            
-//             \Log::info('Updated vente status to Validation. Result: ' . ($result ? 'success' : 'failed'));
-            
-//             $creatorUser = User::find($vente->id_user);
-//             if ($creatorUser) {
-//                 $hashids = new Hashids();
-//                 $encodedId = $hashids->encode($vente->id);
-                
-//                 $creatorUser->notify(new \App\Notifications\SystemNotification([
-//                     'message' => 'Votre commande a été approuvée',
-//                     'status' => 'Validation',
-//                     'view_url' => url('ShowBonVente/' . $encodedId)
-//                 ]));
-//             }
-
-//             \Log::info('Vente status changed from "' . $oldStatus . '" to "Validation" for vente ID: ' . $vente->id . ' by user: ' . auth()->user()->id);
-            
-//             return response()->json([
-//                 'status' => 200,
-//                 'message' => 'Opération réussie'
-//             ]);
-//         }
-
-//         else if($data['status'] == 'Refus') {
-//             $vente->status = 'Refus';
-//             $result = $vente->save();
-            
-//             \Log::info('Updated vente status to Refus. Result: ' . ($result ? 'success' : 'failed'));
-            
-//             $creatorUser = User::find($vente->id_user);
-//             if ($creatorUser) {
-//                 $hashids = new Hashids();
-//                 $encodedId = $hashids->encode($vente->id);
-                
-//                 $creatorUser->notify(new \App\Notifications\SystemNotification([
-//                     'message' => 'Votre commande a été refusée',
-//                     'status' => 'Refus',
-//                     'view_url' => url('ShowBonVente/' . $encodedId)
-//                 ]));
-//             }
-
-//             \Log::info('Vente status changed from "' . $oldStatus . '" to "Refus" for vente ID: ' . $vente->id . ' by user: ' . auth()->user()->id);
-            
-//             return response()->json([
-//                 'status' => 200,
-//                 'message' => 'Opération réussie'
-//             ]);
-//         }
-
-//         else if($data['status'] == 'Livraison') {
-//             $vente->status = 'Livraison';
-//             $result = $vente->save();
-            
-//             \Log::info('Updated vente status to Livraison. Result: ' . ($result ? 'success' : 'failed'));
-//             \Log::info('Vente status changed from "' . $oldStatus . '" to "Livraison" for vente ID: ' . $vente->id . ' by user: ' . auth()->user()->id);
-            
-//             return response()->json([
-//                 'status' => 200,
-//                 'message' => 'Opération réussie'
-//             ]);
-//         }
-
-//         else if($data['status'] == 'Visé') {
-//             $vente->status = 'Visé';
-//             $result = $vente->save();
-            
-//             \Log::info('Updated vente status to Visé. Result: ' . ($result ? 'success' : 'failed'));
-            
-//             $creatorUser = User::find($vente->id_user);
-//             if ($creatorUser) {
-//                 $hashids = new Hashids();
-//                 $encodedId = $hashids->encode($vente->id);
-                
-//                 $creatorUser->notify(new \App\Notifications\SystemNotification([
-//                     'message' => 'Votre commande a été visée par l\'économe',
-//                     'status' => 'Visé',
-//                     'view_url' => url('ShowBonVente/' . $encodedId)
-//                 ]));
-//             }
-
-//             \Log::info('Vente status changed from "' . $oldStatus . '" to "Visé" for vente ID: ' . $vente->id . ' by user: ' . auth()->user()->id);
-            
-//             return response()->json([
-//                 'status' => 200,
-//                 'message' => 'Opération réussie'
-//             ]);
-//         }
-
-//         // ✅ Stock reduction logic AND formateur stock assignment for Réception
-//         else if($data['status'] == 'Réception') {
-//             DB::beginTransaction();
-            
-//             try {
-//                 $vente->status = 'Réception';
-//                 $vente->save();
-                
-//                 $data_ligne_product = LigneVente::where('idvente', $data['id'])->get();
-
-//                 foreach($data_ligne_product as $value) {
-//                     $product = DB::table('products')->where('id', $value->idproduit)->first();
-//                     $productName = $product ? $product->name : 'Unknown Product';
-
-//                     // ✅ THIS IS THE MISSING PIECE - Assign to formateur stock
-//                     $value->contete_formateur = (string)$value->qte;
-//                     $value->save();
-
-//                     $stock = Stock::where('id_product', $value->idproduit)->first();
-
-//                     if($stock) {
-//                         if($stock->quantite >= $value->qte) {
-//                             $stock->quantite -= $value->qte;
-//                             $stock->save();
-
-//                             if($stock->quantite <= $product->seuil) {
-//                                 $adminUsers = User::whereHas('roles', function($query) {
-//                                     $query->where('name', 'Administrateur');
-//                                 })->get();
-
-//                                 foreach ($adminUsers as $admin) {
-//                                     $admin->notify(new SystemNotification([
-//                                         'message' => "Stock faible: {$productName} - Quantité: {$stock->quantite}, Seuil: {$product->seuil}",
-//                                         'status' => 'Stock Bas',
-//                                         'view_url' => url('stock')
-//                                     ]));
-//                                 }
-//                             }
-
-//                         } else {
-//                             throw new \Exception('Stock insuffisant pour le produit: "' . $productName . '"');
-//                         }
-//                     } else {
-//                         throw new \Exception('Aucun stock trouvé pour le produit: "' . $productName . '"');
-//                     }
-//                 }
-
-//                 $this->inventoryService->updateInventoryForSale($vente);
-//                 DB::commit();
-
-//                 $creatorUser = User::find($vente->id_user);
-//                 if ($creatorUser) {
-//                     $hashids = new Hashids();
-//                     $encodedId = $hashids->encode($vente->id);
-
-//                     $creatorUser->notify(new \App\Notifications\SystemNotification([
-//                         'message' => 'Votre commande a été reçue et le stock a été mis à jour',
-//                         'status' => 'Réception',
-//                         'view_url' => url('ShowBonVente/' . $encodedId)
-//                     ]));
-//                 }
-
-//                 \Log::info('Vente status changed from "' . $oldStatus . '" to "Réception" for vente ID: ' . $vente->id . ' by user: ' . auth()->user()->id);
-
-//                 return response()->json([
-//                     'status' => 200,
-//                     'message' => 'Opération réussie'
-//                 ]);
-
-//             } catch (\Exception $e) {
-//                 DB::rollBack();
-//                 \Log::error('Error in reception process: ' . $e->getMessage());
-
-//                 return response()->json([
-//                     'status' => 500,
-//                     'message' => 'Une erreur est survenue lors de la réception: ' . $e->getMessage(),
-//                     'error' => $e->getMessage()
-//                 ]);
-//             }
-//         }
-
-//         // If no match
-//         else {
-//             return response()->json([
-//                 'status' => 400,
-//                 'message' => 'Statut inconnu'
-//             ]);
-//         }
-
-//     } catch (\Exception $e) {
-//         \Log::error('Error in ChangeStatusVente: ' . $e->getMessage());
-
-//         return response()->json([
-//             'status' => 500,
-//             'message' => 'Une erreur est survenue lors du changement de statut: ' . $e->getMessage(),
-//             'error' => $e->getMessage()
-//         ]);
-//     }
-// }
  public function ChangeStatusVente(Request $request)
     {
         if (!auth()->user()->can('Commande-modifier')) {

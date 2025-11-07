@@ -332,14 +332,14 @@
 <li>
     <a class='tp-link' href="{{url('consumption/all')}}">
         <i class="fa-solid fa-chart-line"></i>
-        <span>FEUILLE DE CONSOMMATION JOURNALIÈRE</span>
+        <span>Feuille de consommation journalière</span>
     </a>
 </li>
 @endcan
 <li>
     <a class="tp-link" href="{{ url('consumption/yearly-breakdown') }}">
         <i class="fa-solid fa-chart-pie"></i>
-        <span>FEUILLE DE CONSOMMATION ANNUELLE</span>
+        <span>Feuille de consommation annuelle</span>
     </a>
 </li>
 

@@ -17,6 +17,7 @@ class LigneVente extends Model
         'idvente',
         'idproduit',
         'qte',
+        'price_unitaire',      
         'contete_formateur',
         'contente_transfert',
     ];
@@ -51,10 +52,12 @@ class LigneVente extends Model
 
     /**
      * Get the total price for this line item
+     * ✅ UPDATED: Use price_unitaire if available, otherwise fallback to product price
      */
     public function getTotalAttribute()
     {
-        return $this->qte * $this->product->price_achat;
+        $unitPrice = $this->price_unitaire ?? $this->product->price_achat;
+        return $this->qte * $unitPrice;
     }
 
     /**

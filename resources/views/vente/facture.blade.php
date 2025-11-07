@@ -165,7 +165,7 @@
                                     <td style="text-align: center">{{ $Data_Vente[$i]->name }}</td>
                                     <td style="text-align: center">{{ $Data_Vente[$i]->qte }}</td>
                                     <td style="text-align: center"></td>
-                                    <td style="text-align: center">{{ $Data_Vente[$i]->price_achat }} DH</td>
+                                 <td style="text-align: center">{{ number_format($Data_Vente[$i]->avg_price ?? $Data_Vente[$i]->price_achat, 2, '.', '') }} DH</td>
                                     <td style="text-align: center"></td>
                                 </tr>
                             @endfor

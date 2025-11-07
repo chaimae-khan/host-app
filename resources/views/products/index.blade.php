@@ -358,17 +358,17 @@ document.addEventListener('DOMContentLoaded', function () {
                                 <input type="text" name="date_expiration" class="form-control datepicker" placeholder="Choisissez une date">
                             </div>
                         </div>
-                        <div class="col-md-4">
-                            <div class="form-group">
-                                <label>Fournissuer</label>
-                                <select name="" id="" class="form-select">
-                                    <option value="0">Please selected Fournissuer</option>
-                                    @foreach ($Fournisseur as $item)
-                                        <option value={{ $item->id }}>{{ $item->entreprise }}</option>
-                                    @endforeach
-                                </select>
+                      <div class="col-md-4">
+                                <div class="form-group">
+                                    <label>Fournisseur</label>
+                                    <select name="id_fournisseur" id="id_fournisseur" class="form-select">
+                                        <option value="">Sélectionner un fournisseur</option>
+                                        @foreach ($Fournisseur as $item)
+                                            <option value="{{ $item->id }}">{{ $item->entreprise }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
                             </div>
-                        </div>
                         <div class="col-md-4">
                          
                                 
@@ -500,28 +500,40 @@ document.addEventListener('DOMContentLoaded', function () {
                         </div>
                     </div>
 
-                    <!-- Prix et Informations supplémentaires -->
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label>Prix d'achat</label>
-                                <input type="number" step="0.01" id="edit_price_achat" name="price_achat" class="form-control" required>
+                   <!-- Prix et Informations supplémentaires -->
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>Prix d'achat</label>
+                                    <input type="number" step="0.01" id="edit_price_achat" name="price_achat" class="form-control" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>Date d'expiration</label>
+                                    <input type="text" id="edit_date_expiration" name="date_expiration" class="form-control datepicker" placeholder="Choisissez une date">
+                                </div>
                             </div>
                         </div>
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label>Date d'expiration</label>
-                                <input type="date" id="edit_date_expiration" name="date_expiration" class="form-control">
+          <div class="row mb-3">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>Date de réception</label>
+                                    <input type="text" id="edit_date_reception" name="date_reception" class="form-control datepicker" placeholder="Choisissez une date">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>Fournisseur</label>
+                                    <select name="id_fournisseur" id="edit_id_fournisseur" class="form-control">
+                                        <option value="">Sélectionner un fournisseur</option>
+                                        @foreach($Fournisseur as $item)
+                                            <option value="{{ $item->id }}">{{ $item->entreprise }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
                             </div>
                         </div>
-                    </div>
-
-                     <div class="col-md-6">
-        <div class="form-group">
-            <label>Date de réception</label>
-            <input type="text" id="edit_date_reception" name="date_reception" class="form-control datepicker">
-        </div>
-    </div>
 
                     <!-- Stock et Taxe -->
                     <div class="row mb-3">

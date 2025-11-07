@@ -306,6 +306,7 @@ public function store(Request $request)
         'quantite' => 'required|numeric',
         'seuil' => 'required|numeric',
         'id_tva' => 'nullable|exists:tvas,id',
+        'id_fournisseur' => 'required|exists:fournisseurs,id',
     ], [
         'required' => 'Le champ :attribute est requis.',
         'numeric' => 'Le champ :attribute doit être un nombre.',
@@ -420,6 +421,8 @@ public function store(Request $request)
             'id_unite' => $request->id_unite,   
             'id_user' => Auth::id(),
             'date_reception' => $dateReception,
+            'id_fournisseur' => $request->id_fournisseur,
+
         ]);
         
         // Update emplacement after creating product
@@ -480,14 +483,16 @@ public function edit($id)
                 'emplacement',
                 'seuil',
                 'photo',
-                'date_expiration', 
+                'date_expiration',
+                'date_reception',
                 'class',
                 'id_categorie',
                 'id_subcategorie',
                 'id_local',
                 'id_rayon',
                 'id_tva',
-                'id_unite'
+                'id_unite',
+                'id_fournisseur' 
             )
             ->find($id);
         
@@ -498,11 +503,26 @@ public function edit($id)
             ], 404);
         }
 
+        // Convert date_reception to proper format if it exists
+        if ($product->date_reception) {
+            try {
+                // Try to parse and format the date
+                $dateObj = new \DateTime($product->date_reception);
+                $product->date_reception = $dateObj->format('Y-m-d');
+            } catch (\Exception $e) {
+                // If parsing fails, try to extract just the date part
+                if (preg_match('/(\d{4}-\d{2}-\d{2})/', $product->date_reception, $matches)) {
+                    $product->date_reception = $matches[1];
+                }
+            }
+        }
+
         // Debug log to verify data is being retrieved correctly
         Log::info('Product data for edit:', [
             'product_id' => $id,
-            'photo' => $product->photo, // Added photo to the debug log
-            'date_expiration' => $product->date_expiration
+            'photo' => $product->photo,
+            'date_expiration' => $product->date_expiration,
+            'date_reception' => $product->date_reception
         ]);
         
         return response()->json($product);
@@ -510,7 +530,7 @@ public function edit($id)
     } catch (\Exception $e) {
         Log::error('Error retrieving product for edit: ' . $e->getMessage(), [
             'id' => $id,
-            'trace' => $e->getTraceAsString() // Added stack trace for better debugging
+            'trace' => $e->getTraceAsString()
         ]);
         
         return response()->json([
@@ -548,9 +568,11 @@ public function update(Request $request)
         'current_photo_path' => 'nullable|string',
         'class' => 'required|string|max:255',
         'date_expiration' => 'nullable|date',
+        'date_reception' => 'nullable|date',  // ADD THIS LINE FOR VALIDATION
         'quantite' => 'required|numeric',
         'seuil' => 'required|numeric',
         'id_tva' => 'nullable|exists:tvas,id',
+        'id_fournisseur' => 'required|exists:fournisseurs,id',
     ], [
         'required' => 'Le champ :attribute est requis.',
         'numeric' => 'Le champ :attribute doit être un nombre.',
@@ -669,7 +691,8 @@ public function update(Request $request)
         Log::info('Updating product with data:', [
             'id' => $request->id,
             'photo' => $photoPath,
-            'date_expiration' => $request->date_expiration
+            'date_expiration' => $request->date_expiration,
+            'date_reception' => $request->date_reception  // ADD THIS LINE
         ]);
         $idTva = $request->filled('id_tva') ? $request->id_tva : 1;
         
@@ -680,6 +703,7 @@ public function update(Request $request)
             'code_barre' => $request->code_barre,
             'photo' => $photoPath,
             'date_expiration' => $request->date_expiration,
+            'date_reception' => $request->date_reception,  // ADD THIS LINE
             'class' => $request->class,
             'id_categorie' => $request->id_categorie,
             'id_subcategorie' => $request->id_subcategorie,
@@ -688,6 +712,7 @@ public function update(Request $request)
             'id_tva' => $request->id_tva,
             'id_unite' => $request->id_unite,
             'seuil' => $request->seuil,
+            'id_fournisseur' => $request->id_fournisseur,
         ]);
         
         // Update emplacement after updating product
