@@ -1695,5 +1695,66 @@ public function clearAllTmpVente(Request $request)
         'message' => 'TmpVente cleared successfully'
     ]);
 }
+protected function sendVenteNotification(Vente $vente)
+{
+    $hashids = new \Hashids\Hashids();
+    $encodedId = $hashids->encode($vente->id);
+    $currentUser = auth()->user();
+    $currentUserName = $currentUser->prenom . ' ' . $currentUser->nom;
+
+    $creatorUser = \App\Models\User::find($vente->id_user);
+    if (!$creatorUser) return;
+
+    switch ($vente->status) {
+        case 'Validation':
+            $creatorUser->notify(new \App\Notifications\SystemNotification([
+                'message' => 'Votre commande #' . $vente->id . ' a été approuvée par ' . $currentUserName,
+                'status' => 'Validation',
+                'view_url' => url('ShowBonVente/' . $encodedId),
+            ]));
+            break;
+        case 'Refus':
+            $creatorUser->notify(new \App\Notifications\SystemNotification([
+                'message' => 'Votre commande #' . $vente->id . ' a été refusée par ' . $currentUserName,
+                'status' => 'Refus',
+                'view_url' => url('ShowBonVente/' . $encodedId),
+            ]));
+            break;
+        case 'Livraison':
+            $creatorUser->notify(new \App\Notifications\SystemNotification([
+                'message' => 'Votre commande #' . $vente->id . ' a été livrée',
+                'status' => 'Livraison',
+                'view_url' => url('ShowBonVente/' . $encodedId),
+            ]));
+            break;
+        case 'Visé':
+            $creatorUser->notify(new \App\Notifications\SystemNotification([
+                'message' => 'Votre commande #' . $vente->id . ' a été visée par l\'économe',
+                'status' => 'Visé',
+                'view_url' => url('ShowBonVente/' . $encodedId),
+            ]));
+            break;
+        case 'Réception':
+            $creatorUser->notify(new \App\Notifications\SystemNotification([
+                'message' => 'Votre commande #' . $vente->id . ' est en cours de réception au magasin',
+                'status' => 'Réception',
+                'view_url' => url('ShowBonVente/' . $encodedId),
+            ]));
+
+            // Notify all Magasiniers
+            $magasinierUsers = \App\Models\User::whereHas('roles', function($query) {
+                $query->where('name', 'Magasinier');
+            })->get();
+
+            foreach ($magasinierUsers as $magasinier) {
+                $magasinier->notify(new \App\Notifications\SystemNotification([
+                    'message' => 'Nouvelle commande #' . $vente->id . ' prête pour la livraison',
+                    'status' => 'Réception',
+                    'view_url' => url('ShowBonVente/' . $encodedId),
+                ]));
+            }
+            break;
+    }
+}
 
 }
