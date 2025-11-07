@@ -134,9 +134,10 @@ class VenteController extends Controller
     $class = DB::select("select distinct(classe) as classe from categories");
 
 
-    $Plat_Entre = DB::select("select * from plats where type='Entrée'");
-    $Plat_Dessert = DB::select("select * from plats where type='Dessert'");
-    $Plat_Principal = DB::select("select * from plats where type='Plat Principal'");
+    $Plat_Entre = DB::select("SELECT * FROM plats WHERE type='Entrée' AND deleted_at IS NULL");
+    $Plat_Dessert = DB::select("SELECT * FROM plats WHERE type='Dessert' AND deleted_at IS NULL");
+    $Plat_Principal = DB::select("SELECT * FROM plats WHERE type='Plat Principal' AND deleted_at IS NULL");
+
 
     return view('vente.index')
         ->with('formateurs', $formateurs)
