@@ -140,9 +140,20 @@ public function index(Request $request)
     $unites = Unite::all();
     $class = DB::select("SELECT DISTINCT(classe) AS classe FROM categories");
 
-    $Plat_Entre = DB::select("SELECT * FROM plats WHERE type='Entrée'");
-    $Plat_Dessert = DB::select("SELECT * FROM plats WHERE type='Dessert'");
-    $Plat_Principal = DB::select("SELECT * FROM plats WHERE type='Plat Principal'");
+  $Plat_Entre = DB::table('plats')
+    ->where('type', 'Entrée')
+    ->whereNull('deleted_at')
+    ->get();
+
+$Plat_Dessert = DB::table('plats')
+    ->where('type', 'Dessert')
+    ->whereNull('deleted_at')
+    ->get();
+
+$Plat_Principal = DB::table('plats')
+    ->where('type', 'Plat Principal')
+    ->whereNull('deleted_at')
+    ->get();
 
     return view('vente.index', compact(
         'formateurs', 'categories', 'subcategories', 'locals',
