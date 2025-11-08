@@ -568,7 +568,7 @@ public function update(Request $request)
         'current_photo_path' => 'nullable|string',
         'class' => 'required|string|max:255',
         'date_expiration' => 'nullable|date',
-        'date_reception' => 'nullable|date',  // ADD THIS LINE FOR VALIDATION
+        'date_reception' => 'nullable|date',
         'quantite' => 'required|numeric',
         'seuil' => 'required|numeric',
         'id_tva' => 'nullable|exists:tvas,id',
@@ -601,19 +601,7 @@ public function update(Request $request)
                 'message' => 'Produit non trouvé',
             ], 404);
         }
-         
-        // Vérifier si un produit avec ce nom existe déjà (insensible à la casse)
-        $cleanedName = strtolower(trim($request->name));
-        $nameExists = Product::whereRaw('LOWER(TRIM(name)) = ?', [$cleanedName])
-                      ->where('id', '!=', $request->id)
-                      ->count();
         
-        if ($nameExists > 0) {
-            return response()->json([
-                'status' => 422,
-                'message' => 'Un produit avec ce nom existe déjà',
-            ], 422);
-        }
         if(is_null($request->id_categorie) || is_null($request->id_subcategorie))
         {
             return response()->json([
@@ -621,7 +609,6 @@ public function update(Request $request)
                 'message'  => 'Please selected category or subcategory',
             ]);
         }
-
          
         // Verify the relationship between category and subcategory
         $subcategory = SubCategory::find($request->id_subcategorie);
@@ -692,9 +679,14 @@ public function update(Request $request)
             'id' => $request->id,
             'photo' => $photoPath,
             'date_expiration' => $request->date_expiration,
-            'date_reception' => $request->date_reception  // ADD THIS LINE
+            'date_reception' => $request->date_reception
         ]);
-        $idTva = $request->filled('id_tva') ? $request->id_tva : 1;
+        
+        // ✅ ALWAYS SET id_tva TO 1 IF NOT PROVIDED OR NULL
+        $idTva = 1; // Default to 1
+        if ($request->filled('id_tva') && !is_null($request->id_tva)) {
+            $idTva = $request->id_tva;
+        }
         
         // Update product with the new values
         $product->update([
@@ -703,13 +695,13 @@ public function update(Request $request)
             'code_barre' => $request->code_barre,
             'photo' => $photoPath,
             'date_expiration' => $request->date_expiration,
-            'date_reception' => $request->date_reception,  // ADD THIS LINE
+            'date_reception' => $request->date_reception,
             'class' => $request->class,
             'id_categorie' => $request->id_categorie,
             'id_subcategorie' => $request->id_subcategorie,
             'id_local' => $request->id_local,
             'id_rayon' => $request->id_rayon,
-            'id_tva' => $request->id_tva,
+            'id_tva' => $idTva,  // ✅ NOW ALWAYS HAS A VALUE (DEFAULT 1)
             'id_unite' => $request->id_unite,
             'seuil' => $request->seuil,
             'id_fournisseur' => $request->id_fournisseur,
@@ -724,14 +716,14 @@ public function update(Request $request)
         
         if ($stock) {
             $stock->update([
-                'id_tva' => $request->id_tva,
+                'id_tva' => $idTva,  // ✅ USE THE SAME $idTva VALUE
                 'id_unite' => $request->id_unite,
                 'quantite' => $request->quantite,
             ]);
         } else {
             Stock::create([
                 'id_product' => $product->id,
-                'id_tva' => $request->id_tva,
+                'id_tva' => $idTva,  // ✅ USE THE SAME $idTva VALUE
                 'id_unite' => $request->id_unite,
                 'quantite' => $request->quantite,
             ]);
