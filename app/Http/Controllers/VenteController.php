@@ -35,35 +35,32 @@ class VenteController extends Controller
         $this->inventoryService = $inventoryService;
     }
     
-   public function index(Request $request)
+public function index(Request $request)
 {
-    /* $user = Auth::user();
-    $role = $user->getRoleNames()->first();
-    dd(Auth::user()->hasRole('Formateur')); */
     $this->autoDeleteOldVentes();
 
-    if($request->ajax())
-    {
+    if ($request->ajax()) {
         $hashids = new Hashids();
-       
+
         $query = DB::table('ventes as v')
-            ->join('users as f','f.id','=','v.id_formateur')
-            ->join('users as u','u.id','=','v.id_user')
-            ->select('v.id', 'v.total', 'v.status', 'v.type_commande', 'v.type_menu',
-                     DB::raw("CONCAT(f.prenom, ' ', f.nom) as formateur_name"),
-                     DB::raw("CONCAT(u.prenom, ' ', u.nom) as name"), 'v.created_at',
-                     'v.eleves', 'v.personnel', 'v.invites', 'v.divers',
-                     'v.entree', 'v.plat_principal', 'v.accompagnement', 'v.dessert', 'v.date_usage')
-            ->whereNull('v.deleted_at')
-            ->Orderby('v.id','desc');
-            if(Auth::user()->hasRole('Formateur'))
-            {
-                $query->where('v.id_formateur',Auth::id());
-            }
-            $Data_Vente = $query->orderBy('v.id','desc')->get();
-            //dd($Data_Vente);
-            /* ->orderBy('v.id','desc')
-            ->get(); */
+            ->join('users as f', 'f.id', '=', 'v.id_formateur')
+            ->join('users as u', 'u.id', '=', 'v.id_user')
+            ->select(
+                'v.id', 'v.total', 'v.status', 'v.type_commande', 'v.type_menu',
+                DB::raw("CONCAT(f.prenom, ' ', f.nom) as formateur_name"),
+                DB::raw("CONCAT(u.prenom, ' ', u.nom) as name"),
+                'v.created_at', 'v.eleves', 'v.personnel', 'v.invites', 'v.divers',
+                'v.entree', 'v.plat_principal', 'v.accompagnement', 'v.dessert', 'v.date_usage',
+                'v.id_formateur'
+            )
+            ->whereNull('v.deleted_at');
+
+        // If user is a formateur, show only their sales
+        if (Auth::user()->hasRole('Formateur')) {
+            $query->where('v.id_formateur', Auth::id());
+        }
+
+        $Data_Vente = $query->orderBy('v.id', 'desc')->get();
 
         return DataTables::of($Data_Vente)
             ->addIndexColumn()
@@ -76,47 +73,56 @@ class VenteController extends Controller
                     ->where('roles.name', 'Administrateur')
                     ->exists();
 
-                 if ($row->status === 'Refus' && !$isAdmin) {
-                        return '';
-                    }
+                $isFormateur = ($row->id_formateur == auth()->id());
 
-                    // Edit button - don't show if status is "Validation"
+                // 🔹 If status is Refus and user is not admin
+                if ($row->status === 'Refus' && !$isAdmin) {
+                    // Allow only formateur to see detail page
+                    if ($isFormateur) {
+                        $btn .= '<a href="' . url('ShowBonVente/' . $hashids->encode($row->id)) . '" 
+                                    class="btn btn-sm bg-success-subtle me-1" 
+                                    target="_blank">
+                                    <i class="fa-solid fa-eye text-success"></i>
+                                </a>';
+                    }
+                    return $btn;
+                }
+
+                // 🔹 Normal users and admin actions
+                if (auth()->user()->can('Commande')) {
+                    // Edit button (not shown if Validation)
                     if (auth()->user()->can('Commande-modifier') && $row->status !== 'Validation') {
                         $btn .= '<a href="#" class="btn btn-sm bg-primary-subtle me-1"
                                     data-id="' . $row->id . '">
                                     <i class="fa-solid fa-pen-to-square text-primary"></i>
                                 </a>';
                     }
-                    
-                    // Detail button with hash ID - show for all statuses
-                    if (auth()->user()->can('Commande')) {
-                        $btn .= '<a href="' . url('ShowBonVente/' . $hashids->encode($row->id)) . '" 
-                                    class="btn btn-sm bg-success-subtle me-1" 
-                                    data-id="' . $row->id . '" 
-                                    target="_blank">
-                                    <i class="fa-solid fa-eye text-success"></i>
-                                </a>';
-                    }
-                    
-                    // Print invoice button - don't show if status is "Refus"
-                    if (auth()->user()->can('Commande') && $row->status !== 'Refus') {
+
+                    // Detail button (always visible)
+                    $btn .= '<a href="' . url('ShowBonVente/' . $hashids->encode($row->id)) . '" 
+                                class="btn btn-sm bg-success-subtle me-1" 
+                                target="_blank">
+                                <i class="fa-solid fa-eye text-success"></i>
+                            </a>';
+
+                    // Print button (not for Refus)
+                    if ($row->status !== 'Refus') {
                         $btn .= '<a href="' . url('FactureVente/' . $hashids->encode($row->id)) . '" 
                                     class="btn btn-sm bg-info-subtle me-1" 
-                                    data-id="' . $row->id . '" 
                                     target="_blank">
                                     <i class="fa-solid fa-print text-info"></i>
                                 </a>';
                     }
 
-                    // Delete button - don't show if status is "Validation"
+                    // Delete button (not for Validation)
                     if (auth()->user()->can('Commande-supprimer') && $row->status !== 'Validation') {
                         $btn .= '<a href="#" class="btn btn-sm bg-danger-subtle DeleteVente"
                                     data-id="' . $row->id . '" 
-                                    data-bs-toggle="tooltip" 
                                     title="Supprimer Vente">
                                     <i class="fa-solid fa-trash text-danger"></i>
                                 </a>';
                     }
+                }
 
                 return $btn;
             })
@@ -124,6 +130,7 @@ class VenteController extends Controller
             ->make(true);
     }
 
+    // Load data for view
     $formateurs = User::where('id', Auth::id())->get();
     $categories = Category::all();
     $subcategories = SubCategory::all();
@@ -131,28 +138,19 @@ class VenteController extends Controller
     $rayons = Rayon::all();
     $tvas = Tva::all();
     $unites = Unite::all();
-    $class = DB::select("select distinct(classe) as classe from categories");
+    $class = DB::select("SELECT DISTINCT(classe) AS classe FROM categories");
 
+    $Plat_Entre = DB::select("SELECT * FROM plats WHERE type='Entrée'");
+    $Plat_Dessert = DB::select("SELECT * FROM plats WHERE type='Dessert'");
+    $Plat_Principal = DB::select("SELECT * FROM plats WHERE type='Plat Principal'");
 
-    $Plat_Entre = DB::select("SELECT * FROM plats WHERE type='Entrée' AND deleted_at IS NULL");
-    $Plat_Dessert = DB::select("SELECT * FROM plats WHERE type='Dessert' AND deleted_at IS NULL");
-    $Plat_Principal = DB::select("SELECT * FROM plats WHERE type='Plat Principal' AND deleted_at IS NULL");
-
-
-    return view('vente.index')
-        ->with('formateurs', $formateurs)
-        ->with('categories', $categories)
-        ->with('subcategories', $subcategories)
-        ->with('locals', $locals)
-        ->with('rayons', $rayons)
-        ->with('tvas', $tvas)
-        ->with('unites', $unites)
-        ->with('Plat_Entre', $Plat_Entre)
-        ->with('Plat_Dessert', $Plat_Dessert)
-        ->with('Plat_Principal', $Plat_Principal)
-        ->with('class',$class); 
-        
+    return view('vente.index', compact(
+        'formateurs', 'categories', 'subcategories', 'locals',
+        'rayons', 'tvas', 'unites', 'Plat_Entre', 'Plat_Dessert',
+        'Plat_Principal', 'class'
+    ));
 }
+
 
 
 //   public function getProduct(Request $request)
@@ -350,7 +348,6 @@ public function store(Request $request)
         'accompagnement' => 'sometimes|string|max:255|nullable',
         'dessert' => 'sometimes|string|max:255|nullable',
         'date_usage' => 'sometimes|date|nullable',
-        
     ], [
         'integer' => 'Le nombre doit être un nombre entier',
         'min' => 'Le nombre doit être positif',
@@ -378,7 +375,7 @@ public function store(Request $request)
             'errors' => $validator->messages(),
         ], 400);
     }
-  
+    
     $userId = Auth::id();
     $formateur = $request->id_formateur;
 
@@ -387,7 +384,7 @@ public function store(Request $request)
         ->join('products as p', 'p.id', '=', 't.idproduit')
         ->where('t.id_user', $userId)
         ->where('t.id_formateur', $formateur)
-        ->select('t.id_formateur', 't.qte', 't.idproduit', 'p.name',
+        ->select('t.id_formateur', 't.qte', 't.idproduit',
             DB::raw('t.qte * p.price_achat as total_by_product'))
         ->get();
 
@@ -398,46 +395,9 @@ public function store(Request $request)
         ]);
     }
 
-    // ✅ FIXED: Calculate total with proper average price handling
-    $SumVente = 0;
+    // Calculate total sales amount
+    $SumVente = $TempVente->sum('total_by_product');
     
-    foreach($TempVente as $value) {
-        // Get the product name
-        $extract_id_product = DB::table('products')
-            ->where('id', $value->idproduit)
-            ->select('name')
-            ->first();
-
-        // Get all products with the same name and their stock
-        $extract_name_product = DB::table('products as p')
-            ->join('stock as s', 'p.id', '=', 's.id_product')
-            ->where('p.name', 'like', '%' . $extract_id_product->name . '%')
-            ->select('p.id', 'p.name', 'p.price_achat', 's.quantite')
-            ->orderBy('p.id', 'asc')
-            ->get();
-
-        // If multiple products with same name exist
-        if ($extract_name_product->count() > 1) {
-            // Calculate average price across all products with this name
-            $avgPrice = $extract_name_product->avg('price_achat');
-            
-            // Calculate total for this item using average price
-            $itemTotal = $avgPrice * $value->qte;
-            
-            \Log::info("Product: {$extract_id_product->name}, Qty: {$value->qte}, Avg Price: {$avgPrice}, Item Total: {$itemTotal}");
-        } else {
-            // Single product, use its direct total
-            $itemTotal = $value->total_by_product;
-            
-            \Log::info("Product: {$extract_id_product->name}, Qty: {$value->qte}, Single Price: {$extract_name_product->first()->price_achat}, Item Total: {$itemTotal}");
-        }
-        
-        // Add to grand total
-        $SumVente += $itemTotal;
-    }
-
-    \Log::info("Grand Total: {$SumVente}");
-
     // Helper function to convert empty strings to null
     $convertEmptyToNull = function($value) {
         return empty($value) ? null : $value;
@@ -468,38 +428,11 @@ public function store(Request $request)
         $plat_principal = $convertEmptyToNull($request->plat_principal);
         $accompagnement = $convertEmptyToNull($request->accompagnement);
         $dessert = $convertEmptyToNull($request->dessert);
-
-        // Verify stock availability
-        foreach ($TempVente as $item) {
-            $getNameProduct = DB::table('stock as s')
-                ->join('products as p', 'p.id', '=', 's.id_product')
-                ->where('s.id_product', $item->idproduit)
-                ->select("p.name")
-                ->first();
-
-            $getStockProduct = DB::table('stock as s')
-                ->join('products as p', 'p.id', '=', 's.id_product')
-                ->where('p.name', 'like', '%' . $getNameProduct->name . '%')
-                ->groupBy('p.name')
-                ->selectRaw('p.name, SUM(s.quantite) as quantite')
-                ->first();
-
-            if ($getStockProduct) {
-                if (intval($getStockProduct->quantite) < $item->qte) {
-                    return response()->json([
-                        'status'  => 600,
-                        'message' => 'Stock insuffisant pour ' . $getStockProduct->name .
-                                    ' — Disponible: ' . $getStockProduct->quantite .
-                                    ', Demandé: ' . $item->qte
-                    ]);
-                }
-            }
-        }
     }
 
-    // Create new sale with the correctly calculated total
+    // Create new sale with audit trail (id_user will be tracked automatically)
     $Vente = Vente::create([
-        'total'     => $SumVente,  // ✅ Now uses correctly calculated total
+        'total'     => $SumVente,
         'status'    => "Création",
         'type_commande' => $request->type_commande,
         'type_menu' => $type_menu,
@@ -522,7 +455,7 @@ public function store(Request $request)
             'message' => 'Échec de la création de l\'enregistrement de commande'
         ]);
     }
-
+    
     $path_signature = Auth::user()->signature;
     Historique_Sig::create([
         'signature'   => $path_signature,
@@ -531,37 +464,35 @@ public function store(Request $request)
         'status'      => 'Création'  
     ]);
 
-    // Get all admin users and notify them
-    $adminUserIds = DB::table('model_has_roles')
-        ->join('roles', 'model_has_roles.role_id', '=', 'roles.id')
-        ->where('roles.name', 'Administrateur')
-        ->pluck('model_has_roles.model_id');
-    $adminUsers = User::whereIn('id', $adminUserIds)->get();
+    // ✅ Formateur creates → Notify Admin & Directeur
+    $notifyUsers = User::whereHas('roles', function($query) {
+        $query->whereIn('name', ['Administrateur', 'Directeur']);
+    })->get();
     
+    // Create hashids for secure URL
     $hashids = new Hashids();
     $encodedId = $hashids->encode($Vente->id);
     
+    // Get the current user for notification
     $currentUser = User::find(Auth::id());
     $userName = $currentUser->prenom . ' ' . $currentUser->nom;
     
-    foreach ($adminUsers as $admin) {
-        $admin->notify(new \App\Notifications\SystemNotification([
-            'message' => 'Nouvelle commande créée par ' . $userName,
+    // Notify Admin & Directeur
+    foreach ($notifyUsers as $user) {
+        $user->notify(new \App\Notifications\SystemNotification([
+            'message' => 'Nouvelle commande #' . $Vente->id . ' créée par ' . $userName,
             'status' => 'Création',
-            'approve_url' => route('admin.vente.approve', $Vente->id),
-            'reject_url' => route('admin.vente.reject', $Vente->id),
             'view_url' => url('ShowBonVente/' . $encodedId)
         ]));
     }
 
-    // Insert sales details
+    // Insert sales details individually for audit trail
     foreach ($TempVente as $item) {
         LigneVente::create([
             'id_user'   => $userId,
             'idvente'   => $Vente->id,
             'idproduit' => $item->idproduit,
             'qte'       => $item->qte,
-            'price_unitaire' => $avgPrice 
         ]);
     }
 
@@ -830,71 +761,27 @@ public function ShowBonVente($id)
         $bonVente->dessert_names = null;
     }
     
-    // Get Formateur info
+    // Rest of the existing code...
     $Formateur = DB::table('users as f')
         ->join('ventes as v', 'v.id_formateur', '=', 'f.id')
         ->select('f.*')
         ->where('v.id', $id)
         ->first();
         
-    // ✅ GET DATA WITH STORED UNIT PRICE
     $Data_Vente = DB::table('ventes as v')
         ->join('ligne_vente as l', 'v.id', '=', 'l.idvente')
         ->join('products as p', 'l.idproduit', '=', 'p.id')
         ->select(
-            'p.price_achat',  // Keep for fallback (old orders)
+            'p.price_achat', 
             'l.qte', 
+            DB::raw('p.price_achat * l.qte as total'), 
             'p.name',
             'l.idproduit',
-            'l.contente_transfert',
-            'l.price_unitaire'  // ✅ Get stored unit price
+            'l.contente_transfert'
         )
         ->where('v.id', $id)
         ->get();
     
-    // ✅ Use stored price_unitaire or calculate for backward compatibility
-    foreach ($Data_Vente as $item) {
-        // If price_unitaire exists and is greater than 0, use it (new orders)
-        if (isset($item->price_unitaire) && $item->price_unitaire > 0) {
-            $item->avg_price = $item->price_unitaire;
-            $item->total = $item->price_unitaire * $item->qte;
-            
-            \Log::info("Using stored price - Product: {$item->name}, Qty: {$item->qte}, Price: {$item->price_unitaire}, Total: {$item->total}");
-        } 
-        // Otherwise calculate it (old orders before migration)
-        else {
-            // Get the product name
-            $extract_id_product = DB::table('products')
-                ->where('id', $item->idproduit)
-                ->select('name')
-                ->first();
-
-            // Get all products with the same name
-            $extract_name_product = DB::table('products as p')
-                ->join('stock as s', 'p.id', '=', 's.id_product')
-                ->where('p.name', 'like', '%' . $extract_id_product->name . '%')
-                ->select('p.id', 'p.name', 'p.price_achat', 's.quantite')
-                ->orderBy('p.id', 'asc')
-                ->get();
-
-            // If multiple products with same name exist, calculate average price
-            if ($extract_name_product->count() > 1) {
-                $avgPrice = $extract_name_product->avg('price_achat');
-                $item->avg_price = $avgPrice;
-                $item->total = $avgPrice * $item->qte;
-                
-                \Log::info("Calculated avg price - Product: {$extract_id_product->name}, Qty: {$item->qte}, Avg Price: {$avgPrice}, Total: {$item->total}");
-            } else {
-                // Single product, use its direct price
-                $item->avg_price = $item->price_achat;
-                $item->total = $item->price_achat * $item->qte;
-                
-                \Log::info("Using direct price - Product: {$extract_id_product->name}, Qty: {$item->qte}, Price: {$item->price_achat}, Total: {$item->total}");
-            }
-        }
-    }
-    
-    // Get transfer details
     $transferDetails = [];
     foreach ($Data_Vente as $item) {
         $transfers = DB::table('line_transfer as lt')
@@ -916,7 +803,6 @@ public function ShowBonVente($id)
         }
     }
     
-    // Get return details
     $returnDetails = [];
     foreach ($Data_Vente as $item) {
         $returns = DB::table('line_transfer as lt')
@@ -938,7 +824,6 @@ public function ShowBonVente($id)
         }
     }
 
-    // Get status history
     $statusHistory = $this->getStatusHistory($id);
     
     $creatorUser = DB::table('users')
@@ -957,7 +842,7 @@ public function ShowBonVente($id)
     return view('vente.list', compact('bonVente', 'Formateur', 'Data_Vente', 'transferDetails', 'returnDetails', 'statusHistory'));
 }
 
-public function FactureVente($id)
+    public function FactureVente($id)
 {
     if (!auth()->user()->can('Commande')) {
         abort(403, 'Vous n\'avez pas la permission de voir cette facture');
@@ -1024,63 +909,20 @@ public function FactureVente($id)
     $livraison = $getHistorique_sig->firstWhere('status', 'Livraison');
     $reception = $getHistorique_sig->firstWhere('status', 'Réception');
     
-    // ✅ GET DATA WITH STORED UNIT PRICE (same logic as ShowBonVente)
     $Data_Vente = DB::table('ventes as v')
         ->join('ligne_vente as l', 'v.id', '=', 'l.idvente')
         ->join('products as p', 'l.idproduit', '=', 'p.id')
         ->select(
-            'p.price_achat',  // Keep for fallback (old orders)
+            'p.price_achat', 
             'l.qte', 
+            DB::raw('p.price_achat * l.qte as total'), 
             'p.name', 
             'v.created_at', 
             'v.type_menu', 
-            'v.type_commande',
-            'l.price_unitaire'  // ✅ Get stored unit price
+            'v.type_commande'
         )
         ->where('v.id', $id)
         ->get();
-
-    // ✅ Use stored price_unitaire or calculate for backward compatibility
-    foreach ($Data_Vente as $item) {
-        // If price_unitaire exists and is greater than 0, use it (new orders)
-        if (isset($item->price_unitaire) && $item->price_unitaire > 0) {
-            $item->avg_price = $item->price_unitaire;
-            $item->total = $item->price_unitaire * $item->qte;
-        } 
-        // Otherwise calculate it (old orders before migration)
-        else {
-            // Get the product name
-            $extract_id_product = DB::table('products')
-                ->where('name', $item->name)
-                ->select('name')
-                ->first();
-
-            if ($extract_id_product) {
-                // Get all products with the same name
-                $extract_name_product = DB::table('products as p')
-                    ->join('stock as s', 'p.id', '=', 's.id_product')
-                    ->where('p.name', 'like', '%' . $extract_id_product->name . '%')
-                    ->select('p.id', 'p.name', 'p.price_achat', 's.quantite')
-                    ->orderBy('p.id', 'asc')
-                    ->get();
-
-                // If multiple products with same name exist, calculate average price
-                if ($extract_name_product->count() > 1) {
-                    $avgPrice = $extract_name_product->avg('price_achat');
-                    $item->avg_price = $avgPrice;
-                    $item->total = $avgPrice * $item->qte;
-                } else {
-                    // Single product, use its direct price
-                    $item->avg_price = $item->price_achat;
-                    $item->total = $item->price_achat * $item->qte;
-                }
-            } else {
-                // Fallback if product not found
-                $item->avg_price = $item->price_achat;
-                $item->total = $item->price_achat * $item->qte;
-            }
-        }
-    }
 
     $imagePath = public_path('images/logo_top.png');
     $imageData = base64_encode(file_get_contents($imagePath));
@@ -1108,6 +950,7 @@ public function FactureVente($id)
     );
 }
 
+
     public function edit(Request $request, $id)
     {
         if (!auth()->user()->can('Commande-modifier')) {
@@ -1128,7 +971,6 @@ public function FactureVente($id)
 
         return response()->json($vente);
     }
-
 public function update(Request $request)
 {
     if (!auth()->user()->can('Commande-modifier')) {
@@ -1220,6 +1062,66 @@ public function update(Request $request)
     
     $vente->save();
     
+    // 🔔 Notification logic after updating status
+    $hashids = new \Hashids\Hashids();
+    $encodedId = $hashids->encode($vente->id);
+
+    $currentUser = \App\Models\User::find(\Auth::id());
+    $currentUserName = $currentUser->prenom . ' ' . $currentUser->nom;
+
+    // Notify based on status
+    $creatorUser = \App\Models\User::find($vente->id_user);
+
+    if ($creatorUser) {
+        switch ($request->status) {
+   
+        
+            case 'Refus':
+                $creatorUser->notify(new \App\Notifications\SystemNotification([
+                    'message' => 'Votre commande #' . $vente->id . ' a été refusée par ' . $currentUserName,
+                    'status'  => 'Refus',
+                    'view_url' => url('ShowBonVente/' . $encodedId),
+                ]));
+                break;
+
+            case 'Livraison':
+                $creatorUser->notify(new \App\Notifications\SystemNotification([
+                    'message' => 'Votre commande #' . $vente->id . ' a été livrée',
+                    'status'  => 'Livraison',
+                    'view_url' => url('ShowBonVente/' . $encodedId),
+                ]));
+                break;
+
+            case 'Visé':
+                $creatorUser->notify(new \App\Notifications\SystemNotification([
+                    'message' => 'Votre commande #' . $vente->id . ' a été visée par l\'économe',
+                    'status'  => 'Visé',
+                    'view_url' => url('ShowBonVente/' . $encodedId),
+                ]));
+                break;
+
+            case 'Réception':
+                $creatorUser->notify(new \App\Notifications\SystemNotification([
+                    'message' => 'Votre commande #' . $vente->id . ' a été approuvée par ' . $currentUserName,
+                    'view_url' => url('ShowBonVente/' . $encodedId),
+                ]));
+
+                // Notify all Magasiniers
+                $magasinierUsers = \App\Models\User::whereHas('roles', function($query) {
+                    $query->where('name', 'Magasinier');
+                })->get();
+
+                foreach ($magasinierUsers as $magasinier) {
+                    $magasinier->notify(new \App\Notifications\SystemNotification([
+                        'message' => 'Nouvelle commande #' . $vente->id . ' prête pour la livraison',
+                        'status'  => 'Réception',
+                        'view_url' => url('ShowBonVente/' . $encodedId),
+                    ]));
+                }
+                break;
+        }
+    }
+    
     if($request->status == 'Réception') {
         $path_signature = Auth::user()->signature;
         Historique_Sig::create([
@@ -1249,6 +1151,8 @@ public function update(Request $request)
         'message' => 'Commande mise à jour avec succès',
     ]);
 }
+
+
 
     public function deleteVente(Request $request)
     {
@@ -1374,9 +1278,9 @@ public function update(Request $request)
             if($data['status'] == 'Validation')
             {
                 // Begin transaction
-                /* DB::beginTransaction();
+                DB::beginTransaction();
                 
-                try { */
+                try {
                     // First, update the vente status (this will trigger audit trail)
                     $vente->status = 'Validation';
                     $vente->save();
@@ -1391,7 +1295,7 @@ public function update(Request $request)
                     // Extract product from ligne vente 
                     $data_ligne_product = LigneVente::where('idvente', $data['id'])->get();
                     \Log::info('Found ' . $data_ligne_product->count() . ' line items for vente ID: ' . $data['id']);
-                    
+
                     foreach($data_ligne_product as $value)
                     {
                         // Get product name
@@ -1406,119 +1310,19 @@ public function update(Request $request)
                         
                         // Get stock for this product
                         $stock = Stock::where('id_product', $value->idproduit)->first();
-
-
-                        /************************* Start youssef ********************/
-                      
-                        // 1️⃣ Get product name by ID
-                        $extract_id_product = DB::table('products')
-                            ->where('id', $value->idproduit)
-                            ->select('name')
-                            ->first();
-
-                        // 2️⃣ Get all stock entries for products with the same name
-                        $extract_name_product = DB::table('products as p')
-                            ->join('stock as s', 'p.id', '=', 's.id_product')
-                            ->where('p.name', 'like', '%' . $extract_id_product->name . '%')
-                            ->select('p.id', 'p.name', 's.quantite')
-                            ->orderBy('p.id', 'asc')
-                            ->get();
-
-                        // 3️⃣ Only if more than one stock entry exists
-                        if ($extract_name_product->count() > 1) 
-                        {
-
-                            $qteDemandee = $value->qte;
-
-                            foreach ($extract_name_product as $product) 
-                                {
-                                if ($qteDemandee <= 0) break;
-
-                                $qteDispo = $product->quantite;
-
-                                if ($qteDispo >= $qteDemandee) {
-                                    DB::table('stock')
-                                        ->where('id_product', $product->id)
-                                        ->update([
-                                            'quantite' => DB::raw('quantite - ' . (int) $qteDemandee)
-                                        ]);
-                                    $qteDemandee = 0;
-                                } else {
-                                    DB::table('stock')
-                                        ->where('id_product', $product->id)
-                                        ->update([
-                                            'quantite' => 0
-                                        ]);
-                                    $qteDemandee -= $qteDispo;
-                                }
-                            }
-
-                            /* // Not enough stock
-                            if ($qteDemandee > 0) {
-                                return response()->json([
-                                    'status' => 400,
-                                    'message' => 'Stock insuffisant pour ' . $extract_id_product->name
-                                ]);
-                            } */
-                        }
-                        else
-                        {
-                            if($stock) 
-                                {
-                                \Log::info('Current stock quantity for "' . $productName . '": ' . $stock->quantite);
-                                
-                                if($stock->quantite >= $value->qte) 
-                                {
-                                
-                                    $stock->quantite -= $value->qte;
-                                    $stock->save();
-                                    \Log::info('Updated stock quantity for "' . $productName . '": ' . $stock->quantite);
-                                    
-                                    
-                                    if($stock->quantite <= $product->seuil) {
-                                    
-                                        $adminUsers = User::whereHas('roles', function($query) {
-                                            $query->where('name', 'Administrateur');
-                                        })->get();
-                                        
-                                        foreach ($adminUsers as $admin) {
-                                            $admin->notify(new SystemNotification([
-                                                'message' => "Stock faible: {$productName} - Quantité: {$stock->quantite}, Seuil: {$product->seuil}",
-                                                'status' => 'Stock Bas',
-                                                'view_url' => url('stock')
-                                            ]));
-                                        }
-                                    }
-                                    
-                                } else {
-                                    \Log::warning('Insufficient stock for product: "' . $productName . 
-                                                '" (Requested: ' . $value->qte . ', Available: ' . $stock->quantite . ')');
-                                    
-                                    throw new \Exception('Stock insuffisant pour le produit: "' . $productName . '"');
-                                }
-                            } 
-                            else 
-                            {
-                                \Log::warning('No stock found for product: "' . $productName . '"');
-                                throw new \Exception('Aucun stock trouvé pour le produit: "' . $productName . '"');
-                            }
-                        }
-
-
-                        /************************* ENDyoussef ********************/
                         
-                       /*  if($stock) {
+                        if($stock) {
                             \Log::info('Current stock quantity for "' . $productName . '": ' . $stock->quantite);
                             
                             if($stock->quantite >= $value->qte) {
-                               
+                                // Subtract quantity from stock
                                 $stock->quantite -= $value->qte;
                                 $stock->save();
                                 \Log::info('Updated stock quantity for "' . $productName . '": ' . $stock->quantite);
                                 
-                                
+                                // Check if this product is now low stock after validation
                                 if($stock->quantite <= $product->seuil) {
-                                   
+                                    // Get administrators
                                     $adminUsers = User::whereHas('roles', function($query) {
                                         $query->where('name', 'Administrateur');
                                     })->get();
@@ -1541,28 +1345,33 @@ public function update(Request $request)
                         } else {
                             \Log::warning('No stock found for product: "' . $productName . '"');
                             throw new \Exception('Aucun stock trouvé pour le produit: "' . $productName . '"');
-                        } */
+                        }
                     }
                     
                     // Update inventory using the service - this only records the movement, doesn't modify stock
                     $this->inventoryService->updateInventoryForSale($vente);
                     \Log::info('Updated inventory for sale ID: ' . $vente->id);
                     
-                    /* DB::commit(); */
+                    DB::commit();
                     
-                    // Notify the user who created this sale
-                    $creatorUser = User::find($vente->id_user);
-                    if ($creatorUser) {
-                        // Create hashids for secure URL
+                   // Notify Admin that user received their command
                         $hashids = new Hashids();
                         $encodedId = $hashids->encode($vente->id);
-                        
-                        $creatorUser->notify(new \App\Notifications\SystemNotification([
-                            'message' => 'Votre commande a été approuvée',
-                            'status' => 'Validation',
-                            'view_url' => url('ShowBonVente/' . $encodedId)
-                        ]));
-                    }
+
+                        $currentUser = User::find(Auth::id());
+                        $currentUserName = $currentUser->prenom . ' ' . $currentUser->nom;
+
+                        $adminUsers = User::whereHas('roles', function($query) {
+                            $query->where('name', 'Administrateur');
+                        })->get();
+
+                        foreach ($adminUsers as $admin) {
+                            $admin->notify(new \App\Notifications\SystemNotification([
+                                'message' => $currentUserName . ' a reçu la commande #' . $vente->id,
+                                'status' => 'Validation',
+                                'view_url' => url('ShowBonVente/' . $encodedId),
+                            ]));
+                        }
 
                     // Log the status change
                     \Log::info('Vente status changed from "' . $oldStatus . '" to "Validation" for vente ID: ' . $vente->id . ' by user: ' . auth()->user()->id);
@@ -1572,7 +1381,7 @@ public function update(Request $request)
                         'message' => 'Opération réussie'
                     ]);
                     
-               /*  } catch (\Exception $e) {
+                } catch (\Exception $e) {
                     DB::rollBack();
                     \Log::error('Error in validation process: ' . $e->getMessage());
                     \Log::error($e->getTraceAsString());
@@ -1582,7 +1391,7 @@ public function update(Request $request)
                         'message' => 'Une erreur est survenue lors de la validation: ' . $e->getMessage(),
                         'error' => $e->getMessage()
                     ]);
-                } */
+                }
             }
             else if($data['status'] == 'Refus')
             {
@@ -1831,56 +1640,21 @@ public function getcategorybytypemenu(Request $request)
     }
 
 
-/**
- * Search product names for autocomplete in filters
- */
-// public function searchProductNames(Request $request)
-// {
-//     try {
-//         $query = $request->get('query', '');
-        
-//         if (strlen($query) < 2) {
-//             return response()->json([
-//                 'status' => 200,
-//                 'products' => []
-//             ]);
-//         }
-        
-//         $products = DB::table('products')
-//             ->where('name', 'LIKE', '%' . $query . '%')
-//             ->whereNull('deleted_at')
-//             ->select('id', 'name')
-//             ->limit(10)
-//             ->get();
-        
-//         return response()->json([
-//             'status' => 200,
-//             'products' => $products
-//         ]);
-        
-//     } catch (\Exception $e) {
-//         \Log::error('Error searching product names', [
-//             'error' => $e->getMessage()
-//         ]);
-        
-//         return response()->json([
-//             'status' => 500,
-//             'message' => 'Erreur lors de la recherche',
-//             'products' => []
-//         ], 500);
-//     }
-// }
 
-    public function ClearTmpVente(Request $request)
-    {
-        $id_formateur = $request->id_formateur;
-        $TempVente = TempVente::where('id_formateur',$id_formateur)->delete();
+public function clearAllTmpVente(Request $request)
+{
+    $userId = Auth::id();
+    $formateur = $request->id_formateur;
+    
+    TempVente::where('id_user', $userId)
+        ->where('id_formateur', $formateur)
+        ->delete();
+    
+    return response()->json([
+        'status' => 200,
+        'message' => 'TmpVente cleared successfully'
+    ]);
+}
 
-        return response()->json([
-             'status' => 200,
-            
-             
-        ]);
-    }
 
 }
