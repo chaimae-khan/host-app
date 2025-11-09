@@ -167,7 +167,7 @@ Route::get('/consumption/export-monthly-breakdown-pdf', [ConsumptionController::
     Route::post('DeleteVente', [VenteController::class, 'deleteVente']);
     Route::post('ChangeStatusVente', [VenteController::class, 'ChangeStatusVente']);
     Route::get('/GetTotalTmpByFormateurAndUser', [VenteController::class, 'GetTotalTmpByFormateurAndUser']);
-    Route::get('ClearTmpVente',[VenteController::class,'ClearTmpVente']);
+    Route::post('cleanTmpVente', [VenteController::class, 'cleanTmpVente'])->name('cleanTmpVente');
 
     //profile 
     Route::get('/mon-compte', [CompteController::class, 'index'])->name('compte.index');

@@ -10,27 +10,37 @@ $(document).ready(function () {
 
 
    
-    let Formateur = 0;
-    Formateur = $('#DropDown_formateur').val();
-    function ClearAllProductTmp()
-    {
-        $.ajax({
-            type: "get",
-            url: ClearTmpVente,
-            data: 
+   let Formateur = 0;
+Formateur = $('#DropDown_formateur').val();
+
+function ClearAllProductTmp()
+{
+    console.log('🧹 Clearing tmp vente on page load for Formateur:', Formateur);
+    
+    $.ajax({
+        type: "POST",  // ✅ Changed to POST
+        url: cleanTmpVente,  // ✅ Changed from ClearTmpVente to cleanTmpVente
+        data: 
+        {
+            _token: csrf_token,  // ✅ Added CSRF token
+            id_formateur: Formateur  // ✅ Changed parameter name
+        },
+        dataType: "json",
+        success: function (response) 
+        {
+            if(response.status == 200)
             {
-                id_formateur : Formateur
-            },
-            dataType: "json",
-            success: function (response) 
-            {
-                if(response.status == 200)
-                {
-                    console.log('clear tmp vente');
-                }   
-            }
-        });    
-    } 
+                console.log('✅ Cleared tmp vente on page load. Rows deleted:', response.deleted_count);
+            }   
+        },
+        error: function(xhr, status, error) {
+            console.error('❌ Error clearing tmp vente on page load:', error);
+            console.error('Response:', xhr.responseText);
+        }
+    });    
+} 
+
+
     ClearAllProductTmp();
     // Initialize tables for this user
     /* if (Formateur != 0) {
@@ -1738,10 +1748,120 @@ $('#filter_designation').on('keydown', function(e) {
     }
 });
 
+// ============================================
+// MODAL CLEANUP ON CLOSE - SINGLE HANDLER
+// ============================================
 
+$('#ModalAddVente').on('hidden.bs.modal', function () {
+    console.log('🔴 Modal hidden.bs.modal event triggered');
+    
+    let Formateur = $('#DropDown_formateur').val();
+    console.log('Formateur ID:', Formateur);
+    
+    if (!Formateur || Formateur == 0) {
+        console.warn('⚠️ No formateur selected, skipping cleanup');
+        return;
+    }
+    
+    // Check if cleanTmpVente URL is defined
+    if (typeof cleanTmpVente === 'undefined') {
+        console.error('❌ cleanTmpVente URL is not defined!');
+        return;
+    }
+    
+    console.log('📡 Calling cleanTmpVente with URL:', cleanTmpVente);
+    
+    // Clear the tmp_vente table in database
+    $.ajax({
+        type: "POST",
+        url: cleanTmpVente,
+        data: {
+            _token: csrf_token,
+            id_formateur: Formateur  // ✅ Correct parameter name
+        },
+        dataType: "json",
+        success: function(response) {
+            console.log('✅ AJAX Success:', response);
+            
+            if(response.status == 200) {
+                console.log('✅ Database cleaned. Rows deleted:', response.deleted_count);
+                
+                // DESTROY and REINITIALIZE the DataTable
+                if (activeDataTables.tmpVente) {
+                    console.log('Destroying tmpVente DataTable...');
+                    activeDataTables.tmpVente.destroy();
+                    activeDataTables.tmpVente = null;
+                }
+                
+                // Clear the table body HTML
+                $('.TableTmpVente tbody').empty();
+                console.log('✅ Table body cleared');
+                
+                // Reinitialize the table with empty data
+                console.log('Reinitializing table...');
+                initializeTableTmpVente('.TableTmpVente', Formateur);
+                
+                // Reset the product search DataTable
+                if (activeDataTables.productSearch) {
+                    console.log('Clearing product search table...');
+                    activeDataTables.productSearch.clear().draw();
+                }
+                
+                // Reset form inputs
+                $('#type_commande').val('Alimentaire');
+                $('#type_menu').val('Menu eleves');
+                $('#eleves').val('0');
+                $('#personnel').val('0');
+                $('#invites').val('0');
+                $('#divers').val('0');
+                $('#date_usage').val('');
+                console.log('✅ Form inputs reset');
+                
+                // Clear TomSelect selections
+                if (typeof tomselect_entree !== 'undefined' && tomselect_entree) {
+                    tomselect_entree.clear();
+                    console.log('✅ TomSelect entree cleared');
+                }
+                if (typeof tomselect_principal !== 'undefined' && tomselect_principal) {
+                    tomselect_principal.clear();
+                    console.log('✅ TomSelect principal cleared');
+                }
+                if (typeof tomselect_dessert !== 'undefined' && tomselect_dessert) {
+                    tomselect_dessert.clear();
+                    console.log('✅ TomSelect dessert cleared');
+                }
+                
+                // Clear and reset filters
+                $('#filter_categorie').val('').empty().append('<option value="">Toutes les catégories</option>');
+                $('#filter_subcategorie').val('').empty().append('<option value="">Toutes les familles</option>');
+                $('.input_products').val('');
+                console.log('✅ Filters cleared');
+                
+                // Reset total display
+                $('.TotalByFormateurAndUser').text('0.00 DH');
+                console.log('✅ Total reset');
+                
+                // Clear validation messages
+                $('.validationVente').empty().removeClass('alert alert-danger');
+                
+                console.log('✅ Modal cleanup complete');
+            } else {
+                console.error('❌ Cleanup failed with status:', response.status);
+            }
+        },
+        error: function(xhr, status, error) {
+            console.error('❌ AJAX Error:', error);
+            console.error('Status:', status);
+            console.error('Response:', xhr.responseText);
+            console.error('Status Code:', xhr.status);
+        }
+    });
+});
 
-
-
+// Handle when user clicks "Fermer" button specifically
+$('#ModalAddVente .btn-secondary[data-bs-dismiss="modal"]').on('click', function() {
+    $('#ModalAddVente').modal('hide');
+});
 
 
 });

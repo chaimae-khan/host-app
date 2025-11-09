@@ -1652,18 +1652,28 @@ public function sendPlatToTmpVente(Request $request)
     }
 
 
-
 public function cleanTmpVente(Request $request)
-    {
-        //dd($request->Formateur);
-        $TmpVente = DB::select("delete from temp_vente where id_formateur = ?",[$request->Formateur]);
-       // $TmpVente = TempVente::where('id_formateur',$request->Formateur)->delete();
-         return response()->json([
+{
+    try {
+        // Use Eloquent for better audit trail
+        $deleted = TempVente::where('id_formateur', $request->id_formateur)->delete();
+        
+        \Log::info('Cleared tmp_vente for formateur: ' . $request->id_formateur . ', Rows deleted: ' . $deleted);
+        
+        return response()->json([
             'status' => 200,
-            
+            'message' => 'Tmp vente cleared successfully',
+            'deleted_count' => $deleted
         ]);
-
+    } catch (\Exception $e) {
+        \Log::error('Error clearing tmp_vente: ' . $e->getMessage());
+        
+        return response()->json([
+            'status' => 500,
+            'message' => 'Error clearing tmp vente',
+            'error' => $e->getMessage()
+        ], 500);
     }
-
+}
 
 }

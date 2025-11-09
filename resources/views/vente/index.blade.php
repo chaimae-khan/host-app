@@ -64,7 +64,7 @@ document.addEventListener('DOMContentLoaded', function () {
     var searchVenteProducts_url = "{{ route('vente.search.products') }}";
     var getcategorybytypemenu = "{{ url('getcategorybytypemenu') }}";
     var sendPlatToTmpVente   = "{{ url('sendPlatToTmpVente') }}";
-    var ClearTmpVente           = "{{ url('ClearTmpVente') }}";
+     var cleanTmpVente = "{{ url('cleanTmpVente') }}"; 
 </script>
 
 <style>
@@ -971,4 +971,5 @@ $(document).ready(function() {
 });
 
 </script>
+
 </div>@endsection

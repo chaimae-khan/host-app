@@ -18,7 +18,7 @@ class PlatCompositionController extends Controller
     /**
      * Display a listing of plat compositions
      */
-   public function index(Request $request)
+public function index(Request $request)
 {
     if (!auth()->user()->can('Plats')) {
         abort(403, 'Vous n\'avez pas la permission d\'accéder à cette page');
@@ -44,7 +44,7 @@ class PlatCompositionController extends Controller
             ->join('unite as u', 'u.id', '=', 'pro.id_unite')
             ->select(
                 'l.id',
-                'p.id as plat_id',  // ← ADD THIS LINE
+                'p.id as plat_id',
                 'pro.name',
                 'p.name as nom_plat',
                 DB::raw("CONCAT(us.prenom, ' ', us.nom) as created_by"),
@@ -58,27 +58,36 @@ class PlatCompositionController extends Controller
 
         return DataTables::of($Data_Plat)
             ->addIndexColumn()
+            // ✅ Define which actual DB columns to use for each DataTable column
+            ->filterColumn('nom_plat', function($query, $keyword) {
+                $query->where('p.name', 'like', "%{$keyword}%");
+            })
+            ->filterColumn('name', function($query, $keyword) {
+                $query->where('pro.name', 'like', "%{$keyword}%");
+            })
+            ->filterColumn('qte', function($query, $keyword) {
+                $query->where('l.qte', 'like', "%{$keyword}%");
+            })
+            ->filterColumn('unite', function($query, $keyword) {
+                $query->where('u.name', 'like', "%{$keyword}%");
+            })
+            ->filterColumn('nombre_couvert', function($query, $keyword) {
+                $query->where('l.nombre_couvert', 'like', "%{$keyword}%");
+            })
+            ->filterColumn('created_at', function($query, $keyword) {
+                $query->where('l.created_at', 'like', "%{$keyword}%");
+            })
             ->addColumn('action', function ($row) {
                 $btn = '';
 
                 if (auth()->user()->can('Plats-modifier')) {
-                    // ✅ USE plat_id INSTEAD OF ligne_plat id
                     $btn .= '<a href="#" class="btn btn-sm bg-primary-subtle me-1 editPlatComposition"
                                 data-id="' . $row->plat_id . '">
                                 <i class="fa-solid fa-pen-to-square text-primary"></i>
                             </a>';
                 }
 
-                // if (auth()->user()->can('Plats')) {
-                //     $btn .= '<a href="' . url('ShowPlatDetail/' . $row->plat_id) . '" 
-                //                 class="btn btn-sm bg-success-subtle me-1" 
-                //                 target="_blank">
-                //                 <i class="fa-solid fa-eye text-success"></i>
-                //             </a>';
-                // }
-
                 if (auth()->user()->can('Plats-supprimer')) {
-                    // ✅ USE plat_id FOR DELETE TOO
                     $btn .= '<a href="#" class="btn btn-sm bg-danger-subtle deletePlatComposition"
                                 data-id="' . $row->plat_id . '">
                                 <i class="fa-solid fa-trash text-danger"></i>
