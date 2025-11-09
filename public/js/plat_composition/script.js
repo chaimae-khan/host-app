@@ -972,4 +972,150 @@ $(document).on('click', '#BtnConfirmExportComposition', function() {
     $('#ModalExportComposition').modal('hide');
     new AWN().success(`Export ${format} en cours...`, {durations: {success: 3000}});
 });
+
+// Import Excel Handler
+$(document).on('click', '#BtnImportCompositionExcel', function(e) {
+    e.preventDefault();
+    $('#ModalImportComposition').modal('show');
+});
+
+// Download Template Handler
+$(document).on('click', '#BtnDownloadTemplate', function(e) {
+    e.preventDefault();
+    window.location.href = DownloadImportTemplate;
+    new AWN().success('Téléchargement du modèle en cours...', {durations: {success: 3000}});
+});
+
+// File input change handler
+$('#import_file').on('change', function() {
+    const fileName = $(this).val().split('\\').pop();
+    if (fileName) {
+        $(this).next('.custom-file-label').html(fileName);
+        $('#file-name-display').text(fileName);
+        $('#BtnConfirmImport').prop('disabled', false);
+    } else {
+        $(this).next('.custom-file-label').html('Choisir un fichier...');
+        $('#file-name-display').text('');
+        $('#BtnConfirmImport').prop('disabled', true);
+    }
+});
+
+// Confirm Import Handler
+$(document).on('click', '#BtnConfirmImport', function(e) {
+    e.preventDefault();
+    
+    const fileInput = $('#import_file')[0];
+    
+    if (!fileInput.files || fileInput.files.length === 0) {
+        new AWN().alert('Veuillez sélectionner un fichier', {durations: {alert: 5000}});
+        return;
+    }
+    
+    const file = fileInput.files[0];
+    const fileExtension = file.name.split('.').pop().toLowerCase();
+    
+    if (fileExtension !== 'xlsx' && fileExtension !== 'xls') {
+        new AWN().alert('Format de fichier invalide. Veuillez sélectionner un fichier Excel (.xlsx ou .xls)', {
+            durations: {alert: 5000}
+        });
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('_token', csrf_token);
+    
+    // Disable button and show loading
+    $('#BtnConfirmImport').prop('disabled', true).html(
+        '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Importation en cours...'
+    );
+    
+    $.ajax({
+        type: "POST",
+        url: ImportCompositionExcel,
+        data: formData,
+        processData: false,
+        contentType: false,
+        dataType: "json",
+        success: function(response) {
+            $('#BtnConfirmImport').prop('disabled', false).html('Importer');
+            
+            if (response.status === 200) {
+                // Show success message
+                new AWN().success(response.message, {durations: {success: 5000}});
+                
+                // Show warnings if any
+                if (response.warnings && response.warnings.length > 0) {
+                    let warningHtml = '<div class="alert alert-warning mt-3"><strong>Avertissements:</strong><ul>';
+                    response.warnings.forEach(function(warning) {
+                        warningHtml += '<li>' + warning + '</li>';
+                    });
+                    warningHtml += '</ul></div>';
+                    $('#import-result').html(warningHtml);
+                }
+                
+                // Show errors if any
+                if (response.errors && response.errors.length > 0) {
+                    let errorHtml = '<div class="alert alert-danger mt-3"><strong>Erreurs:</strong><ul>';
+                    response.errors.forEach(function(error) {
+                        errorHtml += '<li>' + error + '</li>';
+                    });
+                    errorHtml += '</ul></div>';
+                    $('#import-result').append(errorHtml);
+                }
+                
+                // Refresh the main table
+                if (response.imported > 0) {
+                    setTimeout(function() {
+                        initializeTablePlatComposition();
+                        $('#ModalImportComposition').modal('hide');
+                        
+                        // Reset form
+                        $('#import_file').val('');
+                        $('#file-name-display').text('');
+                        $('#import-result').html('');
+                    }, 3000);
+                }
+            } else {
+                new AWN().alert(response.message || 'Erreur lors de l\'importation', {
+                    durations: {alert: 5000}
+                });
+            }
+        },
+        error: function(xhr) {
+            $('#BtnConfirmImport').prop('disabled', false).html('Importer');
+            
+            let errorMessage = 'Erreur lors de l\'importation';
+            
+            if (xhr.responseJSON) {
+                if (xhr.responseJSON.errors) {
+                    let errors = xhr.responseJSON.errors;
+                    errorMessage = '<ul>';
+                    $.each(errors, function(key, value) {
+                        if (Array.isArray(value)) {
+                            value.forEach(function(msg) {
+                                errorMessage += '<li>' + msg + '</li>';
+                            });
+                        } else {
+                            errorMessage += '<li>' + value + '</li>';
+                        }
+                    });
+                    errorMessage += '</ul>';
+                } else if (xhr.responseJSON.message) {
+                    errorMessage = xhr.responseJSON.message;
+                }
+            }
+            
+            new AWN().alert(errorMessage, {durations: {alert: 8000}});
+        }
+    });
+});
+
+// Reset modal when closed
+$('#ModalImportComposition').on('hidden.bs.modal', function() {
+    $('#import_file').val('');
+    $('#file-name-display').text('');
+    $('#import-result').html('');
+    $('#BtnConfirmImport').prop('disabled', true).html('Importer');
+});
 });

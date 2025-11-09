@@ -69,13 +69,13 @@ class PlatCompositionController extends Controller
                             </a>';
                 }
 
-                if (auth()->user()->can('Plats')) {
-                    $btn .= '<a href="' . url('ShowPlatDetail/' . $row->plat_id) . '" 
-                                class="btn btn-sm bg-success-subtle me-1" 
-                                target="_blank">
-                                <i class="fa-solid fa-eye text-success"></i>
-                            </a>';
-                }
+                // if (auth()->user()->can('Plats')) {
+                //     $btn .= '<a href="' . url('ShowPlatDetail/' . $row->plat_id) . '" 
+                //                 class="btn btn-sm bg-success-subtle me-1" 
+                //                 target="_blank">
+                //                 <i class="fa-solid fa-eye text-success"></i>
+                //             </a>';
+                // }
 
                 if (auth()->user()->can('Plats-supprimer')) {
                     // ✅ USE plat_id FOR DELETE TOO
@@ -858,5 +858,280 @@ public function exportDetailedPdf(Request $request)
     
     // Download PDF
     return $pdf->download('Composition_Plats_Detaillee - ' . date('d-m-Y') . '.pdf');
+}
+/**
+ * Import plat compositions from Excel
+ * 
+ * Expected Excel structure:
+ * Column A: Nom du plat
+ * Column B: Ingrédients (product name)
+ * Column C: Quantité
+ * Column D: Unité
+ * Column E: Nombre de couvert
+ * Column F: Créé par (optional, for reference)
+ * Column G: Créé le (optional, for reference)
+ */
+public function importExcel(Request $request)
+{
+    if (!auth()->user()->can('Plats-ajoute')) {
+        return response()->json([
+            'status' => 403,
+            'message' => 'Vous n\'avez pas la permission d\'importer'
+        ], 403);
+    }
+
+    $validator = Validator::make($request->all(), [
+        'file' => 'required|mimes:xlsx,xls|max:10240', // 10MB max
+    ], [
+        'file.required' => 'Veuillez sélectionner un fichier',
+        'file.mimes' => 'Le fichier doit être au format Excel (.xlsx ou .xls)',
+        'file.max' => 'Le fichier ne doit pas dépasser 10 Mo',
+    ]);
+
+    if ($validator->fails()) {
+        return response()->json([
+            'status' => 400,
+            'errors' => $validator->messages(),
+        ], 400);
+    }
+
+    DB::beginTransaction();
+
+    try {
+        $file = $request->file('file');
+        $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($file->getRealPath());
+        $sheet = $spreadsheet->getActiveSheet();
+        
+        $totalRows = $sheet->getHighestRow();
+        $importedCount = 0;
+        $errorRows = [];
+        $warnings = [];
+        
+        // Skip header row (row 1)
+        for ($row = 2; $row <= $totalRows; $row++) {
+            try {
+                // Read row data
+                $nomPlat = trim($sheet->getCell('A' . $row)->getValue());
+                $ingredientName = trim($sheet->getCell('B' . $row)->getValue());
+                $qte = $sheet->getCell('C' . $row)->getValue();
+                $uniteName = trim($sheet->getCell('D' . $row)->getValue());
+                $nombreCouvert = $sheet->getCell('E' . $row)->getValue();
+                
+                // Skip empty rows
+                if (empty($nomPlat) && empty($ingredientName)) {
+                    continue;
+                }
+                
+                // Validate required fields
+                if (empty($nomPlat)) {
+                    $errorRows[] = "Ligne $row: Nom du plat manquant";
+                    continue;
+                }
+                
+                if (empty($ingredientName)) {
+                    $errorRows[] = "Ligne $row: Nom de l'ingrédient manquant";
+                    continue;
+                }
+                
+                if (empty($qte) || !is_numeric($qte) || $qte <= 0) {
+                    $errorRows[] = "Ligne $row: Quantité invalide ($qte)";
+                    continue;
+                }
+                
+                if (empty($uniteName)) {
+                    $errorRows[] = "Ligne $row: Unité manquante";
+                    continue;
+                }
+                
+                if (empty($nombreCouvert) || !is_numeric($nombreCouvert) || $nombreCouvert < 1) {
+                    $errorRows[] = "Ligne $row: Nombre de couverts invalide ($nombreCouvert)";
+                    continue;
+                }
+                
+                // Find the plat by name
+                $plat = Plat::where('name', 'LIKE', $nomPlat)
+                    ->whereNull('deleted_at')
+                    ->first();
+                
+                if (!$plat) {
+                    $errorRows[] = "Ligne $row: Plat '$nomPlat' introuvable";
+                    continue;
+                }
+                
+                // Find the product by name
+                $product = Product::where('name', 'LIKE', $ingredientName)
+                    ->whereNull('deleted_at')
+                    ->first();
+                
+                if (!$product) {
+                    $errorRows[] = "Ligne $row: Produit '$ingredientName' introuvable";
+                    continue;
+                }
+                
+                // Find the unite by name
+                $unite = Unite::where('name', 'LIKE', $uniteName)->first();
+                
+                if (!$unite) {
+                    $errorRows[] = "Ligne $row: Unité '$uniteName' introuvable";
+                    continue;
+                }
+                
+                // Check if this composition already exists
+                $existingLigne = LignePlat::where('id_plat', $plat->id)
+                    ->where('idproduit', $product->id)
+                    ->whereNull('deleted_at')
+                    ->first();
+                
+                if ($existingLigne) {
+                    // Update existing composition
+                    $existingLigne->update([
+                        'id_unite' => $unite->id,
+                        'qte' => $qte,
+                        'nombre_couvert' => $nombreCouvert,
+                        'id_user' => Auth::id(),
+                    ]);
+                    $warnings[] = "Ligne $row: Composition mise à jour pour '$nomPlat' - '$ingredientName'";
+                } else {
+                    // Create new composition
+                    LignePlat::create([
+                        'id_user' => Auth::id(),
+                        'id_plat' => $plat->id,
+                        'idproduit' => $product->id,
+                        'id_unite' => $unite->id,
+                        'qte' => $qte,
+                        'nombre_couvert' => $nombreCouvert,
+                    ]);
+                }
+                
+                $importedCount++;
+                
+            } catch (\Exception $e) {
+                $errorRows[] = "Ligne $row: Erreur - " . $e->getMessage();
+            }
+        }
+        
+        DB::commit();
+        
+        $message = "$importedCount composition(s) importée(s) avec succès";
+        
+        if (count($warnings) > 0) {
+            $message .= ". " . count($warnings) . " mise(s) à jour";
+        }
+        
+        if (count($errorRows) > 0) {
+            $message .= ". " . count($errorRows) . " erreur(s)";
+        }
+        
+        return response()->json([
+            'status' => 200,
+            'message' => $message,
+            'imported' => $importedCount,
+            'warnings' => $warnings,
+            'errors' => $errorRows,
+        ]);
+        
+    } catch (\Exception $e) {
+        DB::rollBack();
+        
+        return response()->json([
+            'status' => 500,
+            'message' => 'Erreur lors de l\'importation: ' . $e->getMessage(),
+        ], 500);
+    }
+}
+
+/**
+ * Download import template
+ */
+public function downloadImportTemplate()
+{
+    // Create new Spreadsheet
+    $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+    $sheet = $spreadsheet->getActiveSheet();
+    
+    // Set headers
+    $headers = [
+        'Nom du plat',
+        'Ingrédients',
+        'Quantité',
+        'Unité',
+        'Nombre de couvert',
+        'Créé par',
+        'Créé le'
+    ];
+    
+    $colIndex = 'A';
+    foreach ($headers as $header) {
+        $sheet->setCellValue($colIndex . '1', $header);
+        $colIndex++;
+    }
+    
+    // Style header row
+    $headerStyle = [
+        'font' => [
+            'bold' => true,
+            'color' => ['rgb' => 'FFFFFF'],
+        ],
+        'alignment' => [
+            'horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER,
+        ],
+        'fill' => [
+            'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+            'startColor' => [
+                'rgb' => '4472C4',
+            ],
+        ],
+    ];
+    
+    $sheet->getStyle('A1:G1')->applyFromArray($headerStyle);
+    
+    // Add sample data
+    $sampleData = [
+        ['Salade César', 'Laitue', '100', 'g', '1', '', ''],
+        ['Salade César', 'Poulet', '150', 'g', '1', '', ''],
+        ['Salade César', 'Parmesan', '30', 'g', '1', '', ''],
+        ['Pizza Margherita', 'Farine', '200', 'g', '1', '', ''],
+        ['Pizza Margherita', 'Tomate', '100', 'g', '1', '', ''],
+        ['Pizza Margherita', 'Mozzarella', '150', 'g', '1', '', ''],
+    ];
+    
+    $row = 2;
+    foreach ($sampleData as $data) {
+        $colIndex = 'A';
+        foreach ($data as $value) {
+            $sheet->setCellValue($colIndex . $row, $value);
+            $colIndex++;
+        }
+        $row++;
+    }
+    
+    // Add instructions in a comment
+    $sheet->getComment('A1')->getText()->createTextRun(
+        "Instructions d'importation:\n" .
+        "1. Nom du plat: Le nom doit correspondre exactement à un plat existant\n" .
+        "2. Ingrédients: Le nom du produit doit exister dans la base de données\n" .
+        "3. Quantité: Valeur numérique positive\n" .
+        "4. Unité: L'unité doit exister (ex: g, kg, L, ml, pcs)\n" .
+        "5. Nombre de couvert: Nombre entier >= 1\n" .
+        "6-7. Optionnels: Pour référence uniquement"
+    );
+    
+    // Auto size columns
+    foreach (range('A', 'G') as $column) {
+        $sheet->getColumnDimension($column)->setAutoSize(true);
+    }
+    
+    // Create writer
+    $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+    
+    // Set headers for download
+    $fileName = 'Template_Import_Composition_Plats.xlsx';
+    header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    header('Content-Disposition: attachment; filename="' . $fileName . '"');
+    header('Cache-Control: max-age=0');
+    
+    // Save file to output
+    $writer->save('php://output');
+    exit;
 }
 }

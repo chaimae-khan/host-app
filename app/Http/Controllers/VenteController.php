@@ -1597,7 +1597,7 @@ public function getcategorybytypemenu(Request $request)
 }
 
 
-   public function sendPlatToTmpVente(Request $request)
+public function sendPlatToTmpVente(Request $request)
     {
         $idsPlat = $request->idplat;
             
@@ -1618,6 +1618,7 @@ public function getcategorybytypemenu(Request $request)
                 ),'l.id'
                 )
                 ->where('id_plat', $idsPlat)
+                ->whereNull('l.deleted_at')
                 ->get(); // get() returns all rows
 
             if($lignePlats->count() > 0) {
@@ -1652,20 +1653,17 @@ public function getcategorybytypemenu(Request $request)
 
 
 
-public function clearAllTmpVente(Request $request)
-{
-    $userId = Auth::id();
-    $formateur = $request->id_formateur;
-    
-    TempVente::where('id_user', $userId)
-        ->where('id_formateur', $formateur)
-        ->delete();
-    
-    return response()->json([
-        'status' => 200,
-        'message' => 'TmpVente cleared successfully'
-    ]);
-}
+public function cleanTmpVente(Request $request)
+    {
+        //dd($request->Formateur);
+        $TmpVente = DB::select("delete from temp_vente where id_formateur = ?",[$request->Formateur]);
+       // $TmpVente = TempVente::where('id_formateur',$request->Formateur)->delete();
+         return response()->json([
+            'status' => 200,
+            
+        ]);
+
+    }
 
 
 }

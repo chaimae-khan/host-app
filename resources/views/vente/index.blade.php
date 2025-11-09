@@ -368,7 +368,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 <div class="form-group mt-3">
                                     <div class="card-body">
                                         <div class="table-responsive">
-                                            <table class="table table-striped datatable TableTmpVente">
+                                       <table class="table table-striped datatable TableTmpVente w-100">
                                                 <thead class="thead-light">
                                                     <tr>
                                                         <th scope="col">Produit</th>

@@ -345,6 +345,10 @@ Route::post('/exportPlatsPdf', [PlatsController::class, 'exportPdf'])->name('pla
     Route::post('/exportCompositionExcel', [PlatCompositionController::class, 'exportExcel'])->name('plat-composition.export.excel');
     Route::post('/exportCompositionPdf', [PlatCompositionController::class, 'exportPdf'])->name('plat-composition.export.pdf');
     Route::post('/exportCompositionDetailedPdf', [PlatCompositionController::class, 'exportDetailedPdf'])->name('plat-composition.export.detailed-pdf');
+    Route::post('/importCompositionExcel', [PlatCompositionController::class, 'importExcel'])->name('importCompositionExcel');
+    Route::get('/downloadImportTemplate', [PlatCompositionController::class, 'downloadImportTemplate'])->name('downloadImportTemplate');
+
+
 
 
     Route::get('sendPlatToTmpVente'      ,[VenteController::class,'sendPlatToTmpVente']);
