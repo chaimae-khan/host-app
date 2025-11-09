@@ -1001,6 +1001,7 @@ $('#import_file').on('change', function() {
 });
 
 // Confirm Import Handler
+
 $(document).on('click', '#BtnConfirmImport', function(e) {
     e.preventDefault();
     
@@ -1038,7 +1039,7 @@ $(document).on('click', '#BtnConfirmImport', function(e) {
         contentType: false,
         dataType: "json",
         success: function(response) {
-            $('#BtnConfirmImport').prop('disabled', false).html('Importer');
+            $('#BtnConfirmImport').prop('disabled', false).html('<i class="fa-solid fa-file-import me-2"></i>Importer');
             
             if (response.status === 200) {
                 // Show success message
@@ -1066,16 +1067,14 @@ $(document).on('click', '#BtnConfirmImport', function(e) {
                 
                 // Refresh the main table
                 if (response.imported > 0) {
-                    setTimeout(function() {
-                        initializeTablePlatComposition();
-                        $('#ModalImportComposition').modal('hide');
-                        
-                        // Reset form
-                        $('#import_file').val('');
-                        $('#file-name-display').text('');
-                        $('#import-result').html('');
-                    }, 3000);
+                    initializeTablePlatComposition();
                 }
+                
+                // Close modal automatically after a short delay
+                setTimeout(function() {
+                    $('#ModalImportComposition').modal('hide');
+                }, 2000); // 2 seconds delay to let user see the success message
+                
             } else {
                 new AWN().alert(response.message || 'Erreur lors de l\'importation', {
                     durations: {alert: 5000}
@@ -1083,7 +1082,7 @@ $(document).on('click', '#BtnConfirmImport', function(e) {
             }
         },
         error: function(xhr) {
-            $('#BtnConfirmImport').prop('disabled', false).html('Importer');
+            $('#BtnConfirmImport').prop('disabled', false).html('<i class="fa-solid fa-file-import me-2"></i>Importer');
             
             let errorMessage = 'Erreur lors de l\'importation';
             
