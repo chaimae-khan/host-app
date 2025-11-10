@@ -15,7 +15,7 @@ return new class extends Migration
             $table->foreignId('idproduit')->constrained('products')->onDelete('cascade');
             $table->foreignId('id_unite')->constrained('unite')->onDelete('cascade');
             $table->decimal('qte', 10, 2);
-            $table->integer('nombre_couvert');
+            $table->integer('nombre_couvert')->default(10);
             $table->timestamps();
             $table->softDeletes();
         });

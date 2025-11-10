@@ -24,7 +24,8 @@ return new class extends Migration
                 ->nullable()
                 ->constrained('unite')
                 ->onDelete('set null');
-            $table->unsignedInteger('quantite')->default(0);
+           $table->decimal('quantite', 10, 2)->default(0);
+
            
             // $table->date('date_entree')->nullable();
             // $table->date('date_sortie')->nullable();

@@ -18,7 +18,8 @@ return new class extends Migration
             $table->foreignId('id_client')->nullable()->references('id')->on('clients')->onDelete('cascade');
             $table->foreignId('id_formateur')->nullable()->references('id')->on('users')->onDelete('cascade'); 
 
-            $table->integer('qte');
+           $table->decimal('qte', 10, 2)->default(0);
+
             $table->timestamps();
             // $table->softDeletes();
         });

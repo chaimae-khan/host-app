@@ -38,7 +38,7 @@ class VenteController extends Controller
 public function index(Request $request)
 {
     $this->autoDeleteOldVentes();
-
+    
     if ($request->ajax()) {
         $hashids = new Hashids();
 

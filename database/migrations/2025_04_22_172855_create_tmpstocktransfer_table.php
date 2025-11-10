@@ -12,8 +12,8 @@ return new class extends Migration
         Schema::create('tmpstocktransfer', function (Blueprint $table) {
             $table->id();
             $table->foreignId('id_product')->constrained('products')->onDelete('cascade');
-            $table->unsignedInteger('quantite_stock')->default(0);
-            $table->unsignedInteger('quantite_transfer')->default(0);
+            $table->decimal('quantite_stock', 10, 2)->default(0);
+            $table->decimal('quantite_transfer', 10, 2)->default(0);
             $table->foreignId('from')->constrained('users')->onDelete('cascade');
             $table->foreignId('to')->constrained('users')->onDelete('cascade');
             $table->foreignId('iduser')->constrained('users')->onDelete('cascade');

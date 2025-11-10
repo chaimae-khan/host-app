@@ -16,7 +16,7 @@ return new class extends Migration
             $table->foreignId('id_user')->references('id')->on('users')->onDelete('cascade');
             $table->foreignId('idvente')->references('id')->on('ventes')->onDelete('cascade');
             $table->foreignId('idproduit')->references('id')->on('products')->onDelete('cascade');
-            $table->integer('qte');
+             $table->decimal('qte', 10, 2);
             $table->text('contente_transfert')->nullable(); 
             $table->text('contete_formateur')->nullable(); 
             $table->timestamps();
