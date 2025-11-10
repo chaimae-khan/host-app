@@ -22,7 +22,9 @@
                             <tbody>
                                 @forelse($notifications as $notification)
                                     <tr class="{{ $notification->read_at ? '' : 'table-light' }}">
-                                        <td>{{ $notification->data['message'] }}</td>
+                                       <td >{!! preg_replace('/cr[ée]+er par/i', '<br>$0', $notification->data['message']) !!}</td>
+
+
                                         <td>
                                             @if(isset($notification->data['status']))
                                                 @if($notification->data['status'] == 'Stock Bas')

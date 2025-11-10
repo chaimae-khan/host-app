@@ -6,7 +6,7 @@
             <span class="badge bg-danger rounded-circle noti-icon-badge" id="notification-badge">{{ auth()->user()->unreadNotifications->count() }}</span>
         @endif
     </a>
-    <div class="dropdown-menu dropdown-menu-end dropdown-lg">
+    <div class="dropdown-menu dropdown-menu-end dropdown-lg" style="min-width: 450px !important">
         <!-- item-->
         <div class="dropdown-item noti-title">
             <h5 class="m-0">
@@ -30,7 +30,14 @@
                         <i class="mdi mdi-comment-account-outline"></i>
                     </div>
                     <p class="notify-details">
-                        {{ $notification->data['message'] }}
+                        <td >
+                            {!! preg_replace(
+                                '/(cr[ée]+er par|a été vis[ée]|a été livr[ée]|a été refus[ée] par|a été approuv[ée] par|prête pour la livraison)/i',
+                                '<br>$1',
+                                $notification->data['message']
+                            ) !!}
+                        </td>
+
                         <small class="text-muted">{{ $notification->created_at->diffForHumans() }}</small>
                     </p>
                     

@@ -313,7 +313,7 @@ function displayAllMenusReport(allData, month) {
         // Add menu type header
         contentDiv.append(`
             <div class="menu-separator">
-                <h4>${menuData.menuType}</h4>
+                <h4>${menuData.menuType == 'Menu eleves' ? 'Menu standard' :menuData.menuType}</h4>
             </div>
         `);
         
