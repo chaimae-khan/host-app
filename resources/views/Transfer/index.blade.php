@@ -87,7 +87,7 @@
                                         <tr>
                                             <th scope="col">Référence</th>
                                             <!-- <th scope="col">Nombre produits</th> -->
-                                            <th scope="col">Quantité totale</th>
+                                            <!-- <th scope="col">Quantité totale</th> -->
                                             <th scope="col">Statut</th>
                                             <th scope="col">D'un formateur</th>
                                             <th scope="col">À formateur</th>

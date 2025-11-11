@@ -20,88 +20,89 @@ $(document).ready(function ()
     };
     
     // Initialize the main table with AJAX
-    $('.TableRouter').DataTable({
-        processing: true,
-        serverSide: true,
-        autoWidth: false,
-        ajax: {
-            url: window.location.href,
-            type: 'GET'
+  $('.TableRouter').DataTable({
+    processing: true,
+    serverSide: true,
+    autoWidth: false,
+    ajax: {
+        url: window.location.href,
+        type: 'GET'
+    },
+    columns: [
+        { 
+            data: 'reference',
+            name: 'reference',
+            orderable: false
         },
-        columns: [
-            { 
-                data: 'reference',
-                name: 'reference',
-                orderable: false
-            },
-            { 
-                data: 'product_count',
-                name: 'product_count',
-                orderable: true,
-                render: function(data) {
-                    return data || '0';
-                }
-            },
-            { 
-                data: 'total_quantity',
-                name: 'total_quantity',
-                orderable: true,
-                render: function(data) {
-                    return data || '0';
-                }
-            },
-            { 
-                data: 'status',
-                name: 'status',
-                orderable: true,
-                searchable: false
-            },
-            { 
-                data: 'to_name',
-                name: 'to_name',
-                orderable: true
-            },
-            { 
-                data: 'created_by_name',
-                name: 'created_by_name',
-                orderable: true
-            },
-            { 
-                data: 'created_at',
-                name: 'created_at',
-                orderable: true
-            },
-            { 
-                data: 'action',
-                name: 'action',
-                orderable: false,
-                searchable: false
-            }
-        ],
-        order: [[6, 'desc']], // Order by created_at descending
-        language: {
-            "sInfo": "",
-            "sInfoEmpty": "Affichage de l'élément 0 à 0 sur 0 élément",
-            "sInfoFiltered": "(filtré à partir de _MAX_ éléments au total)",
-            "sLengthMenu": "Afficher _MENU_ éléments",
-            "sLoadingRecords": "Chargement...",
-            "sProcessing": "Traitement...",
-            "sSearch": "Rechercher :",
-            "sZeroRecords": "Aucun élément correspondant trouvé",
-            "oPaginate": {
-                "sFirst": "Premier",
-                "sLast": "Dernier",
-                "sNext": "Suivant",
-                "sPrevious": "Précédent"
+        { 
+            data: 'product_count',
+            name: 'product_count',
+            orderable: true,
+            render: function(data) {
+                return data || '0';
             }
         },
-        drawCallback: function() {
-            // Reset AJAX in progress flags when table is redrawn
-            ajaxInProgress.deleteRouter = false;
-            ajaxInProgress.updateRouter = false;
-            ajaxInProgress.changeStatusRouter = false;
+        // REMOVED: total_quantity column
+        // { 
+        //     data: 'total_quantity',
+        //     name: 'total_quantity',
+        //     orderable: true,
+        //     render: function(data) {
+        //         return data || '0';
+        //     }
+        // },
+        { 
+            data: 'status',
+            name: 'status',
+            orderable: true,
+            searchable: false
+        },
+        { 
+            data: 'to_name',
+            name: 'to_name',
+            orderable: true
+        },
+        { 
+            data: 'created_by_name',
+            name: 'created_by_name',
+            orderable: true
+        },
+        { 
+            data: 'created_at',
+            name: 'created_at',
+            orderable: true
+        },
+        { 
+            data: 'action',
+            name: 'action',
+            orderable: false,
+            searchable: false
         }
-    });
+    ],
+    order: [[5, 'desc']], // CHANGED: from [[6, 'desc']] to [[5, 'desc']]
+    language: {
+        "sInfo": "",
+        "sInfoEmpty": "Affichage de l'élément 0 à 0 sur 0 élément",
+        "sInfoFiltered": "(filtré à partir de _MAX_ éléments au total)",
+        "sLengthMenu": "Afficher _MENU_ éléments",
+        "sLoadingRecords": "Chargement...",
+        "sProcessing": "Traitement...",
+        "sSearch": "Rechercher :",
+        "sZeroRecords": "Aucun élément correspondant trouvé",
+        "oPaginate": {
+            "sFirst": "Premier",
+            "sLast": "Dernier",
+            "sNext": "Suivant",
+            "sPrevious": "Précédent"
+        }
+    },
+    drawCallback: function() {
+        // Reset AJAX in progress flags when table is redrawn
+        ajaxInProgress.deleteRouter = false;
+        ajaxInProgress.updateRouter = false;
+        ajaxInProgress.changeStatusRouter = false;
+    }
+});
 
     // Helper function to escape HTML
     function escapeHtml(text) {

@@ -194,80 +194,93 @@ class RouterStockController extends Controller
         }
     }
 
-    public function StoreProductStockTransfer(Request $request)
-    {
-        // Check permission before storing product to temp stock transfer
-        if (!auth()->user()->can('retour-ajouter')) {
-            return response()->json([
-                'status' => 403,
-                'message' => 'Vous n\'avez pas la permission d\'ajouter un retour'
-            ], 403);
-        }
+   public function StoreProductStockTransfer(Request $request)
+{
+    // Check permission before storing product to temp stock transfer
+    if (!auth()->user()->can('retour-ajouter')) {
+        return response()->json([
+            'status' => 403,
+            'message' => 'Vous n\'avez pas la permission d\'ajouter un retour'
+        ], 403);
+    }
+    
+    $data = $request->input('data');          
+    $data['id_user'] = Auth::user()->id;
+    
+    // CHANGED: Use the actual quantity from contete_formateur instead of hardcoding 1
+    // This will use the decimal value (0.25, 0.30, etc.) from the product
+    $qteToAdd = $data['contete_formateur'];
+    
+    // ADDED: Validate that quantity is greater than 0
+    if ($qteToAdd <= 0) {
+        return response()->json([
+            'status' => 422,
+            'message' => 'La quantité doit être supérieure à 0.'
+        ], 422);
+    }
+    
+    DB::beginTransaction();
+
+    try {
+        // Check existing transfer quantity
+        $checkQteTransfer = TmpStockTransfer::where('id_product', $data['id'])
+            ->where('to', $request->to)
+            ->where('iduser', $data['id_user'])
+            ->where('idcommande', $request->idcommande)
+            ->sum('quantite_transfer');
         
-        $data = $request->input('data');          
-        $data['id_user'] = Auth::user()->id;
-        $data['qteSend'] = 1;
-        
-        DB::beginTransaction();
-    
-        try {
-            // check qte if insert or not
-            $checkQteTransfer = TmpStockTransfer::where('id_product', $data['id'])
-                ->where('to', $request->to)
-                ->where('iduser', $data['id_user'])
-                ->where('idcommande', $request->idcommande)
-                ->sum('quantite_transfer');
-            
-            if($checkQteTransfer == $data['contete_formateur'])
-            {
-                return response()->json([
-                    'status' => 440,
-                    'message' => " Impossible de modifier la quantité, car la quantité est égale à 0."
-                ]);
-            }
-    
-            $existingProduct = TmpStockTransfer::where('id_product', $data['id'])
-                ->where('to', $request->to)
-                ->where('iduser', $data['id_user'])
-                ->where('idcommande', $request->idcommande)
-                ->first();
-    
-            if ($existingProduct) {
-                $existingProduct->increment('quantite_transfer', 1);
-                DB::commit();
-    
-                return response()->json([
-                    'status' => 200,
-                    'message' => 'Quantité mise à jour avec succès',
-                ]);
-            } else {
-                TmpStockTransfer::create([
-                    'id_product' => $data['id'],
-                    'quantite_stock' => $data['contete_formateur'],
-                    'quantite_transfer' => $data['qteSend'],
-                    'from' => Auth::id(),
-                    'to' => $request->to,
-                    'iduser' => $data['id_user'],
-                    'idcommande' => $request->idcommande,
-                ]);
-                
-                DB::commit();
-    
-                return response()->json([
-                    'status' => 200,
-                    'message' => 'Ajouté avec succès',
-                ]);
-            }
-        } catch (\Exception $e) {
-            DB::rollBack();
-    
+        // CHANGED: Check if total transferred quantity would exceed available stock
+        if(($checkQteTransfer + $qteToAdd) > $data['contete_formateur'])
+        {
             return response()->json([
-                'status' => 500,
-                'message' => 'Une erreur est survenue. Veuillez réessayer.',
-                'error' => $e->getMessage(),
+                'status' => 440,
+                'message' => "Impossible d'ajouter cette quantité. La quantité disponible est insuffisante."
             ]);
         }
+
+        $existingProduct = TmpStockTransfer::where('id_product', $data['id'])
+            ->where('to', $request->to)
+            ->where('iduser', $data['id_user'])
+            ->where('idcommande', $request->idcommande)
+            ->first();
+
+        if ($existingProduct) {
+            // CHANGED: Increment by the actual quantity instead of 1
+            $existingProduct->increment('quantite_transfer', $qteToAdd);
+            DB::commit();
+
+            return response()->json([
+                'status' => 200,
+                'message' => 'Quantité mise à jour avec succès',
+            ]);
+        } else {
+            TmpStockTransfer::create([
+                'id_product' => $data['id'],
+                'quantite_stock' => $data['contete_formateur'],
+                'quantite_transfer' => $qteToAdd, // CHANGED: Use actual quantity
+                'from' => Auth::id(),
+                'to' => $request->to,
+                'iduser' => $data['id_user'],
+                'idcommande' => $request->idcommande,
+            ]);
+            
+            DB::commit();
+
+            return response()->json([
+                'status' => 200,
+                'message' => 'Ajouté avec succès',
+            ]);
+        }
+    } catch (\Exception $e) {
+        DB::rollBack();
+
+        return response()->json([
+            'status' => 500,
+            'message' => 'Une erreur est survenue. Veuillez réessayer.',
+            'error' => $e->getMessage(),
+        ]);
     }
+}
     
     public function StoreRouter(Request $request)
     {
@@ -410,8 +423,16 @@ class RouterStockController extends Controller
         return response()->json($transfer);
     }
 
-  public function update(Request $request)
+public function update(Request $request)
 {
+    // Check permission before updating
+    if (!auth()->user()->can('retour-modifier')) {
+        return response()->json([
+            'status' => 403,
+            'message' => 'Vous n\'avez pas la permission de modifier un retour'
+        ], 403);
+    }
+    
     $transfer = StockTransfer::find($request->id);
     
     if (!$transfer) {
@@ -423,11 +444,15 @@ class RouterStockController extends Controller
 
     $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
         'status' => 'required|string|in:Création,Validation,Refus',
+        'refusal_reason' => 'required_if:status,Refus|nullable|string|max:500',
     ], [
         'required' => 'Le champ :attribute est requis.',
+        'required_if' => 'Le motif de refus est requis lorsque le statut est "Refus".',
         'in' => 'Le statut doit être l\'un des suivants: Création, Validation, Refus',
+        'max' => 'Le motif de refus ne peut pas dépasser 500 caractères.',
     ], [
         'status' => 'statut',
+        'refusal_reason' => 'motif de refus',
     ]);
 
     if ($validator->fails()) {
@@ -437,30 +462,53 @@ class RouterStockController extends Controller
         ], 400);
     }
     
+    $oldStatus = $transfer->status;
+    
     if ($request->status === 'Validation') {
-        //DB::beginTransaction();
+        DB::beginTransaction();
 
         try {
             $lineTransfers = LineTransfer::where('id_stocktransfer', $transfer->id)->get();
 
             foreach ($lineTransfers as $lineTransfer) {
-                $ligneVente = LigneVente::where('idvente', $lineTransfer->idcommande)
-                    ->where('idproduit', $lineTransfer->id_product)
+                // CRITICAL FIX: Find ANY ligne_vente where this formateur has stock for this product
+                // Not just the one with the specific idcommande
+                $ligneVente = LigneVente::join('ventes', 'ventes.id', '=', 'ligne_vente.idvente')
+                    ->where('ligne_vente.idproduit', $lineTransfer->id_product)
+                    ->where('ventes.id_formateur', $transfer->to) // The formateur returning stock
+                    ->where('ventes.status', 'Validation')
+                    ->where('ligne_vente.contete_formateur', '>=', $lineTransfer->quantite) // Has enough stock
+                    ->select('ligne_vente.*')
+                    ->orderBy('ligne_vente.contete_formateur', 'desc') // Prioritize the one with most stock
                     ->first();
 
                 if (!$ligneVente) {
-                    throw new \Exception("Ligne vente introuvable pour le produit ID: " . $lineTransfer->id_product);
+                    \Log::error('No ligne_vente found with sufficient stock', [
+                        'id_product' => $lineTransfer->id_product,
+                        'formateur_id' => $transfer->to,
+                        'quantity_needed' => $lineTransfer->quantite
+                    ]);
+                    
+                    throw new \Exception("Stock insuffisant pour le produit ID: " . $lineTransfer->id_product . 
+                                       ". Le formateur n'a pas assez de stock disponible pour ce retour.");
                 }
 
-                if ($ligneVente->contete_formateur < $lineTransfer->quantite) {
-                    throw new \Exception("Quantité insuffisante dans contete_formateur pour le produit ID: " . $lineTransfer->id_product);
-                }
+                \Log::info('Found ligne_vente with stock', [
+                    'product_id' => $lineTransfer->id_product,
+                    'ligne_vente_id' => $ligneVente->id,
+                    'idvente' => $ligneVente->idvente,
+                    'contete_formateur' => $ligneVente->contete_formateur,
+                    'quantite_to_return' => $lineTransfer->quantite
+                ]);
 
                 // Reduce contete_formateur
                 $ligneVente->contete_formateur -= $lineTransfer->quantite;
                 $ligneVente->save();
+                
+                \Log::info('Reduced contete_formateur for product ID: ' . $lineTransfer->id_product . 
+                          ' to: ' . $ligneVente->contete_formateur);
 
-                // Update stock
+                // Update stock - add the returned quantity back to main stock
                 $stock = Stock::firstOrNew(['id_product' => $lineTransfer->id_product]);
                 if (!$stock->exists) {
                     $stock->id_tva = $lineTransfer->id_tva;
@@ -470,20 +518,29 @@ class RouterStockController extends Controller
                     $stock->quantite += $lineTransfer->quantite;
                 }
                 $stock->save();
+                
+                \Log::info('Updated stock for product ID: ' . $lineTransfer->id_product . 
+                          ' to quantity: ' . $stock->quantite);
             }
             
             $transfer->status = 'Validation';
+            $transfer->refusal_reason = null;
             $transfer->save();
 
             DB::commit();
+            
+            \Log::info('StockTransfer (Retour) status changed from "' . $oldStatus . '" to "Validation" for transfer ID: ' . $transfer->id . ' by user: ' . auth()->user()->id);
 
             return response()->json([
                 'status' => 200,
-                'message' => 'Router validé avec succès',
+                'message' => 'Retour validé avec succès',
             ]);
 
         } catch (\Exception $e) {
             DB::rollBack();
+            
+            \Log::error('Error in validation process: ' . $e->getMessage());
+            \Log::error($e->getTraceAsString());
 
             return response()->json([
                 'status' => 500,
@@ -491,23 +548,38 @@ class RouterStockController extends Controller
             ]);
         }
     }
-
-    // For other statuses (Refus, Création)
-    $transfer->status = $request->status;
-
-    // Optional: handle refusal reason if provided
-    if ($request->has('refusal_reason')) {
+    
+    if ($request->status === 'Refus') {
+        if (empty($request->refusal_reason)) {
+            return response()->json([
+                'status' => 400,
+                'message' => 'Le motif de refus est requis'
+            ], 400);
+        }
+        
+        $transfer->status = 'Refus';
         $transfer->refusal_reason = $request->refusal_reason;
+        $transfer->save();
+        
+        \Log::info('StockTransfer (Retour) status changed from "' . $oldStatus . '" to "Refus" with reason: "' . $request->refusal_reason . '" for transfer ID: ' . $transfer->id . ' by user: ' . auth()->user()->id);
+        
+        return response()->json([
+            'status' => 200,
+            'message' => 'Refus enregistré avec succès',
+        ]);
     }
 
+    $transfer->status = $request->status;
+    $transfer->refusal_reason = null;
     $transfer->save();
+    
+    \Log::info('StockTransfer (Retour) status changed from "' . $oldStatus . '" to "' . $request->status . '" for transfer ID: ' . $transfer->id . ' by user: ' . auth()->user()->id);
 
     return response()->json([
         'status' => 200,
-        'message' => 'Statut du router mis à jour avec succès',
+        'message' => 'Statut du retour mis à jour avec succès',
     ]);
 }
-
 
     public function ChangeStatusRouter(Request $request)
     {
@@ -667,38 +739,72 @@ class RouterStockController extends Controller
         }
     }
     
-    public function UpdateQteRouterTmp(Request $request)
-    {
-        // No permission check needed for temporary records management
-        // This is one of the methods that should not require permissions
-        
-        $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
-            'qte' => 'required',
-        ], [
-            'required' => 'Le champ :attribute est requis.',
-        ], [
-            'qte' => 'quantité',
-        ]);
-        
-        if ($validator->fails()) {
-            return response()->json([
-                'status' => 400,
-                'errors' => $validator->messages(),
-            ], 400);
-        }
-        
-        $TmpStockTransfer = TmpStockTransfer::where('id', $request->id)->update([
-            'quantite_transfer' => $request->qte,
-        ]);
-        
-        if($TmpStockTransfer)
-        {
-            return response()->json([
-                'status'    => 200,
-                'message'   => 'Mise à jour effectuée avec succès.'
-            ]);
-        }
+ public function UpdateQteRouterTmp(Request $request)
+{
+    $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
+        'qte' => 'required|numeric|min:0.01', // CHANGED: Added numeric and min validation
+    ], [
+        'required' => 'Le champ :attribute est requis.',
+        'numeric' => 'Le champ :attribute doit être un nombre.',
+        'min' => 'Le champ :attribute doit être au moins :min.',
+    ], [
+        'qte' => 'quantité',
+    ]);
+    
+    if ($validator->fails()) {
+        return response()->json([
+            'status' => 400,
+            'errors' => $validator->messages(),
+        ], 400);
     }
+    
+    // ADDED: Find the record first to validate
+    $tmpTransfer = TmpStockTransfer::find($request->id);
+    
+    if (!$tmpTransfer) {
+        return response()->json([
+            'status' => 404,
+            'message' => 'Enregistrement non trouvé',
+        ], 404);
+    }
+    
+    // ADDED: Check if quantity is valid (not more than available)
+    if ($request->qte > $tmpTransfer->quantite_stock) {
+        return response()->json([
+            'status' => 422,
+            'message' => 'La quantité demandée (' . $request->qte . ') est supérieure à la quantité disponible (' . $tmpTransfer->quantite_stock . ')',
+        ], 422);
+    }
+    
+    // Update the quantity
+    $updated = TmpStockTransfer::where('id', $request->id)->update([
+        'quantite_transfer' => $request->qte,
+    ]);
+    
+    if($updated)
+    {
+        \Log::info('Temporary router quantity updated successfully', [
+            'id' => $request->id,
+            'old_quantity' => $tmpTransfer->quantite_transfer,
+            'new_quantity' => $request->qte
+        ]);
+        
+        return response()->json([
+            'status'    => 200,
+            'message'   => 'Mise à jour effectuée avec succès.'
+        ]);
+    } else {
+        \Log::error('Failed to update temporary router quantity', [
+            'id' => $request->id,
+            'quantity' => $request->qte
+        ]);
+        
+        return response()->json([
+            'status' => 500,
+            'message' => 'Impossible de modifier la quantité',
+        ], 500);
+    }
+}
 
     public function deleteRouter(Request $request)
     {

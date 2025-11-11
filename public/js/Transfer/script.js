@@ -20,7 +20,7 @@ $(document).ready(function ()
     };
     
 
-  $('.TableTransfer').DataTable({
+$('.TableTransfer').DataTable({
     processing: true,
     serverSide: true,
     ajax: {
@@ -28,7 +28,7 @@ $(document).ready(function ()
         dataType: 'json'
     },
     autoWidth: false,
-    order: [[7, 'desc']], 
+    order: [[5, 'desc']], // CHANGED: from [[6, 'desc']] to [[5, 'desc']]
     columns: [
         { 
             data: 'id',
@@ -37,12 +37,7 @@ $(document).ready(function ()
                 return 'TRA-' + String(data).padStart(6, '0');
             }
         },
-       
-        { 
-            data: 'total_quantity',
-            name: 'total_quantity',
-            searchable: false
-        },
+        // REMOVED: total_quantity column
         { 
             data: 'status',
             name: 'st.status',

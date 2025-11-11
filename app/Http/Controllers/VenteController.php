@@ -491,7 +491,7 @@ public function store(Request $request)
     // Notify Admin & Directeur
     foreach ($notifyUsers as $user) {
         $user->notify(new \App\Notifications\SystemNotification([
-            'message' => 'Nouvelle commande #' . $Vente->id . ' créer par ' . $userName,
+            'message' => 'Nouvelle commande #' . $Vente->id . ' créée par ' . $userName,
             'status' => 'Création',
             'view_url' => url('ShowBonVente/' . $encodedId)
         ]));
@@ -1097,7 +1097,7 @@ public function update(Request $request)
 
             case 'Livraison':
                 $creatorUser->notify(new \App\Notifications\SystemNotification([
-                    'message' => 'Votre commande #' . $vente->id . '  a été livrée',
+                    'message' => 'Votre commande #' . $vente->id . ' a été livrée',
                     'status'  => 'Livraison',
                     'view_url' => url('ShowBonVente/' . $encodedId),
                 ]));
@@ -1105,7 +1105,7 @@ public function update(Request $request)
 
             case 'Visé':
                 $creatorUser->notify(new \App\Notifications\SystemNotification([
-                    'message' => 'Votre commande #' . $vente->id . ' a été visée',
+                    'message' => 'Votre commande #' . $vente->id . ' a été visée par l\'économe',
                     'status'  => 'Visé',
                     'view_url' => url('ShowBonVente/' . $encodedId),
                 ]));
@@ -1461,8 +1461,7 @@ public function update(Request $request)
         $encodedId = $hashids->encode($vente->id);
         
         $creatorUser->notify(new \App\Notifications\SystemNotification([
-           
-            'message' => 'Votre commande #' . $vente->id . ' a été visée',
+            'message' => 'Votre commande a été visée par l\'économe',
             'status' => 'Visé',
             'view_url' => url('ShowBonVente/' . $encodedId)
         ]));
