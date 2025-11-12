@@ -851,7 +851,7 @@ public function FactureVente($id)
     // Rest of existing code...
     $Formateur = DB::table('users as f')
         ->join('ventes as v', 'v.id_formateur', '=', 'f.id')
-        ->select('f.*')
+        ->select('f.*')  // This already includes f.service
         ->where('v.id', $id)
         ->first();
 

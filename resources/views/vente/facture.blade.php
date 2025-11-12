@@ -152,7 +152,7 @@
                     <div><strong>N° Bon de Commande :</strong> {{ $commandNumber }}</div>
                     <div><strong>Journée du :</strong> {{ $bonVente->date_usage ? \Carbon\Carbon::parse($bonVente->date_usage)->format('d/m/Y') : 'Non spécifié' }}</div>
                     <div><strong>Bénéficiaire:</strong> {{ $Formateur->prenom . ' ' . $Formateur->nom ?? 'Non spécifié' }}</div>
-                    <div><strong>Entete:</strong> {{ $Formateur->prenom . ' ' . $Formateur->nom ?? 'Non spécifié' }}</div>
+                   <div><strong>Entete:</strong> {{ $Formateur->service ?? 'Non spécifié' }}</div>
                     <div><strong>Nature de Commande :</strong> {{ $bonVente->type_commande ?? 'Alimentaire' }}</div>
                     
                     @if($bonVente->type_commande === 'Alimentaire')
