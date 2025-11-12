@@ -69,33 +69,45 @@
                     </div>
                 </div>
             </div>
-
-            <!-- Results Container -->
-            <div class="row" id="resultsContainer" style="display: none;">
-                <div class="col-12">
-                    <!-- Results will be dynamically inserted here -->
-                </div>
-            </div>
         </div>
     </div>
 </div>
 
 <!-- Modal for Yearly Report -->
 <div class="modal fade" id="ModalYearlyReport" tabindex="-1" aria-labelledby="ModalYearlyReportLabel" aria-hidden="true">
-    <div class="modal-dialog modal-fullscreen">
+    <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="ModalYearlyReportLabel">Consommation de l'année</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
             </div>
             <div class="modal-body">
-                <div id="yearlyReportContent">
-                    <!-- Content will be populated here -->
+                <div id="printSection" class="table-responsive">
+                    <div id="yearlyReportContent">
+                        <table class="table table-bordered" id="yearlyReportTable">
+                            <thead>
+                                <tr>
+                                    <th>Mois</th>
+                                    <th>Coût unitaire par stagiaire</th>
+                                    <th>Légumes et Fruits</th>
+                                    <th>Volailles et Œufs</th>
+                                    <th>Poisson Frais</th>
+                                    <th>Épicerie et Produits Laitiers</th>
+                                    <th>Viandes</th>
+                                    <th>Coût total du mois</th>
+                                    <th>Effectif</th>
+                                </tr>
+                            </thead>
+                            <tbody id="yearlyReportBody">
+                                <!-- Data will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary no-print" data-bs-dismiss="modal">Fermer</button>
-                <button type="button" class="btn btn-primary no-print" id="btnExportPDF" style="display: none;">
+                <button type="button" class="btn btn-primary no-print" id="btnExportPDF">
                     <i class="fa fa-file-pdf"></i> Exporter PDF
                 </button>
             </div>
@@ -104,39 +116,49 @@
 </div>
 
 <style>
-    .month-card {
-        margin-bottom: 30px;
-        page-break-inside: avoid;
-    }
-    
-    .month-title {
-        background-color: #007bff;
-        color: white;
-        padding: 10px;
-        text-align: center;
-        font-weight: bold;
-        font-size: 18px;
-    }
-    
-    .monthly-table {
+    /* Styling to match the monthly breakdown */
+    #yearlyReportTable {
         border-collapse: collapse;
         width: 100%;
     }
     
-    .monthly-table th, 
-    .monthly-table td {
+    #yearlyReportTable th, 
+    #yearlyReportTable td {
         border: 1px solid #000;
         padding: 8px;
         text-align: center;
     }
     
-    .monthly-table th {
+    #yearlyReportTable th {
         background-color: #f2f2f2;
     }
     
-    .week-header {
+    .month-row {
         background-color: #f8f9fa;
         font-weight: bold;
+    }
+    
+    /* Add print styles */
+    @media print {
+        body * {
+            visibility: hidden;
+        }
+        #printSection, #printSection * {
+            visibility: visible;
+        }
+        #printSection {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+        }
+        .no-print {
+            display: none !important;
+        }
+    }
+    
+    .table-responsive {
+        overflow-x: auto;
     }
     
     .fa-spinner {
@@ -146,6 +168,13 @@
     @keyframes spin {
         0% { transform: rotate(0deg); }
         100% { transform: rotate(360deg); }
+    }
+    
+    /* Make the modal wider */
+    @media (min-width: 992px) {
+        .modal-xl {
+            max-width: 95%;
+        }
     }
 </style>
 
@@ -188,28 +217,21 @@
                     $('#btnSearch').prop('disabled', true);
                     $('#btnSearch').html('<i class="fa fa-spinner fa-spin"></i> Chargement...');
                     $('#noDataMessage').hide();
-                    $('#resultsContainer').hide();
-                    $('#btnExportPDF').hide();
                 },
                 success: function(response) {
-                    console.log('Response:', response); // Debug log
+                    console.log('Response:', response);
                     if (response.status == 200 && response.data.months_data.length > 0) {
                         displayYearlyReport(response.data);
-                        $('#resultsContainer').show();
-                        $('#btnExportPDF').show();
+                        $('#ModalYearlyReport').modal('show');
                         $('#noDataMessage').hide();
                     } else {
                         $('#noDataMessage').show();
-                        $('#resultsContainer').hide();
-                        $('#btnExportPDF').hide();
                     }
                 },
                 error: function(xhr, status, error) {
                     console.error("Error:", error);
                     new AWN().alert("Erreur lors de la récupération des données");
                     $('#noDataMessage').show();
-                    $('#resultsContainer').hide();
-                    $('#btnExportPDF').hide();
                 },
                 complete: function() {
                     $('#btnSearch').prop('disabled', false);
@@ -220,8 +242,12 @@
 
         // Function to display yearly report data
         function displayYearlyReport(data) {
-            const container = $('#resultsContainer .col-12');
-            container.empty();
+            // Set report title in modal
+            $('#ModalYearlyReportLabel').text('Consommation de l\'année ' + data.year);
+            
+            // Clear and rebuild the table body
+            const tbody = $('#yearlyReportBody');
+            tbody.empty();
             
             // Define category mappings
             const categoryMappings = {
@@ -234,190 +260,88 @@
             
             // Process each month
             data.months_data.forEach(monthData => {
-                const monthCard = $('<div>').addClass('card month-card');
-                const monthCardBody = $('<div>').addClass('card-body');
+                // Calculate category costs for the entire month
+                const costs = {};
+                for (const displayName in categoryMappings) {
+                    costs[displayName] = 0;
+                }
                 
-                // Month title
-                monthCardBody.append(`<div class="month-title">${monthData.month}</div>`);
-                
-                // Group days by week
-                const groupedDays = groupDaysByWeek(monthData.data.days_data);
-                
-                // Create table
-                const table = $('<table>').addClass('table table-bordered monthly-table');
-                const thead = $(`
-                    <thead>
-                        <tr>
-                            <th>Journée du</th>
-                            <th>Coût unitaire par stagiaire</th>
-                            <th>Légumes et Fruits</th>
-                            <th>Volailles et Œufs</th>
-                            <th>Poisson Frais</th>
-                            <th>Épicerie et Produits Laitiers</th>
-                            <th>Viandes</th>
-                            <th>Coût total de la journée</th>
-                            <th>Effectif</th>
-                        </tr>
-                    </thead>
-                `);
-                
-                const tbody = $('<tbody>');
-                
-                Object.keys(groupedDays).forEach(weekKey => {
-                    const days = groupedDays[weekKey];
-                    
-                    // Add week header
-                    tbody.append(`
-                        <tr>
-                            <td colspan="9" class="text-center week-header">Semaine du ${weekKey}</td>
-                        </tr>
-                    `);
-                    
-                    // Add each day in week
-                    days.forEach(day => {
-                        const row = buildDayRow(day, categoryMappings);
-                        tbody.append(row);
+                // Aggregate all category costs from all days in the month
+                monthData.data.days_data.forEach(day => {
+                    day.category_costs.forEach(category => {
+                        for (const displayName in categoryMappings) {
+                            const keywords = categoryMappings[displayName];
+                            if (keywords.some(keyword => 
+                                category.name.toLowerCase().includes(keyword.toLowerCase()) ||
+                                displayName.toLowerCase().includes(category.name.toLowerCase())
+                            )) {
+                                costs[displayName] += parseFloat(category.total_cost);
+                            }
+                        }
                     });
                 });
                 
-                table.append(thead).append(tbody);
-                monthCardBody.append(table);
-                
-                // Add month totals
+                // Get month totals
                 const monthTotals = monthData.data.month_totals;
-                monthCardBody.append(`
-                    <div class="row mt-3">
-                        <div class="col-md-4">
-                            <strong>Coût Total du Mois:</strong> ${formatCost(monthTotals.total_cost)} DH
-                        </div>
-                        <div class="col-md-4">
-                            <strong>Total Effectif:</strong> ${monthTotals.total_people}
-                        </div>
-                        <div class="col-md-4">
-                            <strong>Prix Moyen:</strong> ${formatCost(monthTotals.prix_moyen)} DH
-                        </div>
-                    </div>
+                
+                // Build the month row
+                const row = $(`
+                    <tr>
+                        <td>${monthData.month}</td>
+                        <td>${formatCost(monthTotals.prix_moyen)}</td>
+                        <td>${formatCost(costs['Légumes et Fruits'])}</td>
+                        <td>${formatCost(costs['Volailles et Œufs'])}</td>
+                        <td>${formatCost(costs['Poisson Frais'])}</td>
+                        <td>${formatCost(costs['Épicerie et Produits Laitiers'])}</td>
+                        <td>${formatCost(costs['Viandes'])}</td>
+                        <td>${formatCost(monthTotals.total_cost)}</td>
+                        <td>${monthTotals.total_people}</td>
+                    </tr>
                 `);
                 
-                monthCard.append(monthCardBody);
-                container.append(monthCard);
+                tbody.append(row);
             });
             
-            // Add year totals at the end
+            // Add year totals row at the end
             const yearTotals = data.year_totals;
-            const yearCard = $('<div>').addClass('card mt-3');
-            const yearCardBody = $('<div>').addClass('card-body');
-            yearCardBody.append(`
-                <h4 class="text-center mb-3">Totaux de l'Année ${data.year}</h4>
-                <div class="row">
-                    <div class="col-md-4 text-center">
-                        <h5>Coût Total</h5>
-                        <p class="h3 text-primary">${formatCost(yearTotals.total_cost)} DH</p>
-                    </div>
-                    <div class="col-md-4 text-center">
-                        <h5>Total Effectif</h5>
-                        <p class="h3 text-info">${yearTotals.total_people}</p>
-                    </div>
-                    <div class="col-md-4 text-center">
-                        <h5>Prix Moyen</h5>
-                        <p class="h3 text-success">${formatCost(yearTotals.prix_moyen)} DH</p>
-                    </div>
-                </div>
-            `);
-            yearCard.append(yearCardBody);
-            container.append(yearCard);
-        }
-        
-        // Function to group days by week
-        function groupDaysByWeek(days) {
-            const weeks = {};
             
-            days.forEach(day => {
-                const dateParts = day.date.split('/');
-                const dayDate = new Date(dateParts[2], parseInt(dateParts[1])-1, parseInt(dateParts[0]));
-                
-                const firstDayOfWeek = new Date(dayDate);
-                const day_of_week = dayDate.getDay() || 7;
-                if (day_of_week !== 1)
-                    firstDayOfWeek.setDate(dayDate.getDate() - (day_of_week - 1));
-                
-                const lastDayOfWeek = new Date(firstDayOfWeek);
-                lastDayOfWeek.setDate(firstDayOfWeek.getDate() + 6);
-                
-                const weekKey = `${formatDateFr(firstDayOfWeek)} au ${formatDateFr(lastDayOfWeek)}`;
-                
-                if (!weeks[weekKey]) {
-                    weeks[weekKey] = [];
-                }
-                
-                weeks[weekKey].push(day);
-            });
+            // Calculate total category costs for the year
+            const yearCategoryCosts = {};
+            for (const displayName in categoryMappings) {
+                yearCategoryCosts[displayName] = 0;
+            }
             
-            Object.keys(weeks).forEach(weekKey => {
-                weeks[weekKey].sort((a, b) => {
-                    const dateA = parseFrDate(a.date);
-                    const dateB = parseFrDate(b.date);
-                    return dateA - dateB;
+            data.months_data.forEach(monthData => {
+                monthData.data.days_data.forEach(day => {
+                    day.category_costs.forEach(category => {
+                        for (const displayName in categoryMappings) {
+                            const keywords = categoryMappings[displayName];
+                            if (keywords.some(keyword => 
+                                category.name.toLowerCase().includes(keyword.toLowerCase()) ||
+                                displayName.toLowerCase().includes(category.name.toLowerCase())
+                            )) {
+                                yearCategoryCosts[displayName] += parseFloat(category.total_cost);
+                            }
+                        }
+                    });
                 });
             });
             
-            return weeks;
-        }
-        
-        // Build a table row for a day
-        function buildDayRow(day, categoryMappings) {
-            const dateParts = day.date.split('/');
-            const dayDate = new Date(dateParts[2], parseInt(dateParts[1])-1, parseInt(dateParts[0]));
-            const dayNames = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
-            const dayName = dayNames[dayDate.getDay()];
-            
-            const costs = {};
-            for (const displayName in categoryMappings) {
-                costs[displayName] = 0;
-                const keywords = categoryMappings[displayName];
-                
-                for (const category of day.category_costs) {
-                    if (keywords.some(keyword => 
-                        category.name.toLowerCase().includes(keyword.toLowerCase()) ||
-                        displayName.toLowerCase().includes(category.name.toLowerCase())
-                    )) {
-                        costs[displayName] += parseFloat(category.total_cost);
-                    }
-                }
-            }
-            
-            return `
-                <tr>
-                    <td>${dayName} ${day.date}</td>
-                    <td>${formatCost(day.prix_moyen)}</td>
-                    <td>${formatCost(costs['Légumes et Fruits'])}</td>
-                    <td>${formatCost(costs['Volailles et Œufs'])}</td>
-                    <td>${formatCost(costs['Poisson Frais'])}</td>
-                    <td>${formatCost(costs['Épicerie et Produits Laitiers'])}</td>
-                    <td>${formatCost(costs['Viandes'])}</td>
-                    <td>${formatCost(day.total_cost)}</td>
-                    <td>${day.total_people}</td>
+            const totalRow = $(`
+                <tr style="font-weight: bold; background-color: #e9ecef;">
+                    <td>TOTAL ANNUEL</td>
+                    <td>${formatCost(yearTotals.prix_moyen)}</td>
+                    <td>${formatCost(yearCategoryCosts['Légumes et Fruits'])}</td>
+                    <td>${formatCost(yearCategoryCosts['Volailles et Œufs'])}</td>
+                    <td>${formatCost(yearCategoryCosts['Poisson Frais'])}</td>
+                    <td>${formatCost(yearCategoryCosts['Épicerie et Produits Laitiers'])}</td>
+                    <td>${formatCost(yearCategoryCosts['Viandes'])}</td>
+                    <td>${formatCost(yearTotals.total_cost)}</td>
+                    <td>${yearTotals.total_people}</td>
                 </tr>
-            `;
-        }
-        
-        // Helper function to format a date as DD Month YYYY in French
-        function formatDateFr(date) {
-            const day = date.getDate();
-            const monthNames = [
-                'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
-                'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
-            ];
-            const month = monthNames[date.getMonth()];
-            const year = date.getFullYear();
+            `);
             
-            return `${day} ${month} ${year}`;
-        }
-        
-        // Helper function to parse a date string in DD/MM/YYYY format
-        function parseFrDate(dateStr) {
-            const parts = dateStr.split('/');
-            return new Date(parts[2], parts[1] - 1, parts[0]);
+            tbody.append(totalRow);
         }
         
         // Helper function to format cost values

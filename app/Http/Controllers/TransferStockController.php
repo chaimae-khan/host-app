@@ -45,15 +45,13 @@ public function index(Request $request)
                 DB::raw("CONCAT(to_user.prenom, ' ', to_user.nom) as to_name"),
                 DB::raw("CONCAT(created_by.prenom, ' ', created_by.nom) as created_by_name"),
                 DB::raw("CASE WHEN st.from IS NULL THEN NULL ELSE CONCAT(from_user.prenom, ' ', from_user.nom) END as from_name"),
-                // // Count total products in this transfer
-                // DB::raw("(SELECT COUNT(DISTINCT id_product) FROM line_transfer WHERE id_stocktransfer = st.id) as product_count"),
-                // Sum total quantity in this transfer
                 DB::raw("(SELECT COALESCE(SUM(quantite), 0) FROM line_transfer WHERE id_stocktransfer = st.id) as total_quantity")
             )
             ->whereIn('st.status', ['Validation', 'Création', 'Refus'])
             ->whereNotNull('st.from')
             ->whereNotNull('st.to')
-            ->whereNull('st.deleted_at'); // Exclude soft-deleted records
+            ->whereNull('st.deleted_at')
+            ->orderBy('st.created_at', 'desc'); // ADDED: Order by created_at descending
             
         return DataTables::of($query)
             ->addIndexColumn()
@@ -75,7 +73,6 @@ public function index(Request $request)
                 
                 $statusHtml = '<span class="badge ' . $color . '">' . $status . '</span>';
                 
-                // Add refusal reason if status is "Refus" and reason exists
                 if ($status === 'Refus' && !empty($row->refusal_reason)) {
                     $statusHtml .= '<br><small class="text-muted mt-1 d-block">' . 
                                   '<i class="fa-solid fa-info-circle me-1"></i>' . 
@@ -89,12 +86,10 @@ public function index(Request $request)
                 $btn = '';
                 $isAdmin = auth()->user()->hasRole('Administrateur');
 
-                // If status is "Refus", only show action icons if user is Admin
                 if ($row->status === 'Refus' && !$isAdmin) {
                     return '';
                 }
 
-                // Edit button - only show if status is "Création" and user has edit permission
                 if (auth()->user()->can('Transfer-modifier') && $row->status === 'Création') {
                     $btn .= '<a href="#" class="btn btn-sm bg-primary-subtle me-1 edit-btn" 
                                 data-id="' . $row->id . '">
@@ -102,7 +97,6 @@ public function index(Request $request)
                             </a>';
                 }
 
-                // View button - show for all statuses if user has view permission
                 if (auth()->user()->can('Transfer')) {
                     $btn .= '<a href="' . url('transfer/' . $row->id) . '" class="btn btn-sm bg-success-subtle me-1" 
                                 data-bs-toggle="tooltip" 
@@ -111,7 +105,6 @@ public function index(Request $request)
                             </a>';
                 }
 
-                // Delete button - don't show if status is "Validation" and user has delete permission
                 if (auth()->user()->can('Transfer-supprimer') && $row->status !== 'Validation') {
                     $btn .= '<a href="#" class="btn btn-sm bg-danger-subtle DeleteTransfer"
                                 data-id="' . $row->id . '" 
@@ -141,10 +134,7 @@ public function index(Request $request)
         ->distinct()
         ->pluck('status');
 
-    // Get only the currently authenticated user for "D'un formateur" dropdown
     $Formateur = User::where('id', Auth::id())->get();
-    
-    // Get all users EXCEPT the authenticated user for "À formateur" dropdown
     $ToFormateurs = User::where('id', '!=', Auth::id())->get();
 
     return view('Transfer.index')
@@ -232,82 +222,87 @@ public function index(Request $request)
         }
     }
 
-    public function StoreProductStockTr(Request $request)
-    {
-        // Check permission before adding to transfer
-        if (!auth()->user()->can('Transfer-ajoute')) {
-            return response()->json([
-                'status' => 403,
-                'message' => 'Vous n\'avez pas la permission d\'ajouter un transfert'
-            ], 403);
-        }
-        
-        $data = $request->input('data');          
-        $data['id_user'] = Auth::user()->id;
-        $data['qteSend'] = 1;
-        
-        DB::beginTransaction();
+  public function StoreProductStockTr(Request $request)
+{
+    // Check permission before adding to transfer
+    if (!auth()->user()->can('Transfer-ajoute')) {
+        return response()->json([
+            'status' => 403,
+            'message' => 'Vous n\'avez pas la permission d\'ajouter un transfert'
+        ], 403);
+    }
     
-        try {
-            // check qte if insert or not
-            $checkQteTransfer = TmpStockTransfer::where('id_product', $data['id'])
-                ->where('from', $request->from)
-                ->where('to', $request->to)
-                ->where('iduser', $data['id_user'])
-                ->where('idcommande', $request->idcommande)
-                ->sum('quantite_transfer');
-            
-            if($checkQteTransfer == $data['contete_formateur'])
-            {
-                return response()->json([
-                    'status'      => 440,
-                    'message'     => " Impossible de modifier la quantité, car la quantité est égale à 0."
-                ]);
-            }
+    $data = $request->input('data');          
+    $data['id_user'] = Auth::user()->id;
+    
+    // CHANGED: Use the actual quantity from contete_formateur instead of hardcoding 1
+    // This will use the decimal value (0.30, 0.05, etc.) from the product
+    $qteToAdd = $data['contete_formateur']; // This is the actual quantity to add
+    
+    DB::beginTransaction();
 
-            $existingProduct = TmpStockTransfer::where('id_product', $data['id'])
-                ->where('from', $request->from)
-                ->where('to', $request->to)
-                ->where('iduser', $data['id_user'])
-                ->where('idcommande', $request->idcommande)
-                ->first();
-    
-            if ($existingProduct) {
-                $existingProduct->increment('quantite_transfer', 1);
-                DB::commit();
-    
-                return response()->json([
-                    'status' => 200,
-                    'message' => 'Quantité mise à jour avec succès',
-                ]);
-            } else {
-                TmpStockTransfer::create([
-                    'id_product'        => $data['id'],
-                    'quantite_stock'    => $data['contete_formateur'],
-                    'quantite_transfer' => $data['qteSend'],
-                    'from'              => $request->from,
-                    'to'                => $request->to,
-                    'iduser'            => $data['id_user'],
-                    'idcommande'        => $request->idcommande,
-                ]);
-                
-                DB::commit();
-    
-                return response()->json([
-                    'status' => 200,
-                    'message' => 'Ajouté avec succès',
-                ]);
-            }
-        } catch (\Exception $e) {
-            DB::rollBack();
-    
+    try {
+        // check qte if insert or not
+        $checkQteTransfer = TmpStockTransfer::where('id_product', $data['id'])
+            ->where('from', $request->from)
+            ->where('to', $request->to)
+            ->where('iduser', $data['id_user'])
+            ->where('idcommande', $request->idcommande)
+            ->sum('quantite_transfer');
+        
+        // Check if total transferred quantity would exceed available stock
+        if(($checkQteTransfer + $qteToAdd) > $data['contete_formateur'])
+        {
             return response()->json([
-                'status' => 500,
-                'message' => 'Une erreur est survenue. Veuillez réessayer.',
-                'error' => $e->getMessage(),
+                'status'      => 440,
+                'message'     => "Impossible d'ajouter cette quantité. La quantité disponible est insuffisante."
             ]);
         }
+
+        $existingProduct = TmpStockTransfer::where('id_product', $data['id'])
+            ->where('from', $request->from)
+            ->where('to', $request->to)
+            ->where('iduser', $data['id_user'])
+            ->where('idcommande', $request->idcommande)
+            ->first();
+
+        if ($existingProduct) {
+            // CHANGED: Increment by the actual quantity instead of 1
+            $existingProduct->increment('quantite_transfer', $qteToAdd);
+            DB::commit();
+
+            return response()->json([
+                'status' => 200,
+                'message' => 'Quantité mise à jour avec succès',
+            ]);
+        } else {
+            TmpStockTransfer::create([
+                'id_product'        => $data['id'],
+                'quantite_stock'    => $data['contete_formateur'],
+                'quantite_transfer' => $qteToAdd, // CHANGED: Use actual quantity
+                'from'              => $request->from,
+                'to'                => $request->to,
+                'iduser'            => $data['id_user'],
+                'idcommande'        => $request->idcommande,
+            ]);
+            
+            DB::commit();
+
+            return response()->json([
+                'status' => 200,
+                'message' => 'Ajouté avec succès',
+            ]);
+        }
+    } catch (\Exception $e) {
+        DB::rollBack();
+
+        return response()->json([
+            'status' => 500,
+            'message' => 'Une erreur est survenue. Veuillez réessayer.',
+            'error' => $e->getMessage(),
+        ]);
     }
+}
 
     public function GetTmpStockTransferByTwoFormateur(Request $request)
     {

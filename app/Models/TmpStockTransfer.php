@@ -15,10 +15,11 @@ class TmpStockTransfer extends Model
         'id_product',
         'quantite_stock',
         'quantite_transfer',
-        'from', // Added new field for formateur
+        'from', 
         'to',
         'iduser',
-        'idcommande'
+        'idcommande',
+        'ligne_vente_id' 
     ];
 
     /**

@@ -5,6 +5,10 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@6.5.95/css/materialdesignicons.min.css">
 
+<!-- TomSelect for multi-select -->
+<link href="https://cdn.jsdelivr.net/npm/tom-select@2.0.0-rc.4/dist/css/tom-select.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2.0.0-rc.4/dist/js/tom-select.complete.min.js"></script>
+
 <!-- JS Variables -->
 <script>
     var csrf_token = "{{ csrf_token() }}";
@@ -16,8 +20,36 @@
     var viewPerte_url = "{{ url('viewPerte') }}";
     var changeStatusPerte_url = "{{ url('changeStatusPerte') }}";
     var deletePerte_url = "{{ url('deletePerte') }}";
+    var getPlatsByType_url = "{{ route('pertes.plats.by.type', ':type') }}";
+    var getPlatComposition_url = "{{ route('pertes.plat.composition', ':id') }}";
+    var getProductPrice_url = "{{ url('getProductPrice') }}";
 </script>
 <script src="{{ asset('js/perte/script.js') }}"></script>
+
+<style>
+.composition-table {
+    font-size: 0.9rem;
+}
+.composition-table th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+}
+.total-cost-display {
+    background-color: #e7f3ff;
+    padding: 15px;
+    border-radius: 8px;
+    margin-top: 15px;
+}
+.total-cost-display h6 {
+    margin-bottom: 10px;
+    color: #0d6efd;
+}
+.cost-detail {
+    display: flex;
+    justify-content: space-between;
+    padding: 5px 0;
+}
+</style>
 
 <div class="content-page">
     <div class="content">
@@ -49,53 +81,6 @@
                                 </button>
                                 @endcan
                             </div>
-
-                            <!-- Filter Section -->
-                            <!-- <div class="card mb-3">
-                                <div class="card-body">
-                                    <h5 class="card-title">Filtrer les pertes</h5>
-                                    <div class="row mb-3">
-                                        <div class="col-md-3">
-                                            <div class="form-group">
-                                                <label for="filter_status">Statut</label>
-                                                <select id="filter_status" class="form-control">
-                                                    <option value="">Tous les statuts</option>
-                                                    <option value="En attente">En attente</option>
-                                                    <option value="Validé">Validé</option>
-                                                    <option value="Refusé">Refusé</option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                        <div class="col-md-3">
-                                            <div class="form-group">
-                                                <label for="filter_categorie">Catégorie</label>
-                                                <select id="filter_categorie" class="form-control">
-                                                    <option value="">Toutes les catégories</option>
-                                                    @foreach($categories as $category)
-                                                        <option value="{{ $category->id }}">{{ $category->name }}</option>
-                                                    @endforeach
-                                                </select>
-                                            </div>
-                                        </div>
-                                        <div class="col-md-3">
-                                            <div class="form-group">
-                                                <label for="filter_subcategorie">Famille</label>
-                                                <select id="filter_subcategorie" class="form-control">
-                                                    <option value="">Toutes les familles</option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                        <div class="col-md-3">
-                                            <div class="form-group">
-                                                <label>&nbsp;</label>
-                                                <button id="btn_reset_filter" class="btn btn-secondary w-100">
-                                                    <i class="fa-solid fa-rotate"></i> Réinitialiser
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div> -->
                             
                             <!-- Pertes Table -->
                             <div class="table-responsive">
@@ -109,6 +94,8 @@
                                             <th>Quantité</th>
                                             <th>Unité</th>
                                             <th>Nature</th>
+                                            <th>Type Produit</th>
+                                            <th>Coût Total</th>
                                             <th>Date de perte</th>
                                             <th>Statut</th>
                                             <th>Déclaré par</th>
@@ -128,7 +115,7 @@
             <!-- Modal Add Perte -->
             @can('Pertes-ajouter')
             <div class="modal fade" id="ModalAddPerte" tabindex="-1" aria-labelledby="ModalAddPerteLabel" aria-hidden="true">
-                <div class="modal-dialog modal-lg">
+                <div class="modal-dialog modal-xl">
                     <div class="modal-content">
                         <div class="modal-header">
                             <h5 class="modal-title" id="ModalAddPerteLabel">Déclarer une perte</h5>
@@ -139,164 +126,224 @@
                             <ul class="validationAddPerte"></ul>
 
                             <!-- Add Perte Form -->
-                            <form id="FormAddPerte">
-                                <!-- Classe, Catégorie et Famille -->
-                                <div class="row mb-3">
-                                    <div class="col-md-4">
-                                        <div class="form-group">
-                                            <label>Classe <span class="text-danger">*</span></label>
-                                            <select name="classe" id="Class_Categorie_Perte" class="form-control" required>
-                                                <option value="">Sélectionner une classe</option>
-                                                @foreach($class as $item)
-                                                <option value="{{ $item->classe }}">{{ $item->classe }}</option>
-                                                @endforeach
-                                            </select>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <div class="form-group">
-                                            <label>Catégorie <span class="text-danger">*</span></label>
-                                            <select name="id_category" id="Categorie_Class_Perte" class="form-control" required>
-                                                <option value="">Sélectionner une catégorie</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <div class="form-group">
-                                            <label>Famille <span class="text-danger">*</span></label>
-                                            <select name="id_subcategorie" id="id_subcategorie_perte" class="form-control" required>
-                                                <option value="">Sélectionner une famille</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                </div>
+                         <form id="FormAddPerte">
+    <div class="row">
+        <!-- Left Column -->
+        <div class="col-md-6">
+            <!-- Nature de la perte - MOVED TO TOP -->
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label>Nature de la perte <span class="text-danger">*</span></label>
+                        <select name="nature" class="form-control" id="natureDropDown" required>
+                            <option value="">Sélectionner la nature</option>
+                            <option value="stock">Stock</option>
+                            <option value="produit fini">Produit fini</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label>Date de la perte <span class="text-danger">*</span></label>
+                        <input type="date" name="date_perte" id="date_perte" class="form-control" required max="{{ date('Y-m-d') }}">
+                    </div>
+                </div>
+            </div>
 
-                                <!-- Produit et Unité -->
-                                <div class="row mb-3">
-                                    <div class="col-md-8">
-                                        <div class="form-group">
-                                            <label>Produit <span class="text-danger">*</span></label>
-                                            <select name="id_product" id="id_product_perte" class="form-control" required>
-                                                <option value="">Sélectionner un produit</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <div class="form-group">
-                                            <label>Unité</label>
-                                            <input type="text" id="unite_display_perte" class="form-control" readonly disabled>
-                                        </div>
-                                    </div>
-                                </div>
+            <!-- Classe, Catégorie et Famille - CONDITIONAL -->
+            <div id="classeCategorieSection" class="row mb-3" style="display: none;">
+                <div class="col-md-4">
+                    <div class="form-group">
+                        <label>Classe <span class="text-danger">*</span></label>
+                        <select name="classe" id="Class_Categorie_Perte" class="form-control">
+                            <option value="">Sélectionner une classe</option>
+                            @foreach($class as $item)
+                            <option value="{{ $item->classe }}">{{ $item->classe }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="form-group">
+                        <label>Catégorie <span class="text-danger">*</span></label>
+                        <select name="id_category" id="Categorie_Class_Perte" class="form-control">
+                            <option value="">Sélectionner une catégorie</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="form-group">
+                        <label>Famille <span class="text-danger">*</span></label>
+                        <select name="id_subcategorie" id="id_subcategorie_perte" class="form-control">
+                            <option value="">Sélectionner une famille</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
 
-                                <!-- Quantité et Nature -->
-                               <div class="row mb-3">
-    <div class="col-md-6">
-        <div class="form-group">
-            <label>Quantité perdue <span class="text-danger">*</span></label>
-            <input type="number" step="0.01" name="quantite" class="form-control" required min="0.01">
+            <!-- Stock Section -->
+            <div id="stockSection" style="display: none;">
+                <div class="card border-primary mb-3">
+                    <div class="card-header bg-primary text-white">
+                        <i class="fa-solid fa-boxes-stacked"></i> Perte de Stock
+                    </div>
+                    <div class="card-body">
+                        <div class="row mb-3">
+                            <div class="col-md-8">
+                                <div class="form-group">
+                                    <label>Produit <span class="text-danger">*</span></label>
+                                    <select name="id_product" id="id_product_perte" class="form-control">
+                                        <option value="">Sélectionner un produit</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <label>Unité</label>
+                                    <input type="text" id="unite_display_perte" class="form-control" readonly disabled>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-12">
+                                <div class="form-group">
+                                    <label>Quantité perdue <span class="text-danger">*</span></label>
+                                    <input type="number" step="0.01" name="quantite" id="quantite_stock" class="form-control" min="0.01">
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Cost Display for Stock -->
+                        <div id="stockCostSection" style="display: none;">
+                            <div class="total-cost-display">
+                                <h6><i class="fa-solid fa-calculator"></i> Calcul du Coût</h6>
+                                <div class="cost-detail">
+                                    <span>Prix unitaire:</span>
+                                    <strong><span id="stock_prix_unitaire">0.00</span> DH</strong>
+                                </div>
+                                <div class="cost-detail">
+                                    <span>Quantité perdue:</span>
+                                    <strong><span id="stock_quantite_display">0</span></strong>
+                                </div>
+                                <hr>
+                                <div class="cost-detail">
+                                    <span class="fs-5"><strong>Coût Total:</strong></span>
+                                    <span class="fs-4 text-danger"><strong><span id="stock_cout_total">0.00</span> DH</strong></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Produit Fini Section -->
+            <div id="produitFiniSection" style="display: none;">
+                <div class="card border-success mb-3">
+                    <div class="card-header bg-success text-white">
+                        <i class="fa-solid fa-utensils"></i> Perte de Produit Fini
+                    </div>
+                    <div class="card-body">
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>Type de produit fini <span class="text-danger">*</span></label>
+                                    <select name="produit_fini_type" id="produit_fini_type" class="form-select">
+                                        <option value="">Sélectionner un type</option>
+                                        <option value="Entrée">Entrée</option>
+                                        <option value="Suite">Plat Principal</option>
+                                        <option value="Dessert">Dessert</option>
+                                        <option value="Accompagnement">Accompagnement</option>
+                                        <option value="Autres">Autres</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>Nom du plat <span class="text-danger">*</span></label>
+                                    <select name="id_plat" id="id_plat" class="form-select">
+                                        <option value="">Sélectionner un plat</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-12">
+                                <div class="form-group">
+                                    <label>Nombre de plats perdus <span class="text-danger">*</span></label>
+                                    <input type="number" name="nombre_plats" id="nombre_plats" class="form-control" min="1" value="1">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cause -->
+            <div class="row mb-3">
+                <div class="col-md-12">
+                    <div class="form-group">
+                        <label>Cause / Raison <span class="text-danger">*</span></label>
+                        <textarea name="cause" class="form-control" rows="3" required placeholder="Décrivez la raison de la perte..."></textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column - Composition & Cost (for Produit Fini only) -->
+        <div class="col-md-6">
+            <div id="compositionSection" style="display: none;">
+                <div class="card border-info">
+                    <div class="card-header bg-info text-white">
+                        <i class="fa-solid fa-list-check"></i> Composition du Plat
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-info">
+                            <i class="fa-solid fa-info-circle"></i> 
+                            <strong>Plat sélectionné:</strong> <span id="selected_plat_name">-</span>
+                        </div>
+                        
+                        <div class="table-responsive">
+                            <table class="table table-sm composition-table">
+                                <thead>
+                                    <tr>
+                                        <th>Produit</th>
+                                        <th>Qté/plat</th>
+                                        <th>Unité</th>
+                                        <th>Prix Unit.</th>
+                                        <th>Coût</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="composition_body">
+                                    <tr>
+                                        <td colspan="5" class="text-center text-muted">
+                                            <i class="fa-solid fa-hourglass-half"></i> Sélectionnez un plat pour voir sa composition
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="total-cost-display">
+                            <h6><i class="fa-solid fa-calculator"></i> Calcul du Coût Total</h6>
+                            <div class="cost-detail">
+                                <span>Coût par plat:</span>
+                                <strong><span id="cout_unitaire">0.00</span> DH</strong>
+                            </div>
+                            <div class="cost-detail">
+                                <span>Nombre de plats perdus:</span>
+                                <strong><span id="display_nombre_plats">1</span></strong>
+                            </div>
+                            <hr>
+                            <div class="cost-detail">
+                                <span class="fs-5"><strong>Coût Total de la Perte:</strong></span>
+                                <span class="fs-4 text-danger"><strong><span id="cout_total">0.00</span> DH</strong></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
-    <div class="col-md-6">
-        <div class="form-group">
-            <label>Nature de la perte <span class="text-danger">*</span></label>
-            <select name="nature" class="form-control" id="natureDropDown" required>
-                <option value="">Sélectionner la nature</option>
-                <option value="stock">Stock</option>
-                <option value="produit fini">Produit fini</option>
-            </select>
-        </div>
-    </div>
-</div>
-
-<!-- Date de perte and Produit fini type -->
-<div class="row mb-3">
-   
-    <div class="col-md-6" id="divProduitFiniType" style="display: none;">
-        <div class="form-group">
-            <label>Type de produit fini <span class="text-danger">*</span></label>
-            <select name="produit_fini_type" id="produit_fini_type" class="form-select">
-                <option value="">Sélectionner un type</option>
-                <option value="Entrée">Entrée</option>
-                <option value="Suite">Suite</option>
-                <option value="Dessert">Dessert</option>
-                <option value="Accompagnement">Accompagnement</option>
-                <option value="Autres">Autres</option>
-            </select>
-        </div>
-    </div>
-</div>
-
-<script>
-$(document).ready(function() {
-    // Handle nature dropdown change
-    $('#natureDropDown').on('change', function(e) {
-        let value = $(this).val();
-        let produitFiniTypeDiv = $('#divProduitFiniType');
-        let produitFiniTypeSelect = $('#produit_fini_type');
-        
-        if (value === '') {
-            // No selection made
-            produitFiniTypeDiv.hide();
-            produitFiniTypeSelect.prop('required', false);
-            produitFiniTypeSelect.val('');
-        } 
-        else if (value === 'stock') {
-            // Stock selected - hide produit fini type
-            produitFiniTypeDiv.hide();
-            produitFiniTypeSelect.prop('required', false);
-            produitFiniTypeSelect.val('');
-        } 
-        else if (value === 'produit fini') {
-            // Produit fini selected - show produit fini type
-            produitFiniTypeDiv.show();
-            produitFiniTypeSelect.prop('required', true);
-        }
-    });
-    
-    // Reset form when modal is closed
-    $('#ModalAddPerte').on('hidden.bs.modal', function() {
-        $('#FormAddPerte')[0].reset();
-        $('#divProduitFiniType').hide();
-        $('#produit_fini_type').prop('required', false);
-        $('#unite_display_perte').val('');
-    });
-});
-</script>
-
-                                <!-- Date de perte -->
-                                <div class="row mb-3">
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label>Date de la perte <span class="text-danger">*</span></label>
-                                            <input type="date" name="date_perte" class="form-control" required max="{{ date('Y-m-d') }}">
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6" id="divtets" style="display: none">
-                                        <div class="form-group">
-                                            <label>produit fini<span class="text-danger">*</span></label>
-                                            <select name="" id="" class="form-select">
-                                                <option value="entér">Entrée</option>
-                                                <option value="suit ">Suite </option>
-                                                <option value="suit ">Dessert </option>
-                                                 <option value="suit ">Accompagnement </option>
-                                                   <option value="suit ">Autres </option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Cause -->
-                                <div class="row mb-3">
-                                    <div class="col-md-12">
-                                        <div class="form-group">
-                                            <label>Cause / Raison <span class="text-danger">*</span></label>
-                                            <textarea name="cause" class="form-control" rows="3" required placeholder="Décrivez la raison de la perte..."></textarea>
-                                        </div>
-                                    </div>
-                                </div>
-
-                            </form>
+</form>
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
@@ -344,115 +391,6 @@ $(document).ready(function() {
                                 <button type="submit" class="btn btn-primary">Mettre à jour</button>
                             </div>
                         </form>
-                    </div>
-                </div>
-            </div>
-            @endcan
-
-            <!-- Modal View Perte Details -->
-            <div class="modal fade" id="ModalViewPerte" tabindex="-1" aria-labelledby="ModalViewPerteLabel" aria-hidden="true">
-                <div class="modal-dialog modal-lg">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="modal-title" id="ModalViewPerteLabel">Détails de la perte</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                        </div>
-                        <div class="modal-body">
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label class="fw-bold">Classe:</label>
-                                    <p id="view_classe" class="text-muted"></p>
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <label class="fw-bold">Catégorie:</label>
-                                    <p id="view_category" class="text-muted"></p>
-                                </div>
-                            </div>
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label class="fw-bold">Famille:</label>
-                                    <p id="view_subcategory" class="text-muted"></p>
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <label class="fw-bold">Produit:</label>
-                                    <p id="view_designation" class="text-muted"></p>
-                                </div>
-                            </div>
-                            <div class="row">
-                                <div class="col-md-4 mb-3">
-                                    <label class="fw-bold">Quantité perdue:</label>
-                                    <p id="view_quantite" class="text-muted"></p>
-                                </div>
-                                <div class="col-md-4 mb-3">
-                                    <label class="fw-bold">Unité:</label>
-                                    <p id="view_unite" class="text-muted"></p>
-                                </div>
-                                <div class="col-md-4 mb-3">
-                                    <label class="fw-bold">Nature:</label>
-                                    <p id="view_nature" class="text-muted"></p>
-                                </div>
-                            </div>
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label class="fw-bold">Date de la perte:</label>
-                                    <p id="view_date_perte" class="text-muted"></p>
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <label class="fw-bold">Statut:</label>
-                                    <p id="view_status"></p>
-                                </div>
-                            </div>
-                            <div class="row">
-                                <div class="col-md-12 mb-3">
-                                    <label class="fw-bold">Cause / Raison:</label>
-                                    <p id="view_cause" class="text-muted"></p>
-                                </div>
-                            </div>
-                            <div class="row" id="view_refusal_reason_row" style="display: none;">
-                                <div class="col-md-12 mb-3">
-                                    <label class="fw-bold text-danger">Motif de refus:</label>
-                                    <p id="view_refusal_reason" class="text-danger"></p>
-                                </div>
-                            </div>
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label class="fw-bold">Déclaré par:</label>
-                                    <p id="view_user" class="text-muted"></p>
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <label class="fw-bold">Date de déclaration:</label>
-                                    <p id="view_created_at" class="text-muted"></p>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Modal Refuse Perte -->
-            @can('Pertes-valider')
-            <div class="modal fade" id="ModalRefusePerte" tabindex="-1" aria-labelledby="ModalRefusePerteLabel" aria-hidden="true">
-                <div class="modal-dialog">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="modal-title" id="ModalRefusePerteLabel">Refuser la perte</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                        </div>
-                        <div class="modal-body">
-                            <input type="hidden" id="refuse_perte_id">
-                            <div class="mb-3">
-                                <label for="refusal_reason" class="form-label">Motif de refus <span class="text-danger">*</span></label>
-                                <textarea class="form-control" id="refusal_reason" rows="4" required placeholder="Veuillez expliquer la raison du refus..."></textarea>
-                                <small class="form-text text-muted">Ce champ est obligatoire</small>
-                            </div>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-                            <button type="button" class="btn btn-danger" id="BtnConfirmRefuse">Confirmer le refus</button>
-                        </div>
                     </div>
                 </div>
             </div>

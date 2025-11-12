@@ -174,9 +174,9 @@ public function index(Request $request)
         }
     }
 
-  public function store(Request $request)
+ 
+public function store(Request $request)
 {
-    // Check if user has permission to add pertes
     if (!auth()->user()->can('Pertes-ajouter')) {
         return response()->json([
             'status' => 403,
@@ -184,24 +184,32 @@ public function index(Request $request)
         ], 403);
     }
 
-    $validator = Validator::make($request->all(), [
+    $rules = [
         'classe' => 'required|string|max:255',
         'id_category' => 'required|exists:categories,id',
         'id_subcategorie' => 'required|exists:sub_categories,id',
-        'id_product' => 'required|exists:products,id',
-        'quantite' => 'required|numeric|min:0.01',
-        'nature' => 'required|string|max:255',
-        'produit_fini_type' => 'required_if:nature,produit fini|nullable|in:Entrée,Suite,Dessert,Accompagnement,Autres',
+        'nature' => 'required|string|in:stock,produit fini',
         'date_perte' => 'required|date',
         'cause' => 'required|string',
-    ], [
+    ];
+    
+    // Different validation based on nature
+    if ($request->nature === 'stock') {
+        $rules['id_product'] = 'required|exists:products,id';
+        $rules['quantite'] = 'required|numeric|min:0.01';
+    } else if ($request->nature === 'produit fini') {
+        $rules['produit_fini_type'] = 'required|in:Entrée,Suite,Dessert,Accompagnement,Autres';
+        $rules['id_plat'] = 'required|exists:plats,id';
+        $rules['nombre_plats'] = 'required|integer|min:1';
+    }
+    
+    $validator = Validator::make($request->all(), $rules, [
         'required' => 'Le champ :attribute est requis.',
         'numeric' => 'Le champ :attribute doit être un nombre.',
         'exists' => 'La valeur sélectionnée pour :attribute est invalide.',
         'date' => 'Le champ :attribute doit être une date valide.',
         'min' => 'Le champ :attribute doit être au moins :min.',
-        'required_if' => 'Le type de produit fini est requis lorsque la nature est "produit fini".',
-        'in' => 'Le type de produit fini sélectionné est invalide.',
+        'in' => 'La valeur sélectionnée est invalide.',
     ]);
     
     if ($validator->fails()) {
@@ -214,41 +222,70 @@ public function index(Request $request)
     try {
         DB::beginTransaction();
         
-        // Get product details
-        $product = Product::with(['unite', 'category', 'subcategory'])->find($request->id_product);
-        
-        if (!$product) {
-            return response()->json([
-                'status' => 404,
-                'message' => 'Produit non trouvé',
-            ], 404);
-        }
-        
-        // Verify the relationship between category and subcategory
-        $subcategory = SubCategory::find($request->id_subcategorie);
-        if ($subcategory->id_categorie != $request->id_category) {
-            return response()->json([
-                'status' => 400,
-                'message' => 'La famille sélectionnée n\'appartient pas à cette catégorie',
-            ], 400);
-        }
-        
-        // Create perte
-        $perte = Perte::create([
-            'id_product' => $product->id,
+        $perteData = [
             'id_category' => $request->id_category,
             'id_subcategorie' => $request->id_subcategorie,
-            'id_unite' => $product->id_unite,
             'classe' => $request->classe,
-            'designation' => $product->name,
-            'quantite' => $request->quantite,
             'nature' => $request->nature,
-            'produit_fini_type' => $request->nature === 'produit fini' ? $request->produit_fini_type : null,
             'date_perte' => $request->date_perte,
             'cause' => $request->cause,
             'status' => 'En attente',
             'id_user' => Auth::id(),
-        ]);
+        ];
+        
+        if ($request->nature === 'stock') {
+            // Stock loss - existing logic
+            $product = Product::with(['unite'])->find($request->id_product);
+            
+            if (!$product) {
+                return response()->json([
+                    'status' => 404,
+                    'message' => 'Produit non trouvé',
+                ], 404);
+            }
+            
+            $perteData['id_product'] = $product->id;
+            $perteData['id_unite'] = $product->id_unite;
+            $perteData['designation'] = $product->name;
+            $perteData['quantite'] = $request->quantite;
+            $perteData['produit_fini_type'] = null;
+            $perteData['id_plat'] = null;
+            $perteData['nombre_plats'] = null;
+            $perteData['cout_total'] = null;
+            
+        } else if ($request->nature === 'produit fini') {
+            // Produit fini loss
+            $plat = DB::table('plats')->where('id', $request->id_plat)->first();
+            
+            if (!$plat) {
+                return response()->json([
+                    'status' => 404,
+                    'message' => 'Plat non trouvé',
+                ], 404);
+            }
+            
+            // Calculate total cost
+            $composition = DB::table('ligne_plat as lp')
+                ->join('products as p', 'p.id', '=', 'lp.idproduit')
+                ->where('lp.id_plat', $request->id_plat)
+                ->whereNull('lp.deleted_at')
+                ->select(DB::raw('SUM(lp.qte * p.price_achat) as cout_unitaire'))
+                ->first();
+            
+            $coutUnitaire = $composition->cout_unitaire ?? 0;
+            $coutTotal = $coutUnitaire * $request->nombre_plats;
+            
+            $perteData['id_product'] = null;
+            $perteData['id_plat'] = $plat->id;
+            $perteData['id_unite'] = null;
+            $perteData['designation'] = $plat->name;
+            $perteData['quantite'] = 0;
+            $perteData['produit_fini_type'] = $request->produit_fini_type;
+            $perteData['nombre_plats'] = $request->nombre_plats;
+            $perteData['cout_total'] = $coutTotal;
+        }
+        
+        $perte = Perte::create($perteData);
         
         DB::commit();
         
@@ -518,4 +555,85 @@ public function index(Request $request)
             ], 500);
         }
     }
+    public function getPlatsByType($type)
+{
+    try {
+        $plats = DB::table('plats')
+            ->where('type', $type)
+            ->whereNull('deleted_at')
+            ->select('id', 'name')
+            ->orderBy('name', 'asc')
+            ->get();
+        
+        return response()->json([
+            'status' => 200,
+            'plats' => $plats
+        ]);
+    } catch (\Exception $e) {
+        Log::error('Error fetching plats by type', [
+            'type' => $type,
+            'error' => $e->getMessage()
+        ]);
+        
+        return response()->json([
+            'status' => 500,
+            'message' => 'Erreur lors de la récupération des plats',
+            'plats' => []
+        ], 500);
+    }
+}
+public function getPlatComposition($platId)
+{
+    try {
+        $plat = DB::table('plats')->where('id', $platId)->first();
+        
+        if (!$plat) {
+            return response()->json([
+                'status' => 404,
+                'message' => 'Plat non trouvé'
+            ], 404);
+        }
+        
+        // Get composition from ligne_plat
+        $composition = DB::table('ligne_plat as lp')
+            ->join('products as p', 'p.id', '=', 'lp.idproduit')
+            ->join('unite as u', 'u.id', '=', 'p.id_unite')
+            ->where('lp.id_plat', $platId)
+            ->whereNull('lp.deleted_at')
+            ->select(
+                'p.id',
+                'p.name',
+                'lp.qte as quantite_requise',
+                'u.name as unite',
+                'p.price_achat',
+                DB::raw('lp.qte * p.price_achat as cout_unitaire')
+            )
+            ->get();
+        
+        // Calculate total cost for ONE plat
+        $coutTotal = $composition->sum('cout_unitaire');
+        
+        return response()->json([
+            'status' => 200,
+            'plat' => [
+                'id' => $plat->id,
+                'name' => $plat->name,
+                'type' => $plat->type
+            ],
+            'composition' => $composition,
+            'cout_total_unitaire' => number_format($coutTotal, 2, '.', '')
+        ]);
+        
+    } catch (\Exception $e) {
+        Log::error('Error fetching plat composition', [
+            'plat_id' => $platId,
+            'error' => $e->getMessage()
+        ]);
+        
+        return response()->json([
+            'status' => 500,
+            'message' => 'Erreur lors de la récupération de la composition',
+        ], 500);
+    }
+}
 }

@@ -305,6 +305,10 @@ Route::get('/getProductsBySubcategory/{id}', [PerteController::class, 'getProduc
 Route::get('/viewPerte/{id}', [PerteController::class, 'edit'])->name('pertes.view');
 Route::post('/changeStatusPerte', [PerteController::class, 'changeStatus'])->name('pertes.changeStatus');
 Route::post('/deletePerte', [PerteController::class, 'destroy'])->name('pertes.delete');
+// In web.php or routes file
+Route::get('/pertes/plats-by-type/{type}', [PerteController::class, 'getPlatsByType'])->name('pertes.plats.by.type');
+Route::get('/pertes/plat-composition/{id}', [PerteController::class, 'getPlatComposition'])->name('pertes.plat.composition');
+Route::get('getProductPrice/{id}', [PerteController::class, 'getProductPrice'])->name('pertes.product.price');
 
 //stock list 
 Route::get('stock/expiring', [StockController::class, 'expiringProducts'])->name('stock.expiring');

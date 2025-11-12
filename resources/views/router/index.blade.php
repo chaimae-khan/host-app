@@ -86,7 +86,7 @@
                                         <tr>
                                             <th scope="col">Référence</th>
                                             <th scope="col">Nombre produits</th>
-                                            <th scope="col">Quantité totale</th>
+                                            <!-- <th scope="col">Quantité totale</th> -->
                                             <th scope="col">Statut</th>
                                             <th scope="col">Demandeur</th>
                                             <th scope="col">Créé par</th>

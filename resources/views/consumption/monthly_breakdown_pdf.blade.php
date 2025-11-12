@@ -55,6 +55,10 @@
             font-weight: bold;
             text-align: center;
         }
+        .total-row {
+            background-color: #e9ecef;
+            font-weight: bold;
+        }
         .footer {
             position: fixed;
             bottom: 0;
@@ -129,6 +133,12 @@
                         return $total;
                     }
                     
+                    // Initialize monthly totals for categories
+                    $monthCategoryCosts = [];
+                    foreach ($categoryMappings as $displayName => $keywords) {
+                        $monthCategoryCosts[$displayName] = 0;
+                    }
+                    
                     // Group days by week
                     $weeks = [];
                     foreach ($data['days_data'] as $day) {
@@ -172,6 +182,8 @@
                                 foreach ($day['category_costs'] as $category) {
                                     if (findCategoryCost([$category], $displayName, $keywords) > 0) {
                                         $costs[$displayName] += $category['total_cost'];
+                                        // Accumulate for monthly total
+                                        $monthCategoryCosts[$displayName] += $category['total_cost'];
                                     }
                                 }
                             }
@@ -190,6 +202,19 @@
                         </tr>
                     @endforeach
                 @endforeach
+                
+                <!-- Monthly Total Row -->
+                <tr class="total-row">
+                    <td>TOTAL MENSUEL</td>
+                    <td>{{ $data['month_totals']['prix_moyen'] > 0 ? number_format($data['month_totals']['prix_moyen'], 2) : '-' }}</td>
+                    <td>{{ $monthCategoryCosts['Légumes et Fruits'] > 0 ? number_format($monthCategoryCosts['Légumes et Fruits'], 2) : '-' }}</td>
+                    <td>{{ $monthCategoryCosts['Volailles et Œufs'] > 0 ? number_format($monthCategoryCosts['Volailles et Œufs'], 2) : '-' }}</td>
+                    <td>{{ $monthCategoryCosts['Poisson Frais'] > 0 ? number_format($monthCategoryCosts['Poisson Frais'], 2) : '-' }}</td>
+                    <td>{{ $monthCategoryCosts['Épicerie et Produits Laitiers'] > 0 ? number_format($monthCategoryCosts['Épicerie et Produits Laitiers'], 2) : '-' }}</td>
+                    <td>{{ $monthCategoryCosts['Viandes'] > 0 ? number_format($monthCategoryCosts['Viandes'], 2) : '-' }}</td>
+                    <td>{{ $data['month_totals']['total_cost'] > 0 ? number_format($data['month_totals']['total_cost'], 2) : '-' }}</td>
+                    <td>{{ $data['month_totals']['total_people'] }}</td>
+                </tr>
             </tbody>
         </table>
     </div>
