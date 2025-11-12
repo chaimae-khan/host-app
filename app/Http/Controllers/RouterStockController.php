@@ -181,9 +181,14 @@ class RouterStockController extends Controller
         $data = DB::table('ligne_vente as l')
             ->join('products as p','p.id' , '=','l.idproduit')
             ->join('stock as s','s.id_product','=','p.id')
-            ->select('p.name','p.code_article','p.seuil','l.contete_formateur','p.id','l.idvente')
+            ->select('p.name','p.code_article','p.seuil',DB::raw('SUM(l.contete_formateur) as contete_formateur' ),'p.id','l.idvente')
             ->where('l.idvente',$request->id)
+            ->groupBy('l.idproduit')
             ->get();
+
+
+            
+
         
         if($data)
         {
@@ -210,6 +215,15 @@ class RouterStockController extends Controller
     // CHANGED: Use the actual quantity from contete_formateur instead of hardcoding 1
     // This will use the decimal value (0.25, 0.30, etc.) from the product
     $qteToAdd = $data['contete_formateur'];
+
+    if($qteToAdd >= 1)
+    {
+        $qteToAdd = ($qteToAdd - $qteToAdd)  + 1;
+    }
+    else
+    {
+        $qteToAdd = $qteToAdd;
+    }
     
     // ADDED: Validate that quantity is greater than 0
     if ($qteToAdd <= 0) {
@@ -229,20 +243,37 @@ class RouterStockController extends Controller
             ->where('idcommande', $request->idcommande)
             ->sum('quantite_transfer');
         
-        // CHANGED: Check if total transferred quantity would exceed available stock
-        if(($checkQteTransfer + $qteToAdd) > $data['contete_formateur'])
+        $checkQteTransferVente= DB::select("select ifnull(sum(qte),0) as qte from ligne_vente where idvente = ? and idproduit = ? ",
+        [$request->idcommande,$data['id']]);
+
+        $checkQteTransferTmp = DB::select('select ifnull(sum(quantite_transfer),0) as qtetransfer from tmpstocktransfer where id_product = ?  and idcommande=?',[
+            $data['id'],$request->idcommande
+        ]);
+
+        if($checkQteTransferVente[0]->qte < $checkQteTransferTmp[0]->qtetransfer)
         {
             return response()->json([
                 'status' => 440,
                 'message' => "Impossible d'ajouter cette quantité. La quantité disponible est insuffisante."
             ]);
         }
+        //dd($checkQteTransfer);
+        // CHANGED: Check if total transferred quantity would exceed available stock
+        /* if(($checkQteTransfer + $qteToAdd) > $data['contete_formateur'])
+        {
+            return response()->json([
+                'status' => 440,
+                'message' => "Impossible d'ajouter cette quantité. La quantité disponible est insuffisante."
+            ]);
+        } */
 
         $existingProduct = TmpStockTransfer::where('id_product', $data['id'])
             ->where('to', $request->to)
             ->where('iduser', $data['id_user'])
             ->where('idcommande', $request->idcommande)
             ->first();
+
+
 
         if ($existingProduct) {
             // CHANGED: Increment by the actual quantity instead of 1
@@ -256,7 +287,7 @@ class RouterStockController extends Controller
         } else {
             TmpStockTransfer::create([
                 'id_product' => $data['id'],
-                'quantite_stock' => $data['contete_formateur'],
+                'quantite_stock' => $checkQteTransferVente[0]->qte ,//$data['contete_formateur'],
                 'quantite_transfer' => $qteToAdd, // CHANGED: Use actual quantity
                 'from' => Auth::id(),
                 'to' => $request->to,

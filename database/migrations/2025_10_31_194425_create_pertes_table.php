@@ -10,18 +10,24 @@ return new class extends Migration
     {
         Schema::create('pertes', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('id_product')->nullable()->constrained('products')->onDelete('cascade');
-            $table->foreignId('id_category')->nullable()->constrained('categories')->onDelete('cascade');
-            $table->foreignId('id_subcategorie')->nullable()->constrained('sub_categories')->onDelete('cascade');
-            $table->foreignId('id_unite')->constrained('unite')->onDelete('cascade');
-            $table->string('classe');
-            $table->string('designation'); // Product name at time of loss
-            $table->decimal('quantite', 10, 2);
-            $table->string('nature'); // Nature of loss
-            $table->date('date_perte'); // Date of loss
-            $table->text('cause'); // Cause/reason for loss
+            
+           
+            $table->foreignId('id_product')->nullable()->references('id')->on('products')->onDelete('cascade');
+             $table->foreignId('id_category')->nullable()->references('id')->on('categories')->onDelete('cascade');
+            $table->foreignId('id_subcategorie')->nullable()->references('id')->on('sub_categories')->onDelete('cascade');
+            $table->foreignId('id_unite')->nullable()->references('id')->on('unite')->onDelete('cascade');
+            $table->string('id_plat')->nullable();
+            $table->string('classe')->nullable();
+            $table->string('designation')->nullable();; // Product name at time of loss
+            $table->decimal('quantite', 10, 2)->nullable();;
+            $table->string('nature')->nullable();; // Nature of loss
+            $table->date('date_perte')->nullable();; // Date of loss
+            $table->text('cause')->nullable(); // Cause/reason for loss
             $table->enum('status', ['En attente', 'Validé', 'Refusé'])->default('En attente');
             $table->text('refusal_reason')->nullable();
+            $table->string('produit_fini_type')->nullable();
+             $table->integer('nombre_plats')->nullable();
+            $table->decimal('cout_total', 10, 2)->nullable();
             $table->foreignId('id_user')->constrained('users')->onDelete('cascade'); // User who declared the loss
             $table->timestamps();
             $table->softDeletes();

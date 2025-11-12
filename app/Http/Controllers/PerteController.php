@@ -183,8 +183,29 @@ public function store(Request $request)
             'message' => 'Vous n\'avez pas la permission d\'ajouter des pertes'
         ], 403);
     }
+    $rules = [];
+    if($request->nature === 'produit fini')
+    {
+        $rules['produit_fini_type'] = 'required|in:Entrée,Suite,Dessert,Accompagnement,Autres';
+        $rules['id_plat'] = 'required|exists:plats,id';
+        $rules['nombre_plats'] = 'required|integer|min:1';
+        $rules['cause'] = 'required|string';
+    }
+    else
+    {
+        $rules['id_product'] = 'required|exists:products,id';
+        $rules['quantite'] = 'required|numeric|min:0.01';
+        $rules['classe'] = 'required|string|max:255';
+        $rules['id_category'] = 'required|exists:categories,id';
+        $rules['id_subcategorie'] = 'required|exists:sub_categories,id';
+        $rules['nature'] = 'required|string|in:stock,produit fini';
+        $rules['date_perte'] = 'required|date';
+        $rules['cause'] = 'required|string';
+    }
 
-    $rules = [
+   
+
+   /*  $rules = [
         'classe' => 'required|string|max:255',
         'id_category' => 'required|exists:categories,id',
         'id_subcategorie' => 'required|exists:sub_categories,id',
@@ -192,8 +213,8 @@ public function store(Request $request)
         'date_perte' => 'required|date',
         'cause' => 'required|string',
     ];
-    
-    // Different validation based on nature
+     */
+    /* // Different validation based on nature
     if ($request->nature === 'stock') {
         $rules['id_product'] = 'required|exists:products,id';
         $rules['quantite'] = 'required|numeric|min:0.01';
@@ -201,7 +222,7 @@ public function store(Request $request)
         $rules['produit_fini_type'] = 'required|in:Entrée,Suite,Dessert,Accompagnement,Autres';
         $rules['id_plat'] = 'required|exists:plats,id';
         $rules['nombre_plats'] = 'required|integer|min:1';
-    }
+    } */
     
     $validator = Validator::make($request->all(), $rules, [
         'required' => 'Le champ :attribute est requis.',
@@ -219,8 +240,8 @@ public function store(Request $request)
         ], 400);
     }
 
-    try {
-        DB::beginTransaction();
+    /* try {
+        DB::beginTransaction(); */
         
         $perteData = [
             'id_category' => $request->id_category,
@@ -232,6 +253,8 @@ public function store(Request $request)
             'status' => 'En attente',
             'id_user' => Auth::id(),
         ];
+
+       
         
         if ($request->nature === 'stock') {
             // Stock loss - existing logic
@@ -271,6 +294,8 @@ public function store(Request $request)
                 ->whereNull('lp.deleted_at')
                 ->select(DB::raw('SUM(lp.qte * p.price_achat) as cout_unitaire'))
                 ->first();
+
+                
             
             $coutUnitaire = $composition->cout_unitaire ?? 0;
             $coutTotal = $coutUnitaire * $request->nombre_plats;
@@ -285,16 +310,17 @@ public function store(Request $request)
             $perteData['cout_total'] = $coutTotal;
         }
         
+        
         $perte = Perte::create($perteData);
         
-        DB::commit();
+       /*  DB::commit(); */
         
         return response()->json([
             'status' => 200,
             'message' => 'Perte déclarée avec succès',
         ]);
         
-    } catch (\Exception $e) {
+    /* } catch (\Exception $e) {
         DB::rollBack();
         
         Log::error('Error creating perte: ' . $e->getMessage(), [
@@ -306,7 +332,7 @@ public function store(Request $request)
             'status' => 500,
             'message' => 'Une erreur est survenue. Veuillez réessayer.',
         ], 500);
-    }
+    } */
 }
 
     /**

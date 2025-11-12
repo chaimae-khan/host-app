@@ -213,6 +213,24 @@ public function index(Request $request)
         ->select('p.name','p.code_article','p.seuil','l.contete_formateur','p.id','l.idvente')
         ->where('l.idvente',$request->id)
         ->get();
+
+
+        /* $data = DB::table('ligne_vente as l')
+        ->join('products as p', 'p.id', '=', 'l.idproduit')
+        ->join('stock as s', 's.id_product', '=', 'p.id')
+        ->select(
+            'p.name',
+            'p.code_article',
+            'p.seuil',
+            'p.id',
+            'l.idvente',
+            DB::raw('SUM(l.contete_formateur) as contete_formateur')
+        )
+        ->where('l.idvente', $request->id)
+        ->groupBy('l.idproduit', 'p.name')
+        ->get();  */
+       
+
         if($data)
         {
             return response()->json([
@@ -234,10 +252,23 @@ public function index(Request $request)
     
     $data = $request->input('data');          
     $data['id_user'] = Auth::user()->id;
+
+    
     
     // CHANGED: Use the actual quantity from contete_formateur instead of hardcoding 1
     // This will use the decimal value (0.30, 0.05, etc.) from the product
     $qteToAdd = $data['contete_formateur']; // This is the actual quantity to add
+
+    if($qteToAdd >= 1)
+    {
+        $qteToAdd = ($qteToAdd - $qteToAdd)  + 1;
+    }
+    else
+    {
+        $qteToAdd = $qteToAdd;
+    }
+    
+   
     
     DB::beginTransaction();
 
