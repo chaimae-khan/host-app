@@ -141,57 +141,141 @@ $(document).ready(function () {
     }
 
     // Initialize Nature Toggle (Stock vs Produit Fini)
-    function initializeNatureToggle() {
-        $('#natureDropDown').on('change', function() {
-            let nature = $(this).val();
+  // Initialize Nature Toggle (Stock vs Produit Fini)
+function initializeNatureToggle() {
+    $('#natureDropDown').on('change', function() {
+        let nature = $(this).val();
+        
+        if (nature === 'stock') {
+            // Show stock and classe/categorie sections
+            $('#classeCategorieSection').show();
+            $('#stockSection').show();
+            $('#produitFiniSection').hide();
+            $('#compositionSection').hide();
+            $('#stockCostSection').hide();
             
-            if (nature === 'stock') {
-                // Show stock section, hide produit fini section
-                $('#stockSection').show();
-                $('#produitFiniSection').hide();
-                $('#compositionSection').hide();
-                
-                // Make stock fields required
-                $('#id_product_perte').prop('required', true);
-                $('#quantite_stock').prop('required', true);
-                
-                // Make produit fini fields not required
-                $('#produit_fini_type').prop('required', false);
-                $('#id_plat').prop('required', false);
-                $('#nombre_plats').prop('required', false);
-                
-                // Clear produit fini fields
-                $('#produit_fini_type').val('');
-                $('#id_plat').empty().append('<option value="">Sélectionner un plat</option>');
-                $('#nombre_plats').val('1');
-                
-            } else if (nature === 'produit fini') {
-                // Show produit fini section, hide stock section
-                $('#stockSection').hide();
-                $('#produitFiniSection').show();
-                
-                // Make produit fini fields required
-                $('#produit_fini_type').prop('required', true);
-                $('#id_plat').prop('required', true);
-                $('#nombre_plats').prop('required', true);
-                
-                // Make stock fields not required
-                $('#id_product_perte').prop('required', false);
-                $('#quantite_stock').prop('required', false);
-                
-                // Clear stock fields
-                $('#id_product_perte').val('');
-                $('#unite_display_perte').val('');
-                $('#quantite_stock').val('');
-                
-            } else {
-                // No nature selected - hide both
-                $('#stockSection').show(); // Keep stock as default
-                $('#produitFiniSection').hide();
-                $('#compositionSection').hide();
+            // Make stock fields required
+            $('#Class_Categorie_Perte').prop('required', true);
+            $('#Categorie_Class_Perte').prop('required', true);
+            $('#id_subcategorie_perte').prop('required', true);
+            $('#id_product_perte').prop('required', true);
+            $('#quantite_stock').prop('required', true);
+            
+            // Make produit fini fields not required
+            $('#produit_fini_type').prop('required', false);
+            $('#id_plat').prop('required', false);
+            $('#nombre_plats').prop('required', false);
+            
+            // Clear produit fini fields
+            $('#produit_fini_type').val('');
+            $('#id_plat').empty().append('<option value="">Sélectionner un plat</option>');
+            $('#nombre_plats').val('1');
+            
+        } else if (nature === 'produit fini') {
+            // Hide classe/categorie section, show produit fini section
+            $('#classeCategorieSection').hide();
+            $('#stockSection').hide();
+            $('#produitFiniSection').show();
+            $('#stockCostSection').hide();
+            
+            // Make produit fini fields required
+            $('#produit_fini_type').prop('required', true);
+            $('#id_plat').prop('required', true);
+            $('#nombre_plats').prop('required', true);
+            
+            // Make stock fields not required
+            $('#Class_Categorie_Perte').prop('required', false);
+            $('#Categorie_Class_Perte').prop('required', false);
+            $('#id_subcategorie_perte').prop('required', false);
+            $('#id_product_perte').prop('required', false);
+            $('#quantite_stock').prop('required', false);
+            
+            // Clear stock fields
+            $('#Class_Categorie_Perte').val('');
+            $('#Categorie_Class_Perte').empty().append('<option value="">Sélectionner une catégorie</option>');
+            $('#id_subcategorie_perte').empty().append('<option value="">Sélectionner une famille</option>');
+            $('#id_product_perte').val('');
+            $('#unite_display_perte').val('');
+            $('#quantite_stock').val('');
+            
+        } else {
+            // No nature selected - hide all
+            $('#classeCategorieSection').hide();
+            $('#stockSection').hide();
+            $('#produitFiniSection').hide();
+            $('#compositionSection').hide();
+            $('#stockCostSection').hide();
+        }
+    });
+}
+
+
+// Add this new function after initializeNatureToggle
+function initializeStockCostCalculation() {
+    // When product changes, get price and show cost section
+    $('#id_product_perte').on('change', function() {
+        var productId = $(this).val();
+        $('#stockCostSection').hide();
+        
+        if (!productId) {
+            return;
+        }
+        
+        // Get product price - FIXED URL
+        $.ajax({
+            url: getProductPrice_url + '/' + productId,  // Changed this line
+            type: 'GET',
+            dataType: 'json',
+            success: function(response) {
+                if (response.status === 200 && response.price) {
+                    $('#stock_prix_unitaire').text(parseFloat(response.price).toFixed(2));
+                    $('#stock_prix_unitaire').data('price', response.price);
+                    
+                    // Calculate if quantity exists
+                    var quantity = parseFloat($('#quantite_stock').val()) || 0;
+                    if (quantity > 0) {
+                        calculateStockCost();
+                        $('#stockCostSection').show();
+                    }
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error("Erreur de chargement du prix:", error);
             }
         });
-    }
+    });
+    
+    // When quantity changes, calculate cost
+    $('#quantite_stock').on('input', function() {
+        var quantity = parseFloat($(this).val()) || 0;
+        var price = parseFloat($('#stock_prix_unitaire').data('price')) || 0;
+        
+        if (quantity > 0 && price > 0) {
+            calculateStockCost();
+            $('#stockCostSection').show();
+        } else {
+            $('#stockCostSection').hide();
+        }
+    });
+}
+
+function calculateStockCost() {
+    var price = parseFloat($('#stock_prix_unitaire').data('price')) || 0;
+    var quantity = parseFloat($('#quantite_stock').val()) || 0;
+    var total = price * quantity;
+    
+    $('#stock_quantite_display').text(quantity.toFixed(2));
+    $('#stock_cout_total').text(total.toFixed(2));
+}
+
+function calculateStockCost() {
+    var price = parseFloat($('#stock_prix_unitaire').data('price')) || 0;
+    var quantity = parseFloat($('#quantite_stock').val()) || 0;
+    var total = price * quantity;
+    
+    $('#stock_quantite_display').text(quantity.toFixed(2));
+    $('#stock_cout_total').text(total.toFixed(2));
+}
 
     // Initialize Produit Fini Handlers
     function initializeProduitFiniHandlers() {

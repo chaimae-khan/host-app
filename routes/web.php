@@ -308,6 +308,7 @@ Route::post('/deletePerte', [PerteController::class, 'destroy'])->name('pertes.d
 // In web.php or routes file
 Route::get('/pertes/plats-by-type/{type}', [PerteController::class, 'getPlatsByType'])->name('pertes.plats.by.type');
 Route::get('/pertes/plat-composition/{id}', [PerteController::class, 'getPlatComposition'])->name('pertes.plat.composition');
+Route::get('getProductPrice/{id}', [PerteController::class, 'getProductPrice'])->name('pertes.product.price');
 
 //stock list 
 Route::get('stock/expiring', [StockController::class, 'expiringProducts'])->name('stock.expiring');

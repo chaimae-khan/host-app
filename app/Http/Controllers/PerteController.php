@@ -185,9 +185,6 @@ public function store(Request $request)
     }
 
     $rules = [
-        'classe' => 'required|string|max:255',
-        'id_category' => 'required|exists:categories,id',
-        'id_subcategorie' => 'required|exists:sub_categories,id',
         'nature' => 'required|string|in:stock,produit fini',
         'date_perte' => 'required|date',
         'cause' => 'required|string',
@@ -195,6 +192,9 @@ public function store(Request $request)
     
     // Different validation based on nature
     if ($request->nature === 'stock') {
+        $rules['classe'] = 'required|string|max:255';
+        $rules['id_category'] = 'required|exists:categories,id';
+        $rules['id_subcategorie'] = 'required|exists:sub_categories,id';
         $rules['id_product'] = 'required|exists:products,id';
         $rules['quantite'] = 'required|numeric|min:0.01';
     } else if ($request->nature === 'produit fini') {
@@ -223,9 +223,6 @@ public function store(Request $request)
         DB::beginTransaction();
         
         $perteData = [
-            'id_category' => $request->id_category,
-            'id_subcategorie' => $request->id_subcategorie,
-            'classe' => $request->classe,
             'nature' => $request->nature,
             'date_perte' => $request->date_perte,
             'cause' => $request->cause,
@@ -244,6 +241,9 @@ public function store(Request $request)
                 ], 404);
             }
             
+            $perteData['classe'] = $request->classe;
+            $perteData['id_category'] = $request->id_category;
+            $perteData['id_subcategorie'] = $request->id_subcategorie;
             $perteData['id_product'] = $product->id;
             $perteData['id_unite'] = $product->id_unite;
             $perteData['designation'] = $product->name;
@@ -275,6 +275,10 @@ public function store(Request $request)
             $coutUnitaire = $composition->cout_unitaire ?? 0;
             $coutTotal = $coutUnitaire * $request->nombre_plats;
             
+            // Set NULL values for fields not needed for "produit fini"
+            $perteData['classe'] = null;
+            $perteData['id_category'] = null;
+            $perteData['id_subcategorie'] = null;
             $perteData['id_product'] = null;
             $perteData['id_plat'] = $plat->id;
             $perteData['id_unite'] = null;
@@ -358,8 +362,9 @@ public function store(Request $request)
     /**
      * Validate or refuse a perte
      */
-public function changeStatus(Request $request)
+  public function changeStatus(Request $request)
 {
+    // Check if user has permission to validate pertes
     if (!auth()->user()->can('Pertes-valider')) {
         return response()->json([
             'status' => 403,
@@ -380,77 +385,79 @@ public function changeStatus(Request $request)
             ], 404);
         }
 
+        // Store old status for logging
         $oldStatus = $perte->status;
 
         if ($data['status'] == 'Validé') {
             DB::beginTransaction();
             
             try {
-                if ($perte->nature === 'stock') {
-                    // Existing stock reduction logic
-                    $stock = Stock::where('id_product', $perte->id_product)->first();
-                    
-                    if (!$stock) {
-                        throw new \Exception('Stock non trouvé pour ce produit');
-                    }
-                    
-                    if ($stock->quantite < $perte->quantite) {
-                        throw new \Exception('Quantité en stock insuffisante');
-                    }
-                    
-                    $stock->quantite -= $perte->quantite;
-                    $stock->save();
-                    
-                } else if ($perte->nature === 'produit fini') {
-                    // Reduce stock for each product in the plat composition
-                    $composition = DB::table('ligne_plat')
-                        ->where('id_plat', $perte->id_plat)
-                        ->whereNull('deleted_at')
-                        ->get();
-                    
-                    foreach ($composition as $ligne) {
-                        $stock = Stock::where('id_product', $ligne->idproduit)->first();
-                        
-                        if (!$stock) {
-                            $product = DB::table('products')->where('id', $ligne->idproduit)->first();
-                            throw new \Exception('Stock non trouvé pour le produit: ' . ($product ? $product->name : 'ID '.$ligne->idproduit));
-                        }
-                        
-                        // Quantity needed = quantity per plat × number of plats lost
-                        $quantiteNecessaire = $ligne->qte * $perte->nombre_plats;
-                        
-                        if ($stock->quantite < $quantiteNecessaire) {
-                            $product = DB::table('products')->where('id', $ligne->idproduit)->first();
-                            throw new \Exception('Quantité insuffisante pour: ' . ($product ? $product->name : 'ID '.$ligne->idproduit) . ' (Disponible: ' . $stock->quantite . ', Nécessaire: ' . $quantiteNecessaire . ')');
-                        }
-                        
-                        $stock->quantite -= $quantiteNecessaire;
-                        $stock->save();
-                        
-                        Log::info('Stock reduced for product in plat', [
-                            'product_id' => $ligne->idproduit,
-                            'quantity_reduced' => $quantiteNecessaire,
-                            'new_stock' => $stock->quantite
-                        ]);
-                    }
+                // Validate: Reduce stock quantity
+                $stock = Stock::where('id_product', $perte->id_product)->first();
+                
+                if (!$stock) {
+                    throw new \Exception('Stock non trouvé pour ce produit');
                 }
                 
+                // Log current stock before update
+                Log::info('Before stock update', [
+                    'product_id' => $perte->id_product,
+                    'current_stock' => $stock->quantite,
+                    'perte_quantity' => $perte->quantite
+                ]);
+                
+                // Check if stock has enough quantity
+                if ($stock->quantite < $perte->quantite) {
+                    throw new \Exception('Quantité en stock insuffisante. Stock disponible: ' . $stock->quantite);
+                }
+                
+                // Calculate new quantity
+                $oldQuantity = $stock->quantite;
+                $newQuantity = $oldQuantity - $perte->quantite;
+                
+                // IMPORTANT: Use 'stock' (singular) not 'stocks' (plural)
+                DB::table('stock')
+                    ->where('id_product', $perte->id_product)
+                    ->update([
+                        'quantite' => $newQuantity,
+                        'updated_at' => now()
+                    ]);
+                
+                // Refresh stock model to get updated value
+                $stock->refresh();
+                
+                // Log after update
+                Log::info('After stock update', [
+                    'product_id' => $perte->id_product,
+                    'old_quantity' => $oldQuantity,
+                    'perte_quantity' => $perte->quantite,
+                    'new_quantity' => $stock->quantite,
+                    'expected_quantity' => $newQuantity
+                ]);
+                
+                // Update perte status
                 $perte->status = 'Validé';
                 $perte->refusal_reason = null;
                 $perte->save();
                 
                 DB::commit();
                 
-                Log::info('Perte validated successfully', ['perte_id' => $perte->id]);
+                Log::info('Perte validated successfully', [
+                    'perte_id' => $perte->id,
+                    'stock_reduced_from' => $oldQuantity,
+                    'stock_reduced_to' => $stock->quantite
+                ]);
                 
                 return response()->json([
                     'status' => 200,
-                    'message' => 'Perte validée avec succès. Stock mis à jour.'
+                    'message' => 'Perte validée avec succès. Stock réduit de ' . $oldQuantity . ' à ' . $stock->quantite
                 ]);
                 
             } catch (\Exception $e) {
                 DB::rollBack();
-                Log::error('Error in validation process: ' . $e->getMessage());
+                Log::error('Error in validation process: ' . $e->getMessage(), [
+                    'trace' => $e->getTraceAsString()
+                ]);
                 
                 return response()->json([
                     'status' => 500,
@@ -459,6 +466,7 @@ public function changeStatus(Request $request)
             }
         }
         else if ($data['status'] == 'Refusé') {
+            // Validate refusal reason is provided
             if (empty($data['refusal_reason'])) {
                 return response()->json([
                     'status' => 400,
@@ -469,6 +477,8 @@ public function changeStatus(Request $request)
             $perte->status = 'Refusé';
             $perte->refusal_reason = $data['refusal_reason'];
             $perte->save();
+            
+            Log::info('Perte refused with reason: "' . $data['refusal_reason'] . '" for perte ID: ' . $perte->id);
             
             return response()->json([
                 'status' => 200,
@@ -483,7 +493,9 @@ public function changeStatus(Request $request)
         }
         
     } catch (\Exception $e) {
-        Log::error('Error in changeStatus: ' . $e->getMessage());
+        Log::error('Error in changeStatus: ' . $e->getMessage(), [
+            'trace' => $e->getTraceAsString()
+        ]);
         
         return response()->json([
             'status' => 500,

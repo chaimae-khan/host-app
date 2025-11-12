@@ -10,9 +10,9 @@ return new class extends Migration
     {
         Schema::create('pertes', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('id_product')->constrained('products')->onDelete('cascade');
-            $table->foreignId('id_category')->constrained('categories')->onDelete('cascade');
-            $table->foreignId('id_subcategorie')->constrained('sub_categories')->onDelete('cascade');
+            $table->foreignId('id_product')->nullable()->constrained('products')->onDelete('cascade');
+            $table->foreignId('id_category')->nullable()->constrained('categories')->onDelete('cascade');
+            $table->foreignId('id_subcategorie')->nullable()->constrained('sub_categories')->onDelete('cascade');
             $table->foreignId('id_unite')->constrained('unite')->onDelete('cascade');
             $table->string('classe');
             $table->string('designation'); // Product name at time of loss
