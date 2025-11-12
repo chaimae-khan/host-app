@@ -1213,246 +1213,283 @@ public function update(Request $request)
     }
 }
 
- public function ChangeStatusVente(Request $request)
-    {
-        if (!auth()->user()->can('Commande-modifier')) {
+public function ChangeStatusVente(Request $request)
+{
+    if (!auth()->user()->can('Commande-modifier')) {
+        return response()->json([
+            'status' => 403,
+            'message' => 'Vous n\'avez pas la permission de modifier le statut d\'une commande'
+        ], 403);
+    }
+
+    try {
+        $data = $request->all();
+        \Log::info('ChangeStatusVente called with data:', $data);
+
+        // Retrieve the vente record
+        $vente = Vente::find($data['id']);
+        
+        if (!$vente) {
             return response()->json([
-                'status' => 403,
-                'message' => 'Vous n\'avez pas la permission de modifier le statut d\'une commande'
-            ], 403);
+                'status' => 404,
+                'message' => 'Vente non trouvée'
+            ], 404);
         }
 
-        try {
-            $data = $request->all();
-            \Log::info('ChangeStatusVente called with data:', $data);
+        // Store old status for audit logging
+        $oldStatus = $vente->status;
 
-            // Retrieve the vente record
-            $vente = Vente::find($data['id']);
+        if($data['status'] == 'Validation')
+        {
+            // Begin transaction
+            DB::beginTransaction();
             
-            if (!$vente) {
-                return response()->json([
-                    'status' => 404,
-                    'message' => 'Vente non trouvée'
-                ], 404);
-            }
-
-            // Store old status for audit logging
-            $oldStatus = $vente->status;
-
-            if($data['status'] == 'Validation')
-            {
-                // Begin transaction
-                DB::beginTransaction();
+            try {
+                // First, update the vente status (this will trigger audit trail)
+                $vente->status = 'Validation';
+                $vente->save();
+                $path_signature= Auth::user()->signature;
+                Historique_Sig::create([
+                    'signature'   => $path_signature,
+                    'iduser'      => Auth::user()->id,
+                    'idvente'     => $vente->id,
+                    'status'      => 'Validation'
+                ]);
                 
-                try {
-                    // First, update the vente status (this will trigger audit trail)
-                    $vente->status = 'Validation';
-                    $vente->save();
-                    $path_signature= Auth::user()->signature;
-                    Historique_Sig::create([
-                        'signature'   => $path_signature,
-                        'iduser'      => Auth::user()->id,
-                        'idvente'     => $vente->id,
-                        'status'      => 'Validation'
-                    ]);
-                    
-                    // Extract product from ligne vente 
-                    $data_ligne_product = LigneVente::where('idvente', $data['id'])->get();
-                    \Log::info('Found ' . $data_ligne_product->count() . ' line items for vente ID: ' . $data['id']);
+                // Extract product from ligne vente 
+                $data_ligne_product = LigneVente::where('idvente', $data['id'])->get();
+                \Log::info('Found ' . $data_ligne_product->count() . ' line items for vente ID: ' . $data['id']);
 
-                    foreach($data_ligne_product as $value)
-                    {
-                        // Get product name
-                        $product = DB::table('products')->where('id', $value->idproduit)->first();
-                        $productName = $product ? $product->name : 'Unknown Product';
+                foreach($data_ligne_product as $value)
+                {
+                    // Get product name
+                    $product = DB::table('products')->where('id', $value->idproduit)->first();
+                    $productName = $product ? $product->name : 'Unknown Product';
+                    
+                    // Save the current qte value to contete_formateur (this will trigger audit trail)
+                    $value->contete_formateur = (string)$value->qte;
+                    $value->save();
+                    
+                    \Log::info('Processing product: "' . $productName . '" with quantity: ' . $value->qte);
+                    
+                    // Get stock for this product
+                    $stock = Stock::where('id_product', $value->idproduit)->first();
+                    
+                    if($stock) {
+                        \Log::info('Current stock quantity for "' . $productName . '": ' . $stock->quantite);
                         
-                        // Save the current qte value to contete_formateur (this will trigger audit trail)
-                        $value->contete_formateur = (string)$value->qte;
-                        $value->save();
-                        
-                        \Log::info('Processing product: "' . $productName . '" with quantity: ' . $value->qte);
-                        
-                        // Get stock for this product
-                        $stock = Stock::where('id_product', $value->idproduit)->first();
-                        
-                        if($stock) {
-                            \Log::info('Current stock quantity for "' . $productName . '": ' . $stock->quantite);
+                        if($stock->quantite >= $value->qte) {
+                            // Subtract quantity from stock
+                            $stock->quantite -= $value->qte;
+                            $stock->save();
+                            \Log::info('Updated stock quantity for "' . $productName . '": ' . $stock->quantite);
                             
-                            if($stock->quantite >= $value->qte) {
-                                // Subtract quantity from stock
-                                $stock->quantite -= $value->qte;
-                                $stock->save();
-                                \Log::info('Updated stock quantity for "' . $productName . '": ' . $stock->quantite);
+                            // Check if this product is now low stock after validation
+                            if($stock->quantite <= $product->seuil) {
+                                // Get administrators
+                                $adminUsers = User::whereHas('roles', function($query) {
+                                    $query->where('name', 'Administrateur');
+                                })->get();
                                 
-                                // Check if this product is now low stock after validation
-                                if($stock->quantite <= $product->seuil) {
-                                    // Get administrators
-                                    $adminUsers = User::whereHas('roles', function($query) {
-                                        $query->where('name', 'Administrateur');
-                                    })->get();
-                                    
-                                    foreach ($adminUsers as $admin) {
-                                        $admin->notify(new SystemNotification([
-                                            'message' => "Stock faible: {$productName} - Quantité: {$stock->quantite}, Seuil: {$product->seuil}",
-                                            'status' => 'Stock Bas',
-                                            'view_url' => url('stock')
-                                        ]));
-                                    }
+                                foreach ($adminUsers as $admin) {
+                                    $admin->notify(new SystemNotification([
+                                        'message' => "Stock faible: {$productName} - Quantité: {$stock->quantite}, Seuil: {$product->seuil}",
+                                        'status' => 'Stock Bas',
+                                        'view_url' => url('stock')
+                                    ]));
                                 }
-                                
-                            } else {
-                                \Log::warning('Insufficient stock for product: "' . $productName . 
-                                            '" (Requested: ' . $value->qte . ', Available: ' . $stock->quantite . ')');
-                                
-                                throw new \Exception('Stock insuffisant pour le produit: "' . $productName . '"');
                             }
+                            
                         } else {
-                            \Log::warning('No stock found for product: "' . $productName . '"');
-                            throw new \Exception('Aucun stock trouvé pour le produit: "' . $productName . '"');
+                            \Log::warning('Insufficient stock for product: "' . $productName . 
+                                        '" (Requested: ' . $value->qte . ', Available: ' . $stock->quantite . ')');
+                            
+                            throw new \Exception('Stock insuffisant pour le produit: "' . $productName . '"');
                         }
+                    } else {
+                        \Log::warning('No stock found for product: "' . $productName . '"');
+                        throw new \Exception('Aucun stock trouvé pour le produit: "' . $productName . '"');
                     }
-                    
-                    // Update inventory using the service - this only records the movement, doesn't modify stock
-                    $this->inventoryService->updateInventoryForSale($vente);
-                    \Log::info('Updated inventory for sale ID: ' . $vente->id);
-                    
-                    DB::commit();
-                    
-                   // Notify Admin that user received their command
-                        $hashids = new Hashids();
-                        $encodedId = $hashids->encode($vente->id);
-
-                        $currentUser = User::find(Auth::id());
-                        $currentUserName = $currentUser->prenom . ' ' . $currentUser->nom;
-
-                        $adminUsers = User::whereHas('roles', function($query) {
-                            $query->where('name', 'Administrateur');
-                        })->get();
-
-                        foreach ($adminUsers as $admin) {
-                            $admin->notify(new \App\Notifications\SystemNotification([
-                                'message' => $currentUserName . ' a reçu la commande #' . $vente->id,
-                                'status' => 'Validation',
-                                'view_url' => url('ShowBonVente/' . $encodedId),
-                            ]));
-                        }
-
-                    // Log the status change
-                    \Log::info('Vente status changed from "' . $oldStatus . '" to "Validation" for vente ID: ' . $vente->id . ' by user: ' . auth()->user()->id);
-                    
-                    return response()->json([
-                        'status' => 200,
-                        'message' => 'Opération réussie'
-                    ]);
-                    
-                } catch (\Exception $e) {
-                    DB::rollBack();
-                    \Log::error('Error in validation process: ' . $e->getMessage());
-                    \Log::error($e->getTraceAsString());
-                    
-                    return response()->json([
-                        'status' => 500,
-                        'message' => 'Une erreur est survenue lors de la validation: ' . $e->getMessage(),
-                        'error' => $e->getMessage()
-                    ]);
                 }
-            }
-            else if($data['status'] == 'Refus')
-            {
-                $vente->status = 'Refus';
-                $result = $vente->save();
                 
-                \Log::info('Updated vente status to Refus. Result: ' . ($result ? 'success' : 'failed'));
+                // Update inventory using the service - this only records the movement, doesn't modify stock
+                $this->inventoryService->updateInventoryForSale($vente);
+                \Log::info('Updated inventory for sale ID: ' . $vente->id);
                 
-                // Notify the user who created this sale
-                $creatorUser = User::find($vente->id_user);
-                if ($creatorUser) {
-                    // Create hashids for secure URL
+                DB::commit();
+                
+               // Notify Admin that user received their command
                     $hashids = new Hashids();
                     $encodedId = $hashids->encode($vente->id);
-                    
-                    $creatorUser->notify(new \App\Notifications\SystemNotification([
-                        'message' => 'Votre commande a été refusée',
-                        'status' => 'Refus',
-                        'view_url' => url('ShowBonVente/' . $encodedId)
-                    ]));
-                }
+
+                    $currentUser = User::find(Auth::id());
+                    $currentUserName = $currentUser->prenom . ' ' . $currentUser->nom;
+
+                    $adminUsers = User::whereHas('roles', function($query) {
+                        $query->where('name', 'Administrateur');
+                    })->get();
+
+                    foreach ($adminUsers as $admin) {
+                        $admin->notify(new \App\Notifications\SystemNotification([
+                            'message' => $currentUserName . ' a reçu la commande #' . $vente->id,
+                            'status' => 'Validation',
+                            'view_url' => url('ShowBonVente/' . $encodedId),
+                        ]));
+                    }
 
                 // Log the status change
-                \Log::info('Vente status changed from "' . $oldStatus . '" to "Refus" for vente ID: ' . $vente->id . ' by user: ' . auth()->user()->id);
+                \Log::info('Vente status changed from "' . $oldStatus . '" to "Validation" for vente ID: ' . $vente->id . ' by user: ' . auth()->user()->id);
                 
                 return response()->json([
                     'status' => 200,
                     'message' => 'Opération réussie'
                 ]);
-            }
-            else if($data['status'] == 'Livraison')
-            {
-                $vente->status = 'Livraison';
-                $result = $vente->save();
                 
-                \Log::info('Updated vente status to Livraison. Result: ' . ($result ? 'success' : 'failed'));
-                \Log::info('Vente status changed from "' . $oldStatus . '" to "Livraison" for vente ID: ' . $vente->id . ' by user: ' . auth()->user()->id);
+            } catch (\Exception $e) {
+                DB::rollBack();
+                \Log::error('Error in validation process: ' . $e->getMessage());
+                \Log::error($e->getTraceAsString());
                 
                 return response()->json([
-                    'status' => 200,
-                    'message' => 'Opération réussie'
+                    'status' => 500,
+                    'message' => 'Une erreur est survenue lors de la validation: ' . $e->getMessage(),
+                    'error' => $e->getMessage()
                 ]);
             }
-            else if($data['status'] == 'Visé')
-{
-    $vente->status = 'Visé';
-    $result = $vente->save();
-    
-    \Log::info('Updated vente status to Visé. Result: ' . ($result ? 'success' : 'failed'));
-    
-    // Notify the user who created this sale
-    $creatorUser = User::find($vente->id_user);
-    if ($creatorUser) {
-        // Create hashids for secure URL
-        $hashids = new Hashids();
-        $encodedId = $hashids->encode($vente->id);
-        
-        $creatorUser->notify(new \App\Notifications\SystemNotification([
-            'message' => 'Votre commande a été visée par l\'économe',
-            'status' => 'Visé',
-            'view_url' => url('ShowBonVente/' . $encodedId)
-        ]));
-    }
+        }
+        else if($data['status'] == 'Refus')
+        {
+            $vente->status = 'Refus';
+            $result = $vente->save();
+            
+            $path_signature = Auth::user()->signature;
+            Historique_Sig::create([
+                'signature'   => $path_signature,
+                'iduser'      => Auth::user()->id,
+                'idvente'     => $vente->id,
+                'status'      => 'Refus'
+            ]);
+            
+            \Log::info('Updated vente status to Refus. Result: ' . ($result ? 'success' : 'failed'));
+            
+            // Notify the user who created this sale
+            $creatorUser = User::find($vente->id_user);
+            if ($creatorUser) {
+                // Create hashids for secure URL
+                $hashids = new Hashids();
+                $encodedId = $hashids->encode($vente->id);
+                
+                $currentUser = User::find(Auth::id());
+                $currentUserName = $currentUser->prenom . ' ' . $currentUser->nom;
+                
+                $creatorUser->notify(new \App\Notifications\SystemNotification([
+                    'message' => 'Votre commande a été refusée par ' . $currentUserName,
+                    'status' => 'Refus',
+                    'view_url' => url('ShowBonVente/' . $encodedId)
+                ]));
+            }
 
-    // Log the status change
-    \Log::info('Vente status changed from "' . $oldStatus . '" to "Visé" for vente ID: ' . $vente->id . ' by user: ' . auth()->user()->id);
-    
-    return response()->json([
-        'status' => 200,
-        'message' => 'Opération réussie'
-    ]);
-}
-
-            else
-            {
-                $vente->status = 'Réception';
-                $result = $vente->save();
-                
-                \Log::info('Updated vente status to Réception. Result: ' . ($result ? 'success' : 'failed'));
-                \Log::info('Vente status changed from "' . $oldStatus . '" to "Réception" for vente ID: ' . $vente->id . ' by user: ' . auth()->user()->id);
-                
-                return response()->json([
-                    'status' => 200,
-                    'message' => 'Opération réussie'
-                ]);
-            }
-        } catch (\Exception $e) {
-            \Log::error('Error in ChangeStatusVente: ' . $e->getMessage());
-            \Log::error($e->getTraceAsString());
+            // Log the status change
+            \Log::info('Vente status changed from "' . $oldStatus . '" to "Refus" for vente ID: ' . $vente->id . ' by user: ' . auth()->user()->id);
             
             return response()->json([
-                'status' => 500,
-                'message' => 'Une erreur est survenue lors du changement de statut: ' . $e->getMessage(),
-                'error' => $e->getMessage()
+                'status' => 200,
+                'message' => 'Opération réussie'
             ]);
         }
+        else if($data['status'] == 'Livraison')
+        {
+            $vente->status = 'Livraison';
+            $result = $vente->save();
+            
+            $path_signature = Auth::user()->signature;
+            Historique_Sig::create([
+                'signature'   => $path_signature,
+                'iduser'      => Auth::user()->id,
+                'idvente'     => $vente->id,
+                'status'      => 'Livraison'
+            ]);
+            
+            \Log::info('Updated vente status to Livraison. Result: ' . ($result ? 'success' : 'failed'));
+            \Log::info('Vente status changed from "' . $oldStatus . '" to "Livraison" for vente ID: ' . $vente->id . ' by user: ' . auth()->user()->id);
+            
+            return response()->json([
+                'status' => 200,
+                'message' => 'Opération réussie'
+            ]);
+        }
+        else if($data['status'] == 'Visé')
+        {
+            $vente->status = 'Visé';
+            $result = $vente->save();
+            
+            $path_signature = Auth::user()->signature;
+            Historique_Sig::create([
+                'signature'   => $path_signature,
+                'iduser'      => Auth::user()->id,
+                'idvente'     => $vente->id,
+                'status'      => 'Visé'
+            ]);
+            
+            \Log::info('Updated vente status to Visé. Result: ' . ($result ? 'success' : 'failed'));
+            
+            // Notify the user who created this sale
+            $creatorUser = User::find($vente->id_user);
+            if ($creatorUser) {
+                // Create hashids for secure URL
+                $hashids = new Hashids();
+                $encodedId = $hashids->encode($vente->id);
+                
+                $currentUser = User::find(Auth::id());
+                $currentUserName = $currentUser->prenom . ' ' . $currentUser->nom;
+                
+                $creatorUser->notify(new \App\Notifications\SystemNotification([
+                    'message' => 'Votre commande a été visée par ' . $currentUserName,
+                    'status' => 'Visé',
+                    'view_url' => url('ShowBonVente/' . $encodedId)
+                ]));
+            }
+
+            // Log the status change
+            \Log::info('Vente status changed from "' . $oldStatus . '" to "Visé" for vente ID: ' . $vente->id . ' by user: ' . auth()->user()->id);
+            
+            return response()->json([
+                'status' => 200,
+                'message' => 'Opération réussie'
+            ]);
+        }
+        else
+        {
+            $vente->status = 'Réception';
+            $result = $vente->save();
+            
+            $path_signature = Auth::user()->signature;
+            Historique_Sig::create([
+                'signature'   => $path_signature,
+                'iduser'      => Auth::user()->id,
+                'idvente'     => $vente->id,
+                'status'      => 'Réception'
+            ]);
+            
+            \Log::info('Updated vente status to Réception. Result: ' . ($result ? 'success' : 'failed'));
+            \Log::info('Vente status changed from "' . $oldStatus . '" to "Réception" for vente ID: ' . $vente->id . ' by user: ' . auth()->user()->id);
+            
+            return response()->json([
+                'status' => 200,
+                'message' => 'Opération réussie'
+            ]);
+        }
+    } catch (\Exception $e) {
+        \Log::error('Error in ChangeStatusVente: ' . $e->getMessage());
+        \Log::error($e->getTraceAsString());
+        
+        return response()->json([
+            'status' => 500,
+            'message' => 'Une erreur est survenue lors du changement de statut: ' . $e->getMessage(),
+            'error' => $e->getMessage()
+        ]);
     }
+}
 /**
  * Get categories by class for filter
  */
