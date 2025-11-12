@@ -14,6 +14,7 @@ class Perte extends Model
 
     protected $fillable = [
         'id_product',
+        'id_plat', // NEW
         'id_category',
         'id_subcategorie',
         'id_unite',
@@ -21,7 +22,9 @@ class Perte extends Model
         'designation',
         'quantite',
         'nature',
-        'produit_fini_type', // Add this new field
+        'produit_fini_type',
+        'nombre_plats', // NEW
+        'cout_total', // NEW
         'date_perte',
         'cause',
         'status',
@@ -32,12 +35,19 @@ class Perte extends Model
     protected $casts = [
         'date_perte' => 'date',
         'quantite' => 'decimal:2',
+        'cout_total' => 'decimal:2', // NEW
     ];
 
     // Relationships
     public function product()
     {
         return $this->belongsTo(Product::class, 'id_product');
+    }
+    
+    // NEW
+    public function plat()
+    {
+        return $this->belongsTo(Plat::class, 'id_plat');
     }
 
     public function category()
@@ -60,7 +70,6 @@ class Perte extends Model
         return $this->belongsTo(User::class, 'id_user');
     }
 
-    // Status badge helper
     public function getStatusBadgeAttribute()
     {
         $badges = [

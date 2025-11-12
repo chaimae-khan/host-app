@@ -37,16 +37,6 @@
             margin: 10px 0;
             color: #666;
         }
-        .month-title {
-            text-align: center;
-            background-color: #007bff;
-            color: white;
-            padding: 8px;
-            font-weight: bold;
-            font-size: 14px;
-            margin-top: 20px;
-            margin-bottom: 10px;
-        }
         table {
             width: 100%;
             border-collapse: collapse;
@@ -54,18 +44,17 @@
         }
         th, td {
             border: 1px solid black;
-            padding: 4px;
+            padding: 6px;
             text-align: center;
-            font-size: 9px;
+            font-size: 10px;
         }
         th {
             background-color: #f2f2f2;
             font-weight: bold;
         }
-        .week-header td {
-            background-color: #f8f9fa;
+        .total-row {
+            background-color: #e9ecef;
             font-weight: bold;
-            text-align: center;
         }
         .footer {
             position: fixed;
@@ -74,9 +63,6 @@
         }
         .page-break {
             page-break-after: always;
-        }
-        .month-section {
-            page-break-inside: avoid;
         }
     </style>
 </head>
@@ -112,7 +98,7 @@
             ];
             
             // Function to find category cost
-            function findCategoryCost($categoryCosts, $categoryName, $keywords) {
+            function findCategoryCostYearly($categoryCosts, $categoryName, $keywords) {
                 $total = 0;
                 foreach ($categoryCosts as $category) {
                     $catName = strtolower($category['name']);
@@ -126,94 +112,81 @@
                 }
                 return $total;
             }
+            
+            // Initialize year totals for categories
+            $yearCategoryCosts = [];
+            foreach ($categoryMappings as $displayName => $keywords) {
+                $yearCategoryCosts[$displayName] = 0;
+            }
         @endphp
         
-        @foreach($data['months_data'] as $monthIndex => $monthData)
-            @php
-                // Group days by week
-                $weeks = [];
-                foreach ($monthData['data']['days_data'] as $day) {
-                    $dateParts = explode('/', $day['date']);
-                    $dayDate = \Carbon\Carbon::createFromDate($dateParts[2], $dateParts[1], $dateParts[0]);
-                    
-                    // Get week start and end
-                    $weekStart = $dayDate->copy()->startOfWeek(\Carbon\Carbon::MONDAY);
-                    $weekEnd = $dayDate->copy()->endOfWeek(\Carbon\Carbon::SUNDAY);
-                    
-                    $weekKey = $weekStart->format('d') . ' au ' . $weekEnd->format('d F Y');
-                    
-                    if (!isset($weeks[$weekKey])) {
-                        $weeks[$weekKey] = [];
-                    }
-                    
-                    $weeks[$weekKey][] = $day;
-                }
-                
-                // Sort weeks chronologically
-                ksort($weeks);
-            @endphp
-            
-            <div class="month-section {{ ($monthIndex > 0 && $monthIndex % 2 == 0) ? 'page-break' : '' }}">
-                <div class="month-title">{{ $monthData['month'] }}</div>
-                
-                <!-- Month Table -->
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Journée du</th>
-                            <th>Coût unitaire</th>
-                            <th>Légumes/Fruits</th>
-                            <th>Volailles/Œufs</th>
-                            <th>Poisson</th>
-                            <th>Épicerie/Laitiers</th>
-                            <th>Viandes</th>
-                            <th>Coût total</th>
-                            <th>Effectif</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach($weeks as $weekKey => $days)
-                            <tr class="week-header">
-                                <td colspan="9">Semaine du {{ $weekKey }}</td>
-                            </tr>
-                            
-                            @foreach($days as $day)
-                                @php
-                                    // Get day name
-                                    $dateParts = explode('/', $day['date']);
-                                    $dayDate = \Carbon\Carbon::createFromDate($dateParts[2], $dateParts[1], $dateParts[0]);
-                                    $dayName = $dayDate->translatedFormat('l');
-                                    
-                                    // Extract costs
-                                    $costs = [];
-                                    foreach ($categoryMappings as $displayName => $keywords) {
-                                        $costs[$displayName] = 0;
-                                        
-                                        foreach ($day['category_costs'] as $category) {
-                                            if (findCategoryCost([$category], $displayName, $keywords) > 0) {
-                                                $costs[$displayName] += $category['total_cost'];
-                                            }
-                                        }
+        <!-- Yearly Summary Table -->
+        <table>
+            <thead>
+                <tr>
+                    <th>Mois</th>
+                    <th>Coût unitaire par stagiaire</th>
+                    <th>Légumes et Fruits</th>
+                    <th>Volailles et Œufs</th>
+                    <th>Poisson Frais</th>
+                    <th>Épicerie et Produits Laitiers</th>
+                    <th>Viandes</th>
+                    <th>Coût total du mois</th>
+                    <th>Effectif</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($data['months_data'] as $monthData)
+                    @php
+                        // Calculate category costs for the entire month
+                        $monthCosts = [];
+                        foreach ($categoryMappings as $displayName => $keywords) {
+                            $monthCosts[$displayName] = 0;
+                        }
+                        
+                        // Aggregate all category costs from all days in the month
+                        foreach ($monthData['data']['days_data'] as $day) {
+                            foreach ($day['category_costs'] as $category) {
+                                foreach ($categoryMappings as $displayName => $keywords) {
+                                    if (findCategoryCostYearly([$category], $displayName, $keywords) > 0) {
+                                        $monthCosts[$displayName] += $category['total_cost'];
+                                        $yearCategoryCosts[$displayName] += $category['total_cost'];
                                     }
-                                @endphp
-                                
-                                <tr>
-                                    <td>{{ $dayName }} {{ $day['date'] }}</td>
-                                    <td>{{ $day['prix_moyen'] > 0 ? number_format($day['prix_moyen'], 2) : '-' }}</td>
-                                    <td>{{ $costs['Légumes et Fruits'] > 0 ? number_format($costs['Légumes et Fruits'], 2) : '-' }}</td>
-                                    <td>{{ $costs['Volailles et Œufs'] > 0 ? number_format($costs['Volailles et Œufs'], 2) : '-' }}</td>
-                                    <td>{{ $costs['Poisson Frais'] > 0 ? number_format($costs['Poisson Frais'], 2) : '-' }}</td>
-                                    <td>{{ $costs['Épicerie et Produits Laitiers'] > 0 ? number_format($costs['Épicerie et Produits Laitiers'], 2) : '-' }}</td>
-                                    <td>{{ $costs['Viandes'] > 0 ? number_format($costs['Viandes'], 2) : '-' }}</td>
-                                    <td>{{ $day['total_cost'] > 0 ? number_format($day['total_cost'], 2) : '-' }}</td>
-                                    <td>{{ $day['total_people'] }}</td>
-                                </tr>
-                            @endforeach
-                        @endforeach
-                    </tbody>
-                </table>
-            </div>
-        @endforeach
+                                }
+                            }
+                        }
+                        
+                        // Get month totals
+                        $monthTotals = $monthData['data']['month_totals'];
+                    @endphp
+                    
+                    <tr>
+                        <td>{{ $monthData['month'] }}</td>
+                        <td>{{ $monthTotals['prix_moyen'] > 0 ? number_format($monthTotals['prix_moyen'], 2) : '-' }}</td>
+                        <td>{{ $monthCosts['Légumes et Fruits'] > 0 ? number_format($monthCosts['Légumes et Fruits'], 2) : '-' }}</td>
+                        <td>{{ $monthCosts['Volailles et Œufs'] > 0 ? number_format($monthCosts['Volailles et Œufs'], 2) : '-' }}</td>
+                        <td>{{ $monthCosts['Poisson Frais'] > 0 ? number_format($monthCosts['Poisson Frais'], 2) : '-' }}</td>
+                        <td>{{ $monthCosts['Épicerie et Produits Laitiers'] > 0 ? number_format($monthCosts['Épicerie et Produits Laitiers'], 2) : '-' }}</td>
+                        <td>{{ $monthCosts['Viandes'] > 0 ? number_format($monthCosts['Viandes'], 2) : '-' }}</td>
+                        <td>{{ $monthTotals['total_cost'] > 0 ? number_format($monthTotals['total_cost'], 2) : '-' }}</td>
+                        <td>{{ $monthTotals['total_people'] }}</td>
+                    </tr>
+                @endforeach
+                
+                <!-- Year Total Row -->
+                <tr class="total-row">
+                    <td>TOTAL ANNUEL</td>
+                    <td>{{ $data['year_totals']['prix_moyen'] > 0 ? number_format($data['year_totals']['prix_moyen'], 2) : '-' }}</td>
+                    <td>{{ $yearCategoryCosts['Légumes et Fruits'] > 0 ? number_format($yearCategoryCosts['Légumes et Fruits'], 2) : '-' }}</td>
+                    <td>{{ $yearCategoryCosts['Volailles et Œufs'] > 0 ? number_format($yearCategoryCosts['Volailles et Œufs'], 2) : '-' }}</td>
+                    <td>{{ $yearCategoryCosts['Poisson Frais'] > 0 ? number_format($yearCategoryCosts['Poisson Frais'], 2) : '-' }}</td>
+                    <td>{{ $yearCategoryCosts['Épicerie et Produits Laitiers'] > 0 ? number_format($yearCategoryCosts['Épicerie et Produits Laitiers'], 2) : '-' }}</td>
+                    <td>{{ $yearCategoryCosts['Viandes'] > 0 ? number_format($yearCategoryCosts['Viandes'], 2) : '-' }}</td>
+                    <td>{{ $data['year_totals']['total_cost'] > 0 ? number_format($data['year_totals']['total_cost'], 2) : '-' }}</td>
+                    <td>{{ $data['year_totals']['total_people'] }}</td>
+                </tr>
+            </tbody>
+        </table>
     </div>
     
     <!-- Footer with logo -->

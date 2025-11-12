@@ -34,12 +34,12 @@
                                 
                                 <div class="col-md-6">
                                     <label for="type_menu" class="form-label">Type de Menu</label>
-                                 <select class="form-select" id="type_menu" name="type_menu" required>
-    <option value="tous" selected>Tous menus</option>
-    <option value="Menu eleves">Menu standard</option>
-    <option value="Menu specials">Menu specials</option>
-    <option value="Menu d'application">Menu d'application</option>
-</select>
+                                    <select class="form-select" id="type_menu" name="type_menu" required>
+                                        <option value="tous" selected>Tous menus</option>
+                                        <option value="Menu eleves">Menu standard</option>
+                                        <option value="Menu specials">Menu specials</option>
+                                        <option value="Menu d'application">Menu d'application</option>
+                                    </select>
                                 </div>
                                 
                                 <!-- Hidden Type de Commande input -->
@@ -106,7 +106,6 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary no-print" data-bs-dismiss="modal">Fermer</button>
-                <!-- Removed Print button -->
                 <button type="button" class="btn btn-primary no-print" id="btnExportPDF">
                     <i class="fa fa-file-pdf"></i> Exporter PDF
                 </button>
@@ -175,11 +174,11 @@
         }
     }
     .menu-separator {
-    margin-top: 40px;
-    margin-bottom: 20px;
-    border-bottom: 2px solid #333;
-    padding-bottom: 10px;
-}
+        margin-top: 40px;
+        margin-bottom: 20px;
+        border-bottom: 2px solid #333;
+        padding-bottom: 10px;
+    }
 </style>
 
 <script type="text/javascript">
@@ -193,232 +192,321 @@
         const currentMonth = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0');
         $('#month').val(currentMonth);
         
-      // Handle form submission
-$('#monthlyBreakdownForm').on('submit', function(e) {
-    e.preventDefault();
-    
-    const month = $('#month').val();
-    const typeMenu = $('#type_menu').val();
-    const typeCommande = $('#type_commande').val();
-    
-    if (!month) {
-        new AWN().alert('Veuillez sélectionner un mois');
-        return;
-    }
-    
-    // Check if "Tous menus" is selected
-    if (typeMenu === 'tous') {
-        fetchAllMenus(month, typeCommande);
-    } else {
-        fetchSingleMenu(month, typeMenu, typeCommande);
-    }
-});
-
-// Function to fetch all menus
-
-function fetchAllMenus(month, typeCommande) {
-    const menuTypes = ['Menu eleves', 'Menu specials', 'Menu d\'application'];
-    let allData = [];
-    let completedRequests = 0;
-    
-    $('#btnSearch').prop('disabled', true);
-    $('#btnSearch').html('<i class="fa fa-spinner fa-spin"></i> Chargement...');
-    $('#noDataMessage').hide();
-    
-    menuTypes.forEach(menuType => {
-        $.ajax({
-            type: "GET",
-            url: getMonthlyBreakdownData_url,
-            data: {
-                month: month,
-                type_menu: menuType,  // Send specific menu type, not 'tous'
-                type_commande: typeCommande
-            },
-            dataType: "json",
-            success: function(response) {
-                if (response.status == 200 && response.data.days_data.length > 0) {
-                    allData.push({
-                        menuType: menuType,
-                        data: response.data
-                    });
-                }
-            },
-            error: function(xhr, status, error) {
-                console.error("Error for " + menuType + ":", error);
-            },
-            complete: function() {
-                completedRequests++;
-                
-                if (completedRequests === menuTypes.length) {
-                    $('#btnSearch').prop('disabled', false);
-                    $('#btnSearch').html('<i class="fa fa-search"></i> Rechercher');
-                    
-                    if (allData.length > 0) {
-                        displayAllMenusReport(allData, month);
-                        $('#ModalMonthlyReport').modal('show');
-                    } else {
-                        $('#noDataMessage').show();
-                    }
-                }
+        // Handle form submission
+        $('#monthlyBreakdownForm').on('submit', function(e) {
+            e.preventDefault();
+            
+            const month = $('#month').val();
+            const typeMenu = $('#type_menu').val();
+            const typeCommande = $('#type_commande').val();
+            
+            if (!month) {
+                new AWN().alert('Veuillez sélectionner un mois');
+                return;
+            }
+            
+            // Check if "Tous menus" is selected
+            if (typeMenu === 'tous') {
+                fetchAllMenus(month, typeCommande);
+            } else {
+                fetchSingleMenu(month, typeMenu, typeCommande);
             }
         });
-    });
-}
-// Function to fetch single menu
-function fetchSingleMenu(month, typeMenu, typeCommande) {
-    $.ajax({
-        type: "GET",
-        url: getMonthlyBreakdownData_url,
-        data: {
-            month: month,
-            type_menu: typeMenu,
-            type_commande: typeCommande
-        },
-        dataType: "json",
-        beforeSend: function() {
+
+        // Function to fetch all menus
+        function fetchAllMenus(month, typeCommande) {
+            const menuTypes = ['Menu eleves', 'Menu specials', 'Menu d\'application'];
+            let allData = [];
+            let completedRequests = 0;
+            
             $('#btnSearch').prop('disabled', true);
             $('#btnSearch').html('<i class="fa fa-spinner fa-spin"></i> Chargement...');
             $('#noDataMessage').hide();
-        },
-        success: function(response) {
-            if (response.status == 200 && response.data.days_data.length > 0) {
-                displayMonthlyReport(response.data);
-                $('#ModalMonthlyReport').modal('show');
-                $('#noDataMessage').hide();
-            } else {
-                $('#noDataMessage').show();
-            }
-        },
-        error: function(xhr, status, error) {
-            console.error("Error:", error);
-            new AWN().alert("Erreur lors de la récupération des données");
-            $('#noDataMessage').hide();
-        },
-        complete: function() {
-            $('#btnSearch').prop('disabled', false);
-            $('#btnSearch').html('<i class="fa fa-search"></i> Rechercher');
-        }
-    });
-}
-
-// Function to display all menus report
-function displayAllMenusReport(allData, month) {
-    $('#ModalMonthlyReportLabel').text('Consommation du mois - Tous menus');
-    
-    const contentDiv = $('#monthlyReportContent');
-    contentDiv.empty();
-    
-    // Create a table for each menu type
-    allData.forEach(menuData => {
-        // Add menu type header
-        contentDiv.append(`
-            <div class="menu-separator">
-                <h4>${menuData.menuType == 'Menu eleves' ? 'Menu standard' :menuData.menuType}</h4>
-            </div>
-        `);
-        
-        // Create table
-        const table = $('<table class="table table-bordered menu-table"></table>');
-        
-        // Add table header
-        table.append(`
-            <thead>
-                <tr>
-                    <th>Journée du</th>
-                    <th>Coût unitaire par stagiaire</th>
-                    <th>Légumes et Fruits</th>
-                    <th>Volailles et Œufs</th>
-                    <th>Poisson Frais</th>
-                    <th>Épicerie et Produits Laitiers</th>
-                    <th>Viandes</th>
-                    <th>Coût total de la journée</th>
-                    <th>Effectif</th>
-                </tr>
-            </thead>
-        `);
-        
-        // Add table body
-        const tbody = $('<tbody></tbody>');
-        
-        // Group days by week
-        const groupedDays = groupDaysByWeek(menuData.data.days_data);
-        
-        Object.keys(groupedDays).forEach(weekKey => {
-            const days = groupedDays[weekKey];
             
-            // Add week header
-            tbody.append(`
-                <tr>
-                    <td colspan="9" class="text-center week-header">la Semaine du ${weekKey}</td>
-                </tr>
+            menuTypes.forEach(menuType => {
+                $.ajax({
+                    type: "GET",
+                    url: getMonthlyBreakdownData_url,
+                    data: {
+                        month: month,
+                        type_menu: menuType,
+                        type_commande: typeCommande
+                    },
+                    dataType: "json",
+                    success: function(response) {
+                        if (response.status == 200 && response.data.days_data.length > 0) {
+                            allData.push({
+                                menuType: menuType,
+                                data: response.data
+                            });
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        console.error("Error for " + menuType + ":", error);
+                    },
+                    complete: function() {
+                        completedRequests++;
+                        
+                        if (completedRequests === menuTypes.length) {
+                            $('#btnSearch').prop('disabled', false);
+                            $('#btnSearch').html('<i class="fa fa-search"></i> Rechercher');
+                            
+                            if (allData.length > 0) {
+                                displayAllMenusReport(allData, month);
+                                $('#ModalMonthlyReport').modal('show');
+                            } else {
+                                $('#noDataMessage').show();
+                            }
+                        }
+                    }
+                });
+            });
+        }
+        
+        // Function to fetch single menu
+        function fetchSingleMenu(month, typeMenu, typeCommande) {
+            $.ajax({
+                type: "GET",
+                url: getMonthlyBreakdownData_url,
+                data: {
+                    month: month,
+                    type_menu: typeMenu,
+                    type_commande: typeCommande
+                },
+                dataType: "json",
+                beforeSend: function() {
+                    $('#btnSearch').prop('disabled', true);
+                    $('#btnSearch').html('<i class="fa fa-spinner fa-spin"></i> Chargement...');
+                    $('#noDataMessage').hide();
+                },
+                success: function(response) {
+                    if (response.status == 200 && response.data.days_data.length > 0) {
+                        displayMonthlyReport(response.data);
+                        $('#ModalMonthlyReport').modal('show');
+                        $('#noDataMessage').hide();
+                    } else {
+                        $('#noDataMessage').show();
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error("Error:", error);
+                    new AWN().alert("Erreur lors de la récupération des données");
+                    $('#noDataMessage').hide();
+                },
+                complete: function() {
+                    $('#btnSearch').prop('disabled', false);
+                    $('#btnSearch').html('<i class="fa fa-search"></i> Rechercher');
+                }
+            });
+        }
+
+        // Function to display all menus report
+        function displayAllMenusReport(allData, month) {
+            $('#ModalMonthlyReportLabel').text('Consommation du mois - Tous menus');
+            
+            const contentDiv = $('#monthlyReportContent');
+            contentDiv.empty();
+            
+            // Define category mappings
+            const categoryMappings = {
+                'Légumes et Fruits': ['légumes', 'fruits', 'légume', 'fruit'],
+                'Volailles et Œufs': ['volaille', 'oeuf', 'œuf', 'poulet', 'poule'],
+                'Poisson Frais': ['poisson'],
+                'Épicerie et Produits Laitiers': ['épicerie', 'lait', 'laitier', 'fromage', 'yaourt'],
+                'Viandes': ['viande', 'boeuf', 'bœuf', 'agneau', 'veau']
+            };
+            
+            // Create a table for each menu type
+            allData.forEach(menuData => {
+                // Add menu type header
+                contentDiv.append(`
+                    <div class="menu-separator">
+                        <h4>${menuData.menuType == 'Menu eleves' ? 'Menu standard' : menuData.menuType}</h4>
+                    </div>
+                `);
+                
+                // Create table
+                const table = $('<table class="table table-bordered menu-table"></table>');
+                
+                // Add table header
+                table.append(`
+                    <thead>
+                        <tr>
+                            <th>Journée du</th>
+                            <th>Coût unitaire par stagiaire</th>
+                            <th>Légumes et Fruits</th>
+                            <th>Volailles et Œufs</th>
+                            <th>Poisson Frais</th>
+                            <th>Épicerie et Produits Laitiers</th>
+                            <th>Viandes</th>
+                            <th>Coût total de la journée</th>
+                            <th>Effectif</th>
+                        </tr>
+                    </thead>
+                `);
+                
+                // Add table body
+                const tbody = $('<tbody></tbody>');
+                
+                // Initialize category totals for this menu
+                const menuCategoryCosts = {};
+                for (const displayName in categoryMappings) {
+                    menuCategoryCosts[displayName] = 0;
+                }
+                
+                // Group days by week
+                const groupedDays = groupDaysByWeek(menuData.data.days_data);
+                
+                Object.keys(groupedDays).forEach(weekKey => {
+                    const days = groupedDays[weekKey];
+                    
+                    // Add week header
+                    tbody.append(`
+                        <tr>
+                            <td colspan="9" class="text-center week-header">la Semaine du ${weekKey}</td>
+                        </tr>
+                    `);
+                    
+                    // Add each day in week
+                    days.forEach(day => {
+                        const row = buildDayRow(day);
+                        tbody.append(row);
+                        
+                        // Accumulate category costs
+                        for (const displayName in categoryMappings) {
+                            const keywords = categoryMappings[displayName];
+                            for (const category of day.category_costs) {
+                                if (keywords.some(keyword => 
+                                    category.name.toLowerCase().includes(keyword.toLowerCase()) ||
+                                    displayName.toLowerCase().includes(category.name.toLowerCase())
+                                )) {
+                                    menuCategoryCosts[displayName] += parseFloat(category.total_cost);
+                                }
+                            }
+                        }
+                    });
+                });
+                
+                // Add monthly total row for this menu
+                const monthTotals = menuData.data.month_totals;
+                tbody.append(`
+                    <tr style="font-weight: bold; background-color: #e9ecef;">
+                        <td>TOTAL MENSUEL</td>
+                        <td>${formatCost(monthTotals.prix_moyen)}</td>
+                        <td>${formatCost(menuCategoryCosts['Légumes et Fruits'])}</td>
+                        <td>${formatCost(menuCategoryCosts['Volailles et Œufs'])}</td>
+                        <td>${formatCost(menuCategoryCosts['Poisson Frais'])}</td>
+                        <td>${formatCost(menuCategoryCosts['Épicerie et Produits Laitiers'])}</td>
+                        <td>${formatCost(menuCategoryCosts['Viandes'])}</td>
+                        <td>${formatCost(monthTotals.total_cost)}</td>
+                        <td>${monthTotals.total_people}</td>
+                    </tr>
+                `);
+                
+                table.append(tbody);
+                contentDiv.append(table);
+            });
+        }
+
+        function displayMonthlyReport(data) {
+            // Set report title in modal
+            $('#ModalMonthlyReportLabel').text('Consommation du mois ' + data.month);
+            
+            // Clear and rebuild the table structure
+            const contentDiv = $('#monthlyReportContent');
+            contentDiv.empty();
+            
+            // Create single table
+            const table = $('<table class="table table-bordered" id="monthlyReportTable"></table>');
+            
+            // Add table header
+            table.append(`
+                <thead>
+                    <tr>
+                        <th>Journée du</th>
+                        <th>Coût unitaire par stagiaire</th>
+                        <th>Légumes et Fruits</th>
+                        <th>Volailles et Œufs</th>
+                        <th>Poisson Frais</th>
+                        <th>Épicerie et Produits Laitiers</th>
+                        <th>Viandes</th>
+                        <th>Coût total de la journée</th>
+                        <th>Effectif</th>
+                    </tr>
+                </thead>
             `);
             
-            // Add each day in week
-            days.forEach(day => {
-                const row = buildDayRow(day);
-                tbody.append(row);
+            // Group days by week
+            const groupedDays = groupDaysByWeek(data.days_data);
+            
+            // Generate table content
+            const tbody = $('<tbody></tbody>');
+            
+            // Define category mappings for total calculation
+            const categoryMappings = {
+                'Légumes et Fruits': ['légumes', 'fruits', 'légume', 'fruit'],
+                'Volailles et Œufs': ['volaille', 'oeuf', 'œuf', 'poulet', 'poule'],
+                'Poisson Frais': ['poisson'],
+                'Épicerie et Produits Laitiers': ['épicerie', 'lait', 'laitier', 'fromage', 'yaourt'],
+                'Viandes': ['viande', 'boeuf', 'bœuf', 'agneau', 'veau']
+            };
+            
+            // Initialize month totals for categories
+            const monthCategoryCosts = {};
+            for (const displayName in categoryMappings) {
+                monthCategoryCosts[displayName] = 0;
+            }
+            
+            Object.keys(groupedDays).forEach(weekKey => {
+                const days = groupedDays[weekKey];
+                
+                // Add week header
+                tbody.append(`
+                    <tr>
+                        <td colspan="9" class="text-center week-header">la Semaine du ${weekKey}</td>
+                    </tr>
+                `);
+                
+                // Add each day in week
+                days.forEach(day => {
+                    const row = buildDayRow(day);
+                    tbody.append(row);
+                    
+                    // Accumulate category costs for monthly total
+                    for (const displayName in categoryMappings) {
+                        const keywords = categoryMappings[displayName];
+                        for (const category of day.category_costs) {
+                            if (keywords.some(keyword => 
+                                category.name.toLowerCase().includes(keyword.toLowerCase()) ||
+                                displayName.toLowerCase().includes(category.name.toLowerCase())
+                            )) {
+                                monthCategoryCosts[displayName] += parseFloat(category.total_cost);
+                            }
+                        }
+                    }
+                });
             });
-        });
-        
-        table.append(tbody);
-        contentDiv.append(table);
-    });
-}
-
-       function displayMonthlyReport(data) {
-    // Set report title in modal
-    $('#ModalMonthlyReportLabel').text('Consommation du mois ' + data.month);
-    
-    // Clear and rebuild the table structure
-    const contentDiv = $('#monthlyReportContent');
-    contentDiv.empty();
-    
-    // Create single table
-    const table = $('<table class="table table-bordered" id="monthlyReportTable"></table>');
-    
-    // Add table header
-    table.append(`
-        <thead>
-            <tr>
-                <th>Journée du</th>
-                <th>Coût unitaire par stagiaire</th>
-                <th>Légumes et Fruits</th>
-                <th>Volailles et Œufs</th>
-                <th>Poisson Frais</th>
-                <th>Épicerie et Produits Laitiers</th>
-                <th>Viandes</th>
-                <th>Coût total de la journée</th>
-                <th>Effectif</th>
-            </tr>
-        </thead>
-    `);
-    
-    // Group days by week
-    const groupedDays = groupDaysByWeek(data.days_data);
-    
-    // Generate table content
-    const tbody = $('<tbody></tbody>');
-    
-    Object.keys(groupedDays).forEach(weekKey => {
-        const days = groupedDays[weekKey];
-        
-        // Add week header
-        tbody.append(`
-            <tr>
-                <td colspan="9" class="text-center week-header">la Semaine du ${weekKey}</td>
-            </tr>
-        `);
-        
-        // Add each day in week
-        days.forEach(day => {
-            const row = buildDayRow(day);
-            tbody.append(row);
-        });
-    });
-    
-    table.append(tbody);
-    contentDiv.append(table);
-}
+            
+            // Add monthly total row
+            const monthTotals = data.month_totals;
+            const totalRow = `
+                <tr style="font-weight: bold; background-color: #e9ecef;">
+                    <td>TOTAL MENSUEL</td>
+                    <td>${formatCost(monthTotals.prix_moyen)}</td>
+                    <td>${formatCost(monthCategoryCosts['Légumes et Fruits'])}</td>
+                    <td>${formatCost(monthCategoryCosts['Volailles et Œufs'])}</td>
+                    <td>${formatCost(monthCategoryCosts['Poisson Frais'])}</td>
+                    <td>${formatCost(monthCategoryCosts['Épicerie et Produits Laitiers'])}</td>
+                    <td>${formatCost(monthCategoryCosts['Viandes'])}</td>
+                    <td>${formatCost(monthTotals.total_cost)}</td>
+                    <td>${monthTotals.total_people}</td>
+                </tr>
+            `;
+            
+            tbody.append(totalRow);
+            table.append(tbody);
+            contentDiv.append(table);
+        }
         
         // Function to group days by week
         function groupDaysByWeek(days) {
@@ -431,8 +519,8 @@ function displayAllMenusReport(allData, month) {
                 
                 // Get week boundaries (Monday to Sunday)
                 const firstDayOfWeek = new Date(dayDate);
-                const day_of_week = dayDate.getDay() || 7; // Convert Sunday (0) to 7
-                if (day_of_week !== 1) // If not Monday
+                const day_of_week = dayDate.getDay() || 7;
+                if (day_of_week !== 1)
                     firstDayOfWeek.setDate(dayDate.getDate() - (day_of_week - 1));
                 
                 const lastDayOfWeek = new Date(firstDayOfWeek);
@@ -468,7 +556,7 @@ function displayAllMenusReport(allData, month) {
             const dayNames = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
             const dayName = dayNames[dayDate.getDay()];
             
-            // Define category mappings - adjust these based on your actual category names
+            // Define category mappings
             const categoryMappings = {
                 'Légumes et Fruits': ['légumes', 'fruits', 'légume', 'fruit'],
                 'Volailles et Œufs': ['volaille', 'oeuf', 'œuf', 'poulet', 'poule'],
@@ -537,41 +625,41 @@ function displayAllMenusReport(allData, month) {
             return parseFloat(value).toFixed(2);
         }
         
-    
-$('#btnExportPDF').on('click', function(e) {
-    e.preventDefault();
-    
-    const month = $('#month').val();
-    const typeMenu = $('#type_menu').val();
-    const typeCommande = $('#type_commande').val();
-    
-    if (!month) {
-        new AWN().alert('Veuillez sélectionner un mois');
-        return;
-    }
-    
-    const form = document.createElement('form');
-    form.method = 'GET';
-    form.action = exportMonthlyBreakdownPDF_url;
-    
-    const fields = {
-        month: month,
-        type_menu: typeMenu,
-        type_commande: typeCommande
-    };
-    
-    for (const [key, value] of Object.entries(fields)) {
-        const hidden = document.createElement('input');
-        hidden.type = 'hidden';
-        hidden.name = key;
-        hidden.value = value;
-        form.appendChild(hidden);
-    }
-    
-    document.body.appendChild(form);
-    form.submit();
-    document.body.removeChild(form);
-});
+        // PDF Export functionality
+        $('#btnExportPDF').on('click', function(e) {
+            e.preventDefault();
+            
+            const month = $('#month').val();
+            const typeMenu = $('#type_menu').val();
+            const typeCommande = $('#type_commande').val();
+            
+            if (!month) {
+                new AWN().alert('Veuillez sélectionner un mois');
+                return;
+            }
+            
+            const form = document.createElement('form');
+            form.method = 'GET';
+            form.action = exportMonthlyBreakdownPDF_url;
+            
+            const fields = {
+                month: month,
+                type_menu: typeMenu,
+                type_commande: typeCommande
+            };
+            
+            for (const [key, value] of Object.entries(fields)) {
+                const hidden = document.createElement('input');
+                hidden.type = 'hidden';
+                hidden.name = key;
+                hidden.value = value;
+                form.appendChild(hidden);
+            }
+            
+            document.body.appendChild(form);
+            form.submit();
+            document.body.removeChild(form);
+        });
     });
 </script>
 

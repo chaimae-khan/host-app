@@ -17,8 +17,11 @@ $(document).ready(function () {
     // Initialize dependent dropdowns
     initializeDropdowns();
     
-    // Initialize filters
-    initializeFilters();
+    // Initialize nature toggle
+    initializeNatureToggle();
+    
+    // Initialize produit fini handlers
+    initializeProduitFiniHandlers();
 
     // DataTable Initialization
     function initializeDataTable() {
@@ -35,7 +38,7 @@ $(document).ready(function () {
                 ajax: {
                     url: pertes_url,
                     data: function(d) {
-                        // Add filter parameters
+                        // Add filter parameters if needed
                         d.filter_status = $('#filter_status').val();
                         d.filter_categorie = $('#filter_categorie').val();
                         d.filter_subcategorie = $('#filter_subcategorie').val();
@@ -59,12 +62,41 @@ $(document).ready(function () {
                     { 
                         data: 'quantite', 
                         name: 'pt.quantite',
-                        render: function(data) {
+                        render: function(data, type, row) {
+                            if (row.nature === 'produit fini' && row.nombre_plats) {
+                                return row.nombre_plats + ' plat(s)';
+                            }
                             return parseFloat(data).toFixed(2);
                         }
                     },
-                    { data: 'unite', name: 'u.name' },
+                    { 
+                        data: 'unite', 
+                        name: 'u.name',
+                        render: function(data, type, row) {
+                            if (row.nature === 'produit fini') {
+                                return '-';
+                            }
+                            return data || '-';
+                        }
+                    },
                     { data: 'nature', name: 'pt.nature' },
+                    { 
+                        data: 'produit_fini_type', 
+                        name: 'pt.produit_fini_type',
+                        render: function(data) {
+                            return data || '-';
+                        }
+                    },
+                    { 
+                        data: 'cout_total', 
+                        name: 'pt.cout_total',
+                        render: function(data, type, row) {
+                            if (row.nature === 'produit fini' && data) {
+                                return parseFloat(data).toFixed(2) + ' DH';
+                            }
+                            return '-';
+                        }
+                    },
                     { 
                         data: 'date_perte', 
                         name: 'pt.date_perte',
@@ -108,61 +140,181 @@ $(document).ready(function () {
         }
     }
 
-    // Initialize Filters
-    function initializeFilters() {
-        // Status filter change
-        $('#filter_status').on('change', function() {
-            $('.TablePertes').DataTable().ajax.reload();
-        });
-        
-        // Category filter change
-        $('#filter_categorie').on('change', function() {
-            var categoryId = $(this).val();
+    // Initialize Nature Toggle (Stock vs Produit Fini)
+    function initializeNatureToggle() {
+        $('#natureDropDown').on('change', function() {
+            let nature = $(this).val();
             
-            $('#filter_subcategorie').empty().append('<option value="">Toutes les familles</option>');
-            
-            if (categoryId) {
-                loadFilterSubcategories(categoryId);
+            if (nature === 'stock') {
+                // Show stock section, hide produit fini section
+                $('#stockSection').show();
+                $('#produitFiniSection').hide();
+                $('#compositionSection').hide();
+                
+                // Make stock fields required
+                $('#id_product_perte').prop('required', true);
+                $('#quantite_stock').prop('required', true);
+                
+                // Make produit fini fields not required
+                $('#produit_fini_type').prop('required', false);
+                $('#id_plat').prop('required', false);
+                $('#nombre_plats').prop('required', false);
+                
+                // Clear produit fini fields
+                $('#produit_fini_type').val('');
+                $('#id_plat').empty().append('<option value="">Sélectionner un plat</option>');
+                $('#nombre_plats').val('1');
+                
+            } else if (nature === 'produit fini') {
+                // Show produit fini section, hide stock section
+                $('#stockSection').hide();
+                $('#produitFiniSection').show();
+                
+                // Make produit fini fields required
+                $('#produit_fini_type').prop('required', true);
+                $('#id_plat').prop('required', true);
+                $('#nombre_plats').prop('required', true);
+                
+                // Make stock fields not required
+                $('#id_product_perte').prop('required', false);
+                $('#quantite_stock').prop('required', false);
+                
+                // Clear stock fields
+                $('#id_product_perte').val('');
+                $('#unite_display_perte').val('');
+                $('#quantite_stock').val('');
+                
+            } else {
+                // No nature selected - hide both
+                $('#stockSection').show(); // Keep stock as default
+                $('#produitFiniSection').hide();
+                $('#compositionSection').hide();
             }
-            
-            $('.TablePertes').DataTable().ajax.reload();
-        });
-        
-        // Subcategory filter change
-        $('#filter_subcategorie').on('change', function() {
-            $('.TablePertes').DataTable().ajax.reload();
-        });
-        
-        // Reset filters button
-        $('#btn_reset_filter').on('click', function() {
-            $('#filter_status').val('');
-            $('#filter_categorie').val('');
-            $('#filter_subcategorie').empty().append('<option value="">Toutes les familles</option>');
-            
-            // Reload table
-            $('.TablePertes').DataTable().ajax.reload();
         });
     }
 
-    // Load subcategories for filter
-    function loadFilterSubcategories(categoryId) {
-        var subcategorySelect = $('#filter_subcategorie');
+    // Initialize Produit Fini Handlers
+    function initializeProduitFiniHandlers() {
+        // When produit fini type changes, load plats
+        $('#produit_fini_type').on('change', function() {
+            let type = $(this).val();
+            
+            // Clear plat dropdown
+            $('#id_plat').empty().append('<option value="">Sélectionner un plat</option>');
+            $('#compositionSection').hide();
+            $('#composition_body').html('<tr><td colspan="5" class="text-center text-muted"><i class="fa-solid fa-hourglass-half"></i> Sélectionnez un plat pour voir sa composition</td></tr>');
+            
+            if (!type) {
+                return;
+            }
+            
+            // Map type to plat type
+            let platType = type;
+            if (type === 'Suite') {
+                platType = 'Plat Principal';
+            }
+            
+            // Load plats by type
+            let url = getPlatsByType_url.replace(':type', encodeURIComponent(platType));
+            
+            $.ajax({
+                url: url,
+                type: 'GET',
+                dataType: 'json',
+                success: function(response) {
+                    if (response.status === 200 && response.plats.length > 0) {
+                        $.each(response.plats, function(key, plat) {
+                            $('#id_plat').append(
+                                `<option value="${plat.id}">${plat.name}</option>`
+                            );
+                        });
+                    } else {
+                        new AWN().info("Aucun plat trouvé pour ce type", { durations: { info: 3000 } });
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error("Erreur de chargement des plats:", error);
+                    new AWN().alert("Impossible de charger les plats", { durations: { alert: 5000 } });
+                }
+            });
+        });
+        
+        // When plat changes, load composition
+        $('#id_plat').on('change', function() {
+            let platId = $(this).val();
+            
+            if (!platId) {
+                $('#compositionSection').hide();
+                $('#composition_body').html('<tr><td colspan="5" class="text-center text-muted"><i class="fa-solid fa-hourglass-half"></i> Sélectionnez un plat pour voir sa composition</td></tr>');
+                return;
+            }
+            
+            loadPlatComposition(platId);
+        });
+        
+        // When nombre_plats changes, recalculate total
+        $('#nombre_plats').on('input', function() {
+            let nombrePlats = parseInt($(this).val()) || 1;
+            let coutUnitaire = parseFloat($('#cout_unitaire').text()) || 0;
+            let coutTotal = nombrePlats * coutUnitaire;
+            
+            $('#display_nombre_plats').text(nombrePlats);
+            $('#cout_total').text(coutTotal.toFixed(2));
+        });
+    }
+
+    // Load Plat Composition
+    function loadPlatComposition(platId) {
+        let url = getPlatComposition_url.replace(':id', platId);
         
         $.ajax({
-            url: getSubcategories_url + "/" + categoryId,
+            url: url,
             type: 'GET',
             dataType: 'json',
             success: function(response) {
-                if (response.status === 200 && response.subcategories.length > 0) {
-                    $.each(response.subcategories, function(key, subcategory) {
-                        subcategorySelect.append(
-                            `<option value="${subcategory.id}">${subcategory.name}</option>`
-                        );
-                    });
+                if (response.status === 200) {
+                    // Show composition section
+                    $('#compositionSection').show();
+                    
+                    // Set plat name
+                    $('#selected_plat_name').text(response.plat.name);
+                    
+                    // Clear and populate composition table
+                    $('#composition_body').empty();
+                    
+                    if (response.composition && response.composition.length > 0) {
+                        $.each(response.composition, function(key, item) {
+                            let row = `
+                                <tr>
+                                    <td>${item.name}</td>
+                                    <td>${parseFloat(item.quantite_requise).toFixed(2)}</td>
+                                    <td>${item.unite}</td>
+                                    <td>${parseFloat(item.price_achat).toFixed(2)} DH</td>
+                                    <td><strong>${parseFloat(item.cout_unitaire).toFixed(2)} DH</strong></td>
+                                </tr>
+                            `;
+                            $('#composition_body').append(row);
+                        });
+                    } else {
+                        $('#composition_body').html('<tr><td colspan="5" class="text-center text-muted">Aucune composition trouvée</td></tr>');
+                    }
+                    
+                    // Set cost values
+                    let coutUnitaire = parseFloat(response.cout_total_unitaire);
+                    let nombrePlats = parseInt($('#nombre_plats').val()) || 1;
+                    let coutTotal = coutUnitaire * nombrePlats;
+                    
+                    $('#cout_unitaire').text(coutUnitaire.toFixed(2));
+                    $('#display_nombre_plats').text(nombrePlats);
+                    $('#cout_total').text(coutTotal.toFixed(2));
+                    
+                } else {
+                    new AWN().alert(response.message || "Erreur lors du chargement de la composition", { durations: { alert: 5000 } });
                 }
             },
             error: function(xhr, status, error) {
-                console.error("Erreur de chargement des sous-catégories pour le filtre:", error);
+                console.error("Erreur de chargement de la composition:", error);
+                new AWN().alert("Impossible de charger la composition du plat", { durations: { alert: 5000 } });
             }
         });
     }
@@ -334,8 +486,7 @@ $(document).ready(function () {
                     new AWN().success(response.message, {durations: {success: 5000}});
                     $('#ModalAddPerte').modal('hide');
                     $('.TablePertes').DataTable().ajax.reload();
-                    $('#FormAddPerte')[0].reset();
-                    $('#unite_display_perte').val('');
+                    resetPerteForm();
                 } else if(response.status == 400) {
                     $('.validationAddPerte').html("");
                     $('.validationAddPerte').addClass('alert alert-danger');
@@ -373,76 +524,24 @@ $(document).ready(function () {
         });
     });
 
-    // View Perte Details Handler
-    // $('.TablePertes tbody').on('click', '.viewPerte', function(e) {
-    //     e.preventDefault();
-    //     var perteId = $(this).attr('data-id');
-        
-    //     $.ajax({
-    //         type: "GET",
-    //         url: viewPerte_url + "/" + perteId,
-    //         dataType: "json",
-    //         success: function(response) {
-    //             console.log("Perte data:", response);
-                
-    //             // Populate modal with perte details
-    //             $('#view_classe').text(response.classe || '-');
-    //             $('#view_category').text(response.category ? response.category.name : '-');
-    //             $('#view_subcategory').text(response.subcategory ? response.subcategory.name : '-');
-    //             $('#view_designation').text(response.designation || '-');
-    //             $('#view_quantite').text(response.quantite || '0');
-    //             $('#view_unite').text(response.unite ? response.unite.name : '-');
-    //             $('#view_nature').text(response.nature || '-');
-                
-    //             // Format date
-    //             if (response.date_perte) {
-    //                 const date = new Date(response.date_perte);
-    //                 $('#view_date_perte').text(date.toLocaleDateString('fr-FR'));
-    //             } else {
-    //                 $('#view_date_perte').text('-');
-    //             }
-                
-    //             // Status badge
-    //             const statusBadges = {
-    //                 'En attente': '<span class="badge bg-warning text-dark"><i class="fa-solid fa-clock"></i> En attente</span>',
-    //                 'Validé': '<span class="badge bg-success"><i class="fa-solid fa-check"></i> Validé</span>',
-    //                 'Refusé': '<span class="badge bg-danger"><i class="fa-solid fa-times"></i> Refusé</span>'
-    //             };
-    //             $('#view_status').html(statusBadges[response.status] || response.status);
-                
-    //             $('#view_cause').text(response.cause || '-');
-                
-    //             // Show/hide refusal reason
-    //             if (response.status === 'Refusé' && response.refusal_reason) {
-    //                 $('#view_refusal_reason').text(response.refusal_reason);
-    //                 $('#view_refusal_reason_row').show();
-    //             } else {
-    //                 $('#view_refusal_reason_row').hide();
-    //             }
-                
-    //             $('#view_user').text(response.user ? (response.user.prenom + ' ' + response.user.nom) : '-');
-                
-    //             // Format created_at
-    //             if (response.created_at) {
-    //                 const createdDate = new Date(response.created_at);
-    //                 $('#view_created_at').text(createdDate.toLocaleDateString('fr-FR') + ' ' + createdDate.toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'}));
-    //             } else {
-    //                 $('#view_created_at').text('-');
-    //             }
-                
-    //             $('#ModalViewPerte').modal('show');
-    //         },
-    //         error: function(xhr, status, error) {
-    //             console.error("Error fetching perte details:", error);
-                
-    //             if (xhr.status === 403) {
-    //                 new AWN().alert("Vous n'avez pas la permission de voir cette perte", { durations: { alert: 5000 } });
-    //             } else {
-    //                 new AWN().alert("Erreur lors du chargement des détails", { durations: { alert: 5000 } });
-    //             }
-    //         }
-    //     });
-    // });
+    // Reset form function
+    function resetPerteForm() {
+        $('#FormAddPerte')[0].reset();
+        $('#unite_display_perte').val('');
+        $('#stockSection').show();
+        $('#produitFiniSection').hide();
+        $('#compositionSection').hide();
+        $('#composition_body').html('<tr><td colspan="5" class="text-center text-muted"><i class="fa-solid fa-hourglass-half"></i> Sélectionnez un plat pour voir sa composition</td></tr>');
+        $('#cout_unitaire').text('0.00');
+        $('#display_nombre_plats').text('1');
+        $('#cout_total').text('0.00');
+        $('.validationAddPerte').html("").removeClass('alert alert-danger');
+    }
+
+    // Reset form when modal is closed
+    $('#ModalAddPerte').on('hidden.bs.modal', function() {
+        resetPerteForm();
+    });
 
     // Edit Perte Status Handler - Show Modal
     $('.TablePertes tbody').on('click', '.edit-perte-btn', function(e) {

@@ -164,54 +164,7 @@ $Plat_Principal = DB::table('plats')
 
 
 
-//   public function getProduct(Request $request)
-// {
-//     try {
-//         $name_product = $request->product;
-       
-    
-//         if ($request->ajax()) {
-//             $query = DB::table('products as p')
-//                 ->join('stock as s', 'p.id', '=', 's.id_product')
-//                 ->join('locals as l', 'p.id_local', '=', 'l.id')
-//                 ->leftJoin('categories as c', 'p.id_categorie', '=', 'c.id')
-//                 ->leftJoin('sub_categories as sc', 'p.id_subcategorie', '=', 'sc.id')
-//                 ->where('p.name', 'like', '%' . $name_product . '%')
-//                 ->whereNull('p.deleted_at');
-            
-//             // Apply class filter if provided
-//             if ($request->filled('filter_class')) {
-//                 $query->where('c.classe', $request->filter_class);
-//             }
 
-//             // Apply category filter if provided
-//             if ($request->filled('filter_categorie')) {
-//                 $query->where('p.id_categorie', $request->filter_categorie);
-//             }
-
-//             // Apply subcategory filter if provided
-//             if ($request->filled('filter_subcategorie')) {
-//                 $query->where('p.id_subcategorie', $request->filter_subcategorie);
-//             }
-            
-//             $Data_Product = $query->select('p.name', 's.quantite', 'p.seuil', 'p.price_achat', 'l.name as name_local', 'p.id')
-//                 ->get();
-                
-//             return response()->json([
-//                 'status' => 200,
-//                 'data'   => $Data_Product
-//             ]);
-//         }
-//     } catch (\Exception $e) {
-//         \Log::error('Error in getProduct: ' . $e->getMessage());
-        
-//         return response()->json([
-//             'status' => 500,
-//             'message' => 'Une erreur est survenue lors de la recherche de produits',
-//             'error' => $e->getMessage()
-//         ], 500);
-//     }
-// }
 
 public function PostInTmpVente(Request $request)
 {
@@ -853,7 +806,7 @@ public function ShowBonVente($id)
     return view('vente.list', compact('bonVente', 'Formateur', 'Data_Vente', 'transferDetails', 'returnDetails', 'statusHistory'));
 }
 
-    public function FactureVente($id)
+public function FactureVente($id)
 {
     if (!auth()->user()->can('Commande')) {
         abort(403, 'Vous n\'avez pas la permission de voir cette facture');
