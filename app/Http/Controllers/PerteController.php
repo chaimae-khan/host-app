@@ -185,6 +185,9 @@ public function store(Request $request)
     }
 
     $rules = [
+        'classe' => 'required|string|max:255',
+        'id_category' => 'required|exists:categories,id',
+        'id_subcategorie' => 'required|exists:sub_categories,id',
         'nature' => 'required|string|in:stock,produit fini',
         'date_perte' => 'required|date',
         'cause' => 'required|string',
@@ -192,9 +195,6 @@ public function store(Request $request)
     
     // Different validation based on nature
     if ($request->nature === 'stock') {
-        $rules['classe'] = 'required|string|max:255';
-        $rules['id_category'] = 'required|exists:categories,id';
-        $rules['id_subcategorie'] = 'required|exists:sub_categories,id';
         $rules['id_product'] = 'required|exists:products,id';
         $rules['quantite'] = 'required|numeric|min:0.01';
     } else if ($request->nature === 'produit fini') {
@@ -223,6 +223,9 @@ public function store(Request $request)
         DB::beginTransaction();
         
         $perteData = [
+            'id_category' => $request->id_category,
+            'id_subcategorie' => $request->id_subcategorie,
+            'classe' => $request->classe,
             'nature' => $request->nature,
             'date_perte' => $request->date_perte,
             'cause' => $request->cause,
@@ -241,9 +244,6 @@ public function store(Request $request)
                 ], 404);
             }
             
-            $perteData['classe'] = $request->classe;
-            $perteData['id_category'] = $request->id_category;
-            $perteData['id_subcategorie'] = $request->id_subcategorie;
             $perteData['id_product'] = $product->id;
             $perteData['id_unite'] = $product->id_unite;
             $perteData['designation'] = $product->name;
@@ -275,10 +275,6 @@ public function store(Request $request)
             $coutUnitaire = $composition->cout_unitaire ?? 0;
             $coutTotal = $coutUnitaire * $request->nombre_plats;
             
-            // Set NULL values for fields not needed for "produit fini"
-            $perteData['classe'] = null;
-            $perteData['id_category'] = null;
-            $perteData['id_subcategorie'] = null;
             $perteData['id_product'] = null;
             $perteData['id_plat'] = $plat->id;
             $perteData['id_unite'] = null;
