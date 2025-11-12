@@ -270,10 +270,17 @@ document.addEventListener('DOMContentLoaded', function () {
                         <div class="col-md-6">
                             <div class="form-group">
                                 <label>Désignation</label>
-                                {{-- <input type="text" name="name" class="form-control" required> --}}
+                                <span class="text-danger text-end float-end" >
+                                    <a href="#" id="AddProduitbyinput" >Ajoute produit</a>
+                                </span>
+                                <input type="text" name="name" class="form-control nameprovesoire"  required style="display: none">
                                 <select name="name" id="name" class="form-select" required>
 
                                 </select>
+                               {{--  <input type="text" name="product" list="name" class="form-control">
+                                <datalist id="name">
+
+                                </datalist> --}}
                             </div>
                         </div>
                         <div class="col-md-6">
@@ -1248,5 +1255,25 @@ $('#product_selector').on('change',function(e)
         }
     });
 });
+
+$('#AddProduitbyinput').on('click', function(e) {
+    e.preventDefault();
+
+    
+    let currentText = $(this).text();
+
+    if (currentText === 'Ajoute produit') {
+        
+        $(this).text('Sélectionner produit');
+        $('#name').css('display', 'none');
+        $('.nameprovesoire').css('display', 'block');
+    } else {
+        
+        $(this).text('Ajoute produit');
+        $('#name').css('display', 'block');
+        $('.nameprovesoire').css('display', 'none');
+    }
+});
+
 </script>
 @endsection

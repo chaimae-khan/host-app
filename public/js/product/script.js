@@ -892,7 +892,17 @@ $('#BtnAddProduct').on('click', function(e) {
     let productSelect = $('#name');
     let productValue = productSelect.val();               // e.g., "2"
     let productText  = productSelect.find('option:selected').text();
-    formData.append('name', productText);
+    let typeproductname = $('#AddProduitbyinput').text();
+    if(typeproductname == 'Ajoute produit')
+    {
+        formData.append('name', productText);
+    }
+    else
+    {
+        let nameprovesoire = $('.nameprovesoire').val();
+        formData.append('name',nameprovesoire);
+    }
+    
     $('#BtnAddProduct').prop('disabled', true).text('Enregistrement...');
     
     $.ajax({
