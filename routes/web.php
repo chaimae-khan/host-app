@@ -258,6 +258,7 @@ Route::get('/stock/subcategories/{categoryId}', [StockController::class, 'getSub
     Route::get('users/{id}', [UserController::class, 'getUser'])->name('users.getUser');
     Route::post('updateRole', [RoleController::class, 'update']);
     Route::post('DeleteRole', [RoleController::class, 'destroy']);
+    Route::get('exportUsers', [UserController::class, 'export'])->name('users.export');
     
    
 

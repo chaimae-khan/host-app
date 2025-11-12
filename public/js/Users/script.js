@@ -30,6 +30,7 @@ $(document).ready(function () {
                     { data: 'email', name: 'email' },
                     { data: 'telephone', name: 'telephone' },
                     { data: 'fonction', name: 'fonction' },
+                     { data: 'service', name: 'service' },
                     { data: 'roles', name: 'roles', searchable: false },
                     { data: 'created_at', name: 'created_at' },
                     { data: 'action', name: 'action', orderable: false, searchable: false }
@@ -112,6 +113,7 @@ $(document).ready(function () {
                         $('#email').val(userData.email || '');
                         $('#telephone').val(userData.telephone || '');
                         $('#fonction').val(userData.fonction || '');
+                        $('#service').val(userData.service || '');
                         
                         // Handle roles - check format and populate select
                         if (userData.roles) {
@@ -309,6 +311,7 @@ $('#BtnADDUser').on('click', function(e) {
             email: $('#email').val(),
             telephone: $('#telephone').val(),
             fonction: $('#fonction').val(),
+            service: $('#service').val(), 
             roles: $('#roles').val()
         });
         

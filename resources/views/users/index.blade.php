@@ -43,6 +43,7 @@
                                 <button class="btn btn-success" style="margin-right: 5px" data-bs-toggle="modal" data-bs-target="#ModalImportUsers">
                                     <i class="fa-solid fa-file-import"></i> Importer des utilisateurs
                                 </button>
+                                
                             @endcan
                         </div>
                             <div class="table-responsive">
@@ -51,19 +52,20 @@
                                     <div class="datatable-container" style="height: 665.531px;">
                                         <table class="table datatable datatable-table TableUsers" >
                                         <thead>
-    <tr>
-        <th data-sortable="true">Matricule</th>
-        <th data-sortable="true">Prénom</th>
-        <th data-sortable="true">Nom</th>
-        <th data-sortable="true">Email</th>
-        <th data-sortable="true">Téléphone</th>
-        <th data-sortable="true">Fonction</th>
-        <th data-sortable="true">Rôles</th>
-        <th data-sortable="true">Créé le</th>
-        <th data-sortable="true">Action</th>
-    </tr>
-</thead>
-                                                <tbody>
+                                                    <tr>
+                                                        <th data-sortable="true">Matricule</th>
+                                                        <th data-sortable="true">Prénom</th>
+                                                        <th data-sortable="true">Nom</th>
+                                                        <th data-sortable="true">Email</th>
+                                                        <th data-sortable="true">Téléphone</th>
+                                                        <th data-sortable="true">Fonction</th>
+                                                        <th data-sortable="true">Service</th>
+                                                        <th data-sortable="true">Rôles</th>
+                                                        <th data-sortable="true">Créé le</th>
+                                                        <th data-sortable="true">Action</th>
+                                                    </tr>
+                                                </thead>
+                                            <tbody>
                                                    
                                                 </tbody>
                                             </table>
@@ -184,6 +186,15 @@
                                     <label>Fonction</label>
                                     <input type="text" name="fonction" class="form-control @error('fonction') is-invalid @enderror" value="{{ old('fonction') }}">
                                     @error('fonction')
+                                        <span class="text-danger">{{ $message }}</span>
+                                    @enderror
+                                </div>
+                            </div>
+                            <div class="col-md-6">  
+                                <div class="form-group">
+                                    <label>Service</label>
+                                    <input type="text" name="service" class="form-control @error('service') is-invalid @enderror" value="{{ old('service') }}">
+                                    @error('service')
                                         <span class="text-danger">{{ $message }}</span>
                                     @enderror
                                 </div>
@@ -323,7 +334,12 @@
                                 </div>
                             </div>
                         </div>
-                
+                            <div class="col-md-6">  <!-- ← ADD THIS ENTIRE BLOCK -->
+                                <div class="form-group">
+                                    <label>Service</label>
+                                    <input type="text" id="service" name="service" class="form-control">
+                                </div>
+                            </div>
                         <!-- Mot de passe & Confirmation du mot de passe -->
                         <div class="row">
                             <div class="col-md-6">
@@ -406,6 +422,7 @@
         </div>
     </div>
 </div>
+
         
 </div>
 

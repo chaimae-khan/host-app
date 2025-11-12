@@ -36,12 +36,13 @@ class UserController extends Controller
                     'users.email',
                     'users.telephone',
                     'users.fonction',
+                    'users.service',
                     'users.password',
                     'users.created_at',
                     DB::raw("GROUP_CONCAT(roles.name SEPARATOR ', ') as roles"),
                     DB::raw("CONCAT(users.prenom, ' ', users.nom) as name") // Virtual attribute for display
                 )
-                ->groupBy('users.id', 'users.matricule', 'users.nom', 'users.prenom', 'users.email', 'users.telephone', 'users.fonction', 'users.password', 'users.created_at')
+                ->groupBy('users.id', 'users.matricule', 'users.nom', 'users.prenom', 'users.email', 'users.telephone', 'users.fonction', 'users.service','users.password', 'users.created_at')
                 ->orderBy('users.id', 'desc');
     
             return DataTables::of($dataUser)
@@ -102,8 +103,9 @@ class UserController extends Controller
         'password' => 'required|min:6',
         'telephone' => 'nullable|numeric',
         'fonction' => 'nullable',
+        'service' => 'nullable',
         'roles' => 'required',
-        'image' => 'required', // ensure signature exists
+        'image' => 'required', 
     ], [
         'required' => 'Le champ :attribute est requis.',
         'email.email' => 'Le champ mail doit être une adresse valide.',
@@ -119,6 +121,7 @@ class UserController extends Controller
         'password' => 'mot de passe',
         'telephone' => 'téléphone',
         'fonction' => 'fonction',
+        'service' => 'service',
         'image' => 'signature',
     ]);
 
@@ -236,6 +239,7 @@ public function getUser($id)
             'email' => $user->email,
             'telephone' => $user->telephone,
             'fonction' => $user->fonction,
+            'service' => $user->service,
             'roles' => $user->roles->pluck('name')->toArray()
         ];
         
@@ -283,6 +287,7 @@ public function getUser($id)
             'password' => 'nullable|min:6',
             'telephone' => 'nullable|numeric',
             'fonction' => 'nullable',
+            'service' => 'nullable',
         ], [
             'required' => 'Le champ :attribute est requis.',
             'email.email' => 'Le champ mail doit être une adresse valide.',
@@ -298,6 +303,7 @@ public function getUser($id)
             'password' => 'mot de passe',
             'telephone' => 'téléphone',
             'fonction' => 'fonction',
+            'service' => 'service', 
         ]);
 
         if ($validator->fails()) {
@@ -316,6 +322,7 @@ public function getUser($id)
                 'email' => $request->email,
                 'telephone' => $request->telephone,
                 'fonction' => $request->fonction,
+                'service' => $request->service,
                 'password' => $request->filled('password') ? Hash::make($request->password) : $user->password,
             ]);
 
@@ -433,6 +440,7 @@ public function getUser($id)
             $emailIndex = array_search('email', array_map('strtolower', $headers));
             $telephoneIndex = array_search('telephone', array_map('strtolower', $headers));
             $fonctionIndex = array_search('fonction', array_map('strtolower', $headers));
+            $serviceIndex = array_search('service', array_map('strtolower', $headers));
             $roleIndex = array_search('role', array_map('strtolower', $headers));
             
             $debug['headers'] = $headers;
@@ -443,6 +451,8 @@ public function getUser($id)
                 'email' => $emailIndex,
                 'telephone' => $telephoneIndex,
                 'fonction' => $fonctionIndex,
+                'service' => $serviceIndex,
+
                 'role' => $roleIndex
             ];
             
@@ -472,6 +482,8 @@ public function getUser($id)
                 $matricule = ($matriculeIndex !== false && isset($row[$matriculeIndex])) ? trim($row[$matriculeIndex]) : null;
                 $telephone = ($telephoneIndex !== false && isset($row[$telephoneIndex])) ? trim($row[$telephoneIndex]) : null;
                 $fonction = ($fonctionIndex !== false && isset($row[$fonctionIndex])) ? trim($row[$fonctionIndex]) : null;
+                $service = ($serviceIndex !== false && isset($row[$serviceIndex])) ? trim($row[$serviceIndex]) : null;  
+
                 
                 // Skip rows with missing required data
                 if (empty($nom) || empty($prenom) || empty($email) || empty($role)) {
@@ -545,6 +557,7 @@ public function getUser($id)
                     'email' => $email,
                     'telephone' => $telephone,
                     'fonction' => $fonction,
+                    'service' => $service, 
                     'role' => $role
                 ];
             }
@@ -561,6 +574,7 @@ public function getUser($id)
                     'email' => $item['email'],
                     'telephone' => $item['telephone'],
                     'fonction' => $item['fonction'],
+                    'service' => $item['service'],
                     'password' => Hash::make($password)
                 ]);
                 
@@ -620,4 +634,190 @@ public function getUser($id)
         // Combine to create password
         return $firstPart . '@' . $year;
     }
+    /**
+ * Export users to Excel file
+ */
+public function export()
+{
+    try {
+        // Check if user has permission to export users
+        if (!auth()->user()->can('utilisateur-voir')) {
+            return response()->json([
+                'status' => 403,
+                'message' => 'Vous n\'avez pas la permission d\'exporter des utilisateurs'
+            ], 403);
+        }
+
+        // Get all users with their roles
+        $users = DB::table('users')
+            ->leftJoin('model_has_roles', 'users.id', '=', 'model_has_roles.model_id')
+            ->leftJoin('roles', 'model_has_roles.role_id', '=', 'roles.id')
+            ->whereNull('users.deleted_at')
+            ->select(
+                'users.matricule',
+                'users.nom',
+                'users.prenom',
+                'users.email',
+                'users.telephone',
+                'users.fonction',
+                'users.service',
+                'users.created_at',
+                DB::raw("GROUP_CONCAT(roles.name SEPARATOR ', ') as roles")
+            )
+            ->groupBy(
+                'users.id',
+                'users.matricule',
+                'users.nom',
+                'users.prenom',
+                'users.email',
+                'users.telephone',
+                'users.fonction',
+                'users.service',
+                'users.created_at'
+            )
+            ->orderBy('users.id', 'desc')
+            ->get();
+
+        // Create new Spreadsheet object
+        $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+
+        // Set document properties
+        $spreadsheet->getProperties()
+            ->setCreator("Your Application Name")
+            ->setTitle("Liste des Utilisateurs")
+            ->setSubject("Export des utilisateurs")
+            ->setDescription("Liste complète des utilisateurs du système");
+
+        // Set header row style
+        $headerStyle = [
+            'font' => [
+                'bold' => true,
+                'color' => ['rgb' => 'FFFFFF'],
+                'size' => 12,
+            ],
+            'fill' => [
+                'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+                'startColor' => ['rgb' => '4472C4'],
+            ],
+            'alignment' => [
+                'horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER,
+                'vertical' => \PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER,
+            ],
+            'borders' => [
+                'allBorders' => [
+                    'borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN,
+                    'color' => ['rgb' => '000000'],
+                ],
+            ],
+        ];
+
+        // Set headers
+        $headers = ['Matricule', 'Nom', 'Prénom', 'Email', 'Téléphone', 'Fonction', 'Service', 'Rôle', 'Date de Création'];
+        $columnLetters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'];
+        
+        foreach ($columnLetters as $index => $letter) {
+            $sheet->setCellValue($letter . '1', $headers[$index]);
+            $sheet->getStyle($letter . '1')->applyFromArray($headerStyle);
+            
+            // Set column width
+            if ($letter == 'D') { // Email column
+                $sheet->getColumnDimension($letter)->setWidth(30);
+            } elseif ($letter == 'B' || $letter == 'C') { // Nom, Prénom
+                $sheet->getColumnDimension($letter)->setWidth(20);
+            } elseif ($letter == 'F' || $letter == 'G') { // Fonction, Service
+                $sheet->getColumnDimension($letter)->setWidth(25);
+            } elseif ($letter == 'I') { // Date
+                $sheet->getColumnDimension($letter)->setWidth(18);
+            } else {
+                $sheet->getColumnDimension($letter)->setWidth(15);
+            }
+        }
+
+        // Set row height for header
+        $sheet->getRowDimension(1)->setRowHeight(25);
+
+        // Data row style
+        $dataStyle = [
+            'borders' => [
+                'allBorders' => [
+                    'borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN,
+                    'color' => ['rgb' => 'CCCCCC'],
+                ],
+            ],
+            'alignment' => [
+                'vertical' => \PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER,
+            ],
+        ];
+
+        // Alternate row color style
+        $alternateRowStyle = [
+            'fill' => [
+                'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+                'startColor' => ['rgb' => 'F2F2F2'],
+            ],
+        ];
+
+        // Fill data
+        $row = 2;
+        foreach ($users as $user) {
+            $sheet->setCellValue('A' . $row, $user->matricule ?? 'N/A');
+            $sheet->setCellValue('B' . $row, $user->nom);
+            $sheet->setCellValue('C' . $row, $user->prenom);
+            $sheet->setCellValue('D' . $row, $user->email);
+            $sheet->setCellValue('E' . $row, $user->telephone ?? 'N/A');
+            $sheet->setCellValue('F' . $row, $user->fonction ?? 'N/A');
+            $sheet->setCellValue('G' . $row, $user->service ?? 'N/A');
+            $sheet->setCellValue('H' . $row, $user->roles ?? 'Aucun');
+            $sheet->setCellValue('I' . $row, \Carbon\Carbon::parse($user->created_at)->format('d/m/Y H:i'));
+
+            // Apply data style
+            $sheet->getStyle('A' . $row . ':I' . $row)->applyFromArray($dataStyle);
+            
+            // Apply alternate row color
+            if ($row % 2 == 0) {
+                $sheet->getStyle('A' . $row . ':I' . $row)->applyFromArray($alternateRowStyle);
+            }
+            
+            $row++;
+        }
+
+        // Auto-filter
+        $sheet->setAutoFilter('A1:I1');
+
+        // Freeze first row
+        $sheet->freezePane('A2');
+
+        // Create filename with timestamp
+        $fileName = 'utilisateurs_' . date('Y-m-d_His') . '.xlsx';
+        
+        // Set headers for download
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header('Content-Disposition: attachment;filename="' . $fileName . '"');
+        header('Cache-Control: max-age=0');
+        
+        // Create Excel file
+        $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+        
+        // Output to browser
+        $writer->save('php://output');
+        
+        // Clean up
+        $spreadsheet->disconnectWorksheets();
+        unset($spreadsheet);
+        
+        exit;
+        
+    } catch (\Exception $e) {
+        Log::error("Error exporting users: " . $e->getMessage(), [
+            'file' => $e->getFile(),
+            'line' => $e->getLine()
+        ]);
+        
+        return response()->json([
+            'status' => 500,
+            'message' => 'Une erreur est survenue lors de l\'exportation: ' . $e->getMessage()
+        ], 500);
+    }
+}
 }
