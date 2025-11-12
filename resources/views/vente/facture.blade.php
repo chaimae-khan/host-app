@@ -165,7 +165,7 @@
                   
                     
                     @if($bonVente->type_commande === 'Alimentaire')
-                        <div><strong>Objet de prestation :</strong> {{ $objetPrestation }}</div>
+                        <div><strong>Objet de prestation :</strong> {{ $objetPrestation == 'Menu eleves' ? 'Menu standard' : $objetPrestation }}</div>
                         <div><strong>Nature de prestation :</strong> {{ $naturePrestation }}</div>
                     @endif
                   

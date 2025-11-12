@@ -168,7 +168,7 @@ Route::get('/consumption/export-monthly-breakdown-pdf', [ConsumptionController::
     Route::post('ChangeStatusVente', [VenteController::class, 'ChangeStatusVente']);
     Route::get('/GetTotalTmpByFormateurAndUser', [VenteController::class, 'GetTotalTmpByFormateurAndUser']);
     Route::post('cleanTmpVente', [VenteController::class, 'cleanTmpVente'])->name('cleanTmpVente');
-
+    Route::post('annulerCommande',[VenteController::class,'annulerCommande']);
     //profile 
     Route::get('/mon-compte', [CompteController::class, 'index'])->name('compte.index');
     Route::post('/updateProfile', [CompteController::class, 'update'])->name('compte.update');
@@ -306,6 +306,7 @@ Route::get('/getProductsBySubcategory/{id}', [PerteController::class, 'getProduc
 Route::get('/viewPerte/{id}', [PerteController::class, 'edit'])->name('pertes.view');
 Route::post('/changeStatusPerte', [PerteController::class, 'changeStatus'])->name('pertes.changeStatus');
 Route::post('/deletePerte', [PerteController::class, 'destroy'])->name('pertes.delete');
+
 // In web.php or routes file
 Route::get('/pertes/plats-by-type/{type}', [PerteController::class, 'getPlatsByType'])->name('pertes.plats.by.type');
 Route::get('/pertes/plat-composition/{id}', [PerteController::class, 'getPlatComposition'])->name('pertes.plat.composition');

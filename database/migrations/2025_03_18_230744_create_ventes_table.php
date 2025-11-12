@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('ventes', function (Blueprint $table) {
             $table->id();
             $table->decimal('total', 10, 2);
-            $table->enum('status', ['Création', 'Validation', 'Refus', 'Livraison', 'Réception', 'Visé'])->default('Création');
+            $table->enum('status', ['Création', 'Validation', 'Refus', 'Livraison', 'Réception', 'Visé','Annuler'])->default('Création');
             $table->enum('type_commande', ['Alimentaire', 'Non Alimentaire', 'Fournitures et matériels'])->default('Alimentaire'); 
             $table->enum('type_menu', ['Menu eleves', 'Menu specials', 'Menu d\'\'application'])->nullable(); 
             $table->foreignId('id_client')->nullable()->references('id')->on('clients')->onDelete('cascade');

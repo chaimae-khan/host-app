@@ -75,6 +75,15 @@ public function index(Request $request)
 
                 $isFormateur = ($row->id_formateur == auth()->id());
 
+                if($row->status == 'Annuler' )
+                {
+                    $btn .= '<a href="#" class="btn btn-sm bg-primary-subtle me-1"
+                                data-id="' . $row->id . '">
+                                <i class="fa-solid fa-pen-to-square text-primary"></i>
+                            </a>';
+                    return $btn;      
+                }
+
                 // 🔹 If status is Refus and user is not admin
                 if ($row->status === 'Refus' && !$isAdmin) {
                     // Allow only formateur to see detail page
@@ -122,6 +131,16 @@ public function index(Request $request)
                                     <i class="fa-solid fa-trash text-danger"></i>
                                 </a>';
                     }
+
+                    if($row->status == 'Validation' && $isAdmin)
+                    {
+                         $btn .= '<a href="#" class="btn btn-sm bg-primary-subtle me-1"
+                                    data-id="' . $row->id . '">
+                                    <i class="fa-solid fa-pen-to-square text-primary"></i>
+                                </a>';
+                    }
+
+                    
                 }
 
                 return $btn;
@@ -943,6 +962,21 @@ public function update(Request $request)
             'message' => 'Vous n\'avez pas la permission de modifier une commande'
         ], 403);
     }
+    /* dd($request->id);
+
+    // extract id produit 
+    $extract_id_product = DB::table('ventes as v')
+    ->join('ligne_vente as l', 'l.idvente', '=', 'v.id')
+    ->join('products as p','p.id','=','l.idproduit')
+    ->select(
+        'l.idproduit',
+        DB::raw('SUM(l.contete_formateur) as qte_formateur'),'p.name'
+    )
+    ->where('v.id', $request->id)
+    ->where('v.status','=','Création')
+    ->groupBy('l.idproduit')
+    ->get();
+    dd($extract_id_product); */
 
     $vente = Vente::find($request->id);
 
@@ -1221,6 +1255,25 @@ public function ChangeStatusVente(Request $request)
             'message' => 'Vous n\'avez pas la permission de modifier le statut d\'une commande'
         ], 403);
     }
+
+   
+
+   /*  foreach ($extract_id_product as $item) {
+        // Get total available stock for this product
+        $stockTotal = DB::table('stock' )
+            
+            ->where('id_product', $item->idproduit)
+            ->sum('quantite');
+
+        if ($stockTotal < $item->qte_formateur) {
+            return response()->json([
+                'status'  => 400,
+                'message' => "Le stock du produit ID {$item->name} est insuffisant.",
+            ]);
+        }
+    } */
+
+
 
     try {
         $data = $request->all();
@@ -1665,5 +1718,45 @@ public function cleanTmpVente(Request $request)
         ], 500);
     }
 }
+
+
+    public function annulerCommande(Request $request)
+    {
+       $idvente = $request->all();
+          
+        $vente = DB::table('ventes as v')
+            ->join('ligne_vente as l', 'l.idvente', '=', 'v.id')
+            ->select('l.*')
+            ->where('v.id', $idvente['id'])
+            ->get();
+        $updateVente = DB::select("update ventes set status = ? where id = ? ",['Annuler',$idvente['id']]);
+
+     
+
+          
+
+        foreach ($vente as $item) {
+
+            // ✅ Correct way to increment a numeric column using DB::raw
+            DB::table('stock')
+                ->where('id_product', $item->idproduit)
+                ->update([
+                    'quantite' => DB::raw("quantite + {$item->qte}")
+                ]);
+
+            // ✅ Fixed missing '$' and added correct variable reference
+            DB::table('ligne_vente')
+                ->where('idproduit', $item->idproduit)
+                ->update([
+                    'contete_formateur' => null,
+                ]);
+        }
+
+        return response()->json([
+            'status'         => 200,
+
+        ]);
+
+    }
 
 }

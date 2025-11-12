@@ -1155,6 +1155,27 @@ $('#BtnUpdateVente').on('click', function(e) {
     if (status === 'Refus') {
         requestData.motif_refus = motif_refus;
     }
+
+    if(status == 'Annuler')
+    {
+        $.ajax({
+            type: "post",
+            url: annulerCommande,
+            data: requestData,
+            dataType: "json",
+            success: function (response) 
+            {
+                if(response.status == 200)
+                {
+                    $('#BtnUpdateVente').prop('disabled', false).text('Mettre à jour');
+                    $('#ModalEditVente').modal('hide');
+                    $('.TableVente').DataTable().ajax.reload();
+                }    
+            }
+        });
+        return false;
+        
+    }
     
     if (status === 'Validation' || status === 'Visé') {
         $.ajax({
@@ -1162,7 +1183,8 @@ $('#BtnUpdateVente').on('click', function(e) {
             url: ChangeStatusVente,
             data: requestData,
             dataType: "json",
-            success: function(response) {
+            success: function(response) 
+            {
                 ajaxInProgress.updateVente = false;
                 $('#BtnUpdateVente').prop('disabled', false).text('Mettre à jour');
                 
@@ -1170,7 +1192,12 @@ $('#BtnUpdateVente').on('click', function(e) {
                     new AWN().success(response.message, {durations: {success: 5000}});
                     $('#ModalEditVente').modal('hide');
                     $('.TableVente').DataTable().ajax.reload();
-                } else {
+                }
+                else if (response.status == 400)
+                {
+                    new AWN().warning(response.message , {durations: {warning: 5000}});
+                }
+                else {
                     new AWN().warning(response.message || "Une erreur est survenue", {durations: {warning: 5000}});
                 }
             },

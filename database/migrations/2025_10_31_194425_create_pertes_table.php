@@ -23,7 +23,7 @@ return new class extends Migration
             $table->string('nature')->nullable();; // Nature of loss
             $table->date('date_perte')->nullable();; // Date of loss
             $table->text('cause')->nullable(); // Cause/reason for loss
-            $table->enum('status', ['En attente', 'Validé', 'Refusé'])->default('En attente');
+            $table->enum('status', ['En attente', 'Validé', 'Refusé','Annuler'])->default('En attente');
             $table->text('refusal_reason')->nullable();
             $table->string('produit_fini_type')->nullable();
              $table->integer('nombre_plats')->nullable();

@@ -108,6 +108,12 @@ public function index(Request $request)
                     $btn .= '<a href="#" class="btn btn-sm bg-danger-subtle deletePerte" data-id="'.$row->id.'" title="Supprimer">
                             <i class="fa-solid fa-trash text-danger"></i></a>';
                 }
+
+                if ( $row->status == 'Validé') {
+                   $btn .= '<a href="#" class="btn btn-sm bg-primary-subtle me-1 edit-perte-btn" data-id="'.$row->id.'" title="Modifier le statut">
+                            <i class="fa-solid fa-pen-to-square text-primary"></i></a>';
+                        return $btn;
+                }
                 
                 return $btn;
             })
@@ -368,6 +374,7 @@ public function store(Request $request)
     /**
      * Validate or refuse a perte
      */
+    
   public function changeStatus(Request $request)
 {
     // Check if user has permission to validate pertes
@@ -378,8 +385,42 @@ public function store(Request $request)
         ], 403);
     }
 
+    
+
     try {
         $data = $request->all();
+
+        if ($data['status'] == 'Annuler') {
+
+            // 🧩 1. Fetch the perte items
+            $Pert = DB::table('pertes')
+                ->select('id_product', 'quantite')
+                ->where('id', $data['id'])
+                ->get();
+
+            // 🧩 2. Update the perte status
+            DB::table('pertes')
+                ->where('id', $data['id'])
+                ->update([
+                    'status' => 'Annuler'
+                ]);
+
+            // 🧩 3. Restore quantities to stock
+            foreach ($Pert as $item) {
+                DB::table('stock')
+                    ->where('id_product', $item->id_product)
+                    ->update([
+                        'quantite' => DB::raw("quantite + {$item->quantite}")
+                    ]);
+            }
+
+            // 🧩 4. Send JSON response
+            return response()->json([
+                'status'  => 200,
+                'message' => 'Update successfully',
+            ]);
+        }
+
         Log::info('changeStatus called with data:', $data);
 
         $perte = Perte::find($data['id']);

@@ -368,6 +368,7 @@
                                         <option value="En attente">En attente</option>
                                         <option value="Validé">Validé</option>
                                         <option value="Refusé">Refusé</option>
+                                        <option value="Annuler">Annuler</option>
                                     </select>
                                     <span id="edit_perte_status_error" class="text-danger"></span>
                                 </div>

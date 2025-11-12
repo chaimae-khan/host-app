@@ -65,6 +65,7 @@ document.addEventListener('DOMContentLoaded', function () {
     var getcategorybytypemenu = "{{ url('getcategorybytypemenu') }}";
     var sendPlatToTmpVente   = "{{ url('sendPlatToTmpVente') }}";
      var cleanTmpVente = "{{ url('cleanTmpVente') }}"; 
+     var annulerCommande = "{{ url('annulerCommande') }}"; 
 </script>
 
 <style>
@@ -604,6 +605,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 <option value="Visé">Visé</option>
                                 <option value="Réception">Validation</option>
                                  <option value="Livraison">Livraison</option>
+                                 <option value="Annuler">Annuler</option>
                                  
                             @endif
                             @if (Auth::user()->getRoleNames()->contains('Économe'))
