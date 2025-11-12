@@ -145,70 +145,183 @@
                     <div class="card info-card">
                         <div class="card-header bg-primary text-white">
                             <h5 class="mb-0">
-                                <i class="fa-solid fa-box me-2"></i>Informations du Produit
+                                @if($perte->nature == 'stock')
+                                    <i class="fa-solid fa-boxes-stacked me-2"></i>Informations de la Perte de Stock
+                                @else
+                                    <i class="fa-solid fa-utensils me-2"></i>Informations de la Perte de Produit Fini
+                                @endif
                             </h5>
                         </div>
                         <div class="card-body">
-                            <div class="row mb-3">
-                                <div class="col-md-6 mb-3">
-                                    <span class="detail-label">Classe:</span>
-                                    <div class="detail-value">
-                                        <i class="fa-solid fa-layer-group me-1"></i>{{ $perte->classe }}
+                            @if($perte->nature == 'stock')
+                                <!-- Stock Loss Information -->
+                                <div class="row mb-3">
+                                    <div class="col-md-6 mb-3">
+                                        <span class="detail-label">Classe:</span>
+                                        <div class="detail-value">
+                                            <i class="fa-solid fa-layer-group me-1"></i>{{ $perte->classe }}
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <span class="detail-label">Catégorie:</span>
+                                        <div class="detail-value">
+                                            <i class="fa-solid fa-folder me-1"></i>{{ $perte->category->name ?? 'N/A' }}
+                                        </div>
                                     </div>
                                 </div>
-                                <div class="col-md-6 mb-3">
-                                    <span class="detail-label">Catégorie:</span>
-                                    <div class="detail-value">
-                                        <i class="fa-solid fa-folder me-1"></i>{{ $perte->category->name ?? 'N/A' }}
-                                    </div>
-                                </div>
-                            </div>
 
-                            <div class="row mb-3">
-                                <div class="col-md-6 mb-3">
-                                    <span class="detail-label">Famille:</span>
-                                    <div class="detail-value">
-                                        <i class="fa-solid fa-folder-open me-1"></i>{{ $perte->subcategory->name ?? 'N/A' }}
+                                <div class="row mb-3">
+                                    <div class="col-md-6 mb-3">
+                                        <span class="detail-label">Famille:</span>
+                                        <div class="detail-value">
+                                            <i class="fa-solid fa-folder-open me-1"></i>{{ $perte->subcategory->name ?? 'N/A' }}
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <span class="detail-label">Produit:</span>
+                                        <div class="detail-value">
+                                            <i class="fa-solid fa-tag me-1"></i><strong>{{ $perte->designation }}</strong>
+                                        </div>
                                     </div>
                                 </div>
-                                <div class="col-md-6 mb-3">
-                                    <span class="detail-label">Produit:</span>
-                                    <div class="detail-value">
-                                        <i class="fa-solid fa-tag me-1"></i><strong>{{ $perte->designation }}</strong>
+
+                                <hr>
+
+                                <div class="row mb-3">
+                                    <div class="col-md-4 mb-3">
+                                        <span class="detail-label">Quantité perdue:</span>
+                                        <div class="detail-value mt-1">
+                                            <span class="badge bg-danger badge-lg">{{ number_format($perte->quantite, 2) }}</span>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <span class="detail-label">Unité:</span>
+                                        <div class="detail-value">
+                                            <i class="fa-solid fa-balance-scale me-1"></i>{{ $perte->unite->name ?? 'N/A' }}
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <span class="detail-label">Coût de la perte:</span>
+                                        <div class="detail-value">
+                                            @if($perte->product && $perte->product->price_achat)
+                                                <span class="badge bg-danger badge-lg">
+                                                    <i class="fa-solid fa-coins me-1"></i>{{ number_format($perte->quantite * $perte->product->price_achat, 2) }} DH
+                                                </span>
+                                            @else
+                                                <span class="text-muted">N/A</span>
+                                            @endif
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
+
+                            @else
+                                <!-- Produit Fini Loss Information -->
+                                <div class="row mb-3">
+                                    <div class="col-md-6 mb-3">
+                                        <span class="detail-label">Type de produit fini:</span>
+                                        <div class="detail-value">
+                                            <span class="badge bg-info badge-lg">
+                                                <i class="fa-solid fa-utensils me-1"></i>{{ $perte->produit_fini_type ?? 'N/A' }}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <span class="detail-label">Nom du plat:</span>
+                                        <div class="detail-value">
+                                            <i class="fa-solid fa-tag me-1"></i><strong>{{ $perte->designation }}</strong>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="row mb-3">
+                                    <div class="col-md-6 mb-3">
+                                        <span class="detail-label">Nombre de plats perdus:</span>
+                                        <div class="detail-value mt-1">
+                                            <span class="badge bg-danger badge-lg">{{ $perte->nombre_plats ?? 0 }} plat(s)</span>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <span class="detail-label">Coût total de la perte:</span>
+                                        <div class="detail-value">
+                                            <span class="badge bg-danger badge-lg">
+                                                <i class="fa-solid fa-coins me-1"></i>{{ number_format($perte->cout_total ?? 0, 2) }} DH
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                @if($perte->plat)
+                                    <hr>
+                                    <div class="row">
+                                        <div class="col-12">
+                                            <h6 class="text-primary mb-3">
+                                                <i class="fa-solid fa-list-check me-2"></i>Composition du Plat
+                                            </h6>
+                                            <div class="table-responsive">
+                                                <table class="table table-sm table-bordered">
+                                                    <thead class="table-light">
+                                                        <tr>
+                                                            <th>Produit</th>
+                                                            <th>Quantité / plat</th>
+                                                            <th>Unité</th>
+                                                            <th>Prix Unitaire</th>
+                                                            <th>Coût</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        @php
+                                                            $composition = DB::table('ligne_plat as lp')
+                                                                ->join('products as p', 'p.id', '=', 'lp.idproduit')
+                                                                ->join('unite as u', 'u.id', '=', 'p.id_unite')
+                                                                ->where('lp.id_plat', $perte->id_plat)
+                                                                ->whereNull('lp.deleted_at')
+                                                                ->select(
+                                                                    'p.name as product_name',
+                                                                    'lp.qte as quantite',
+                                                                    'u.name as unite_name',
+                                                                    'p.price_achat',
+                                                                    DB::raw('lp.qte * p.price_achat as cout')
+                                                                )
+                                                                ->get();
+                                                        @endphp
+                                                        
+                                                        @forelse($composition as $item)
+                                                            <tr>
+                                                                <td>{{ $item->product_name }}</td>
+                                                                <td>{{ number_format($item->quantite, 2) }}</td>
+                                                                <td>{{ $item->unite_name }}</td>
+                                                                <td>{{ number_format($item->price_achat, 2) }} DH</td>
+                                                                <td><strong>{{ number_format($item->cout, 2) }} DH</strong></td>
+                                                            </tr>
+                                                        @empty
+                                                            <tr>
+                                                                <td colspan="5" class="text-center text-muted">Aucune composition disponible</td>
+                                                            </tr>
+                                                        @endforelse
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
+                                @endif
+                            @endif
 
                             <hr>
 
-                            <div class="row mb-3">
-                                <div class="col-md-4 mb-3">
-                                    <span class="detail-label">Quantité perdue:</span>
-                                    <div class="detail-value mt-1">
-                                        <span class="badge bg-danger badge-lg">{{ $perte->quantite }}</span>
-                                    </div>
-                                </div>
-                                <div class="col-md-4 mb-3">
-                                    <span class="detail-label">Unité:</span>
-                                    <div class="detail-value">
-                                        <i class="fa-solid fa-balance-scale me-1"></i>{{ $perte->unite->name ?? 'N/A' }}
-                                    </div>
-                                </div>
-                                <div class="col-md-4 mb-3">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
                                     <span class="detail-label">Nature:</span>
                                     <div class="detail-value">
                                         <i class="fa-solid fa-clipboard-list me-1"></i>{{ ucfirst($perte->nature) }}
-                                        @if($perte->nature == 'produit fini' && $perte->produit_fini_type)
-                                            <br>
-                                            <span class="badge bg-info mt-2">
-                                                <i class="fa-solid fa-utensils me-1"></i>{{ $perte->produit_fini_type }}
-                                            </span>
-                                        @endif
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <span class="detail-label">Date de la perte:</span>
+                                    <div class="detail-value">
+                                        <i class="fa-solid fa-calendar-xmark me-1"></i>{{ \Carbon\Carbon::parse($perte->date_perte)->format('d/m/Y') }}
                                     </div>
                                 </div>
                             </div>
-
-                            <hr>
 
                             <div class="row">
                                 <div class="col-12 mb-3">

@@ -22,6 +22,7 @@ $(document).ready(function () {
     
     // Initialize produit fini handlers
     initializeProduitFiniHandlers();
+    initializeStockCostCalculation();  
 
     // DataTable Initialization
     function initializeDataTable() {
@@ -55,68 +56,38 @@ $(document).ready(function () {
                     }
                 },
                 columns: [
-                    { data: 'classe', name: 'pt.classe' },
-                    { data: 'categorie', name: 'c.name' },
-                    { data: 'famille', name: 'sc.name' },
-                    { data: 'designation', name: 'pt.designation' },
-                    { 
-                        data: 'quantite', 
-                        name: 'pt.quantite',
-                        render: function(data, type, row) {
-                            if (row.nature === 'produit fini' && row.nombre_plats) {
-                                return row.nombre_plats + ' plat(s)';
-                            }
-                            return parseFloat(data).toFixed(2);
-                        }
-                    },
-                    { 
-                        data: 'unite', 
-                        name: 'u.name',
-                        render: function(data, type, row) {
-                            if (row.nature === 'produit fini') {
+                        { data: 'nature', name: 'pt.nature' },
+                        { data: 'designation', name: 'pt.designation' },
+                        { 
+                            data: 'cout_total', 
+                            name: 'pt.cout_total',
+                            render: function(data, type, row) {
+                                if (data) {
+                                    return parseFloat(data).toFixed(2) + ' DH';
+                                }
                                 return '-';
                             }
-                            return data || '-';
-                        }
-                    },
-                    { data: 'nature', name: 'pt.nature' },
-                    { 
-                        data: 'produit_fini_type', 
-                        name: 'pt.produit_fini_type',
-                        render: function(data) {
-                            return data || '-';
-                        }
-                    },
-                    { 
-                        data: 'cout_total', 
-                        name: 'pt.cout_total',
-                        render: function(data, type, row) {
-                            if (row.nature === 'produit fini' && data) {
-                                return parseFloat(data).toFixed(2) + ' DH';
+                        },
+                        { 
+                            data: 'date_perte', 
+                            name: 'pt.date_perte',
+                            render: function(data) {
+                                if (data) {
+                                    const date = new Date(data);
+                                    return date.toLocaleDateString('fr-FR');
+                                }
+                                return '';
                             }
-                            return '-';
-                        }
-                    },
-                    { 
-                        data: 'date_perte', 
-                        name: 'pt.date_perte',
-                        render: function(data) {
-                            if (data) {
-                                const date = new Date(data);
-                                return date.toLocaleDateString('fr-FR');
-                            }
-                            return '';
-                        }
-                    },
-                    { 
-                        data: 'status_badge', 
-                        name: 'pt.status',
-                        orderable: false,
-                        searchable: false
-                    },
-                    { data: 'username', name: 'us.prenom' },
-                    { data: 'action', name: 'action', orderable: false, searchable: false }
-                ],
+                        },
+                        { 
+                            data: 'status_badge', 
+                            name: 'pt.status',
+                            orderable: false,
+                            searchable: false
+                        },
+                        { data: 'username', name: 'us.prenom' },
+                        { data: 'action', name: 'action', orderable: false, searchable: false }
+                    ],
                 language: {
                     "sInfo": "",
                     "sInfoEmpty": "Affichage de l'élément 0 à 0 sur 0 élément",

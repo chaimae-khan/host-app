@@ -85,23 +85,17 @@
                             <!-- Pertes Table -->
                             <div class="table-responsive">
                                 <table class="table datatable TablePertes">
-                                    <thead class="thead-light">
-                                        <tr>
-                                            <th>Classe</th>
-                                            <th>Catégorie</th>
-                                            <th>Famille</th>
-                                            <th>Désignation</th>
-                                            <th>Quantité</th>
-                                            <th>Unité</th>
-                                            <th>Nature</th>
-                                            <th>Type Produit</th>
-                                            <th>Coût Total</th>
-                                            <th>Date de perte</th>
-                                            <th>Statut</th>
-                                            <th>Déclaré par</th>
-                                            <th>Actions</th>
-                                        </tr>
-                                    </thead>
+                                   <thead class="thead-light">
+                                            <tr>
+                                                <th>Nature de la perte</th>
+                                                <th>Désignation</th>
+                                                <th>Coût Total</th>
+                                                <th>Date de perte</th>
+                                                <th>Statut</th>
+                                                <th>Déclaré par</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
                                     <tbody>
                                         <!-- Data will be loaded by DataTables -->
                                     </tbody>

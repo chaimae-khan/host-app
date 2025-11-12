@@ -64,22 +64,20 @@ public function index(Request $request)
             $query->where('pt.id_subcategorie', $request->filter_subcategorie);
         }
         
-        $pertes = $query->select(
+      $pertes = $query->select(
             'pt.id',
-            'pt.classe',
-            'c.name as categorie',
-            'sc.name as famille',
+            'pt.nature',          
             'pt.designation',
-            'u.name as unite',
             'pt.quantite',
-            'pt.nature',
+            'pt.nombre_plats',     
+            'pt.cout_total',       
             'pt.date_perte',
             'pt.cause',
             'pt.status',
             'pt.refusal_reason',
             DB::raw("CONCAT(us.prenom, ' ', us.nom) as username"),
             'pt.created_at'
-        )
+)
         ->orderBy('pt.id', 'desc');
 
         return DataTables::of($pertes)
@@ -183,6 +181,7 @@ public function store(Request $request)
             'message' => 'Vous n\'avez pas la permission d\'ajouter des pertes'
         ], 403);
     }
+    
     $rules = [];
     if($request->nature === 'produit fini')
     {
@@ -190,6 +189,8 @@ public function store(Request $request)
         $rules['id_plat'] = 'required|exists:plats,id';
         $rules['nombre_plats'] = 'required|integer|min:1';
         $rules['cause'] = 'required|string';
+        $rules['nature'] = 'required|string|in:stock,produit fini';
+        $rules['date_perte'] = 'required|date';
     }
     else
     {
@@ -202,27 +203,6 @@ public function store(Request $request)
         $rules['date_perte'] = 'required|date';
         $rules['cause'] = 'required|string';
     }
-
-   
-
-   /*  $rules = [
-        'classe' => 'required|string|max:255',
-        'id_category' => 'required|exists:categories,id',
-        'id_subcategorie' => 'required|exists:sub_categories,id',
-        'nature' => 'required|string|in:stock,produit fini',
-        'date_perte' => 'required|date',
-        'cause' => 'required|string',
-    ];
-     */
-    /* // Different validation based on nature
-    if ($request->nature === 'stock') {
-        $rules['id_product'] = 'required|exists:products,id';
-        $rules['quantite'] = 'required|numeric|min:0.01';
-    } else if ($request->nature === 'produit fini') {
-        $rules['produit_fini_type'] = 'required|in:Entrée,Suite,Dessert,Accompagnement,Autres';
-        $rules['id_plat'] = 'required|exists:plats,id';
-        $rules['nombre_plats'] = 'required|integer|min:1';
-    } */
     
     $validator = Validator::make($request->all(), $rules, [
         'required' => 'Le champ :attribute est requis.',
@@ -240,13 +220,10 @@ public function store(Request $request)
         ], 400);
     }
 
-    /* try {
-        DB::beginTransaction(); */
+    try {
+        DB::beginTransaction();
         
         $perteData = [
-            'id_category' => $request->id_category,
-            'id_subcategorie' => $request->id_subcategorie,
-            'classe' => $request->classe,
             'nature' => $request->nature,
             'date_perte' => $request->date_perte,
             'cause' => $request->cause,
@@ -254,33 +231,39 @@ public function store(Request $request)
             'id_user' => Auth::id(),
         ];
 
-       
-        
         if ($request->nature === 'stock') {
-            // Stock loss - existing logic
+            // Stock loss
             $product = Product::with(['unite'])->find($request->id_product);
             
             if (!$product) {
+                DB::rollBack();
                 return response()->json([
                     'status' => 404,
                     'message' => 'Produit non trouvé',
                 ], 404);
             }
             
+            // Calculate cost for stock
+            $coutTotal = $product->price_achat * $request->quantite;
+            
+            $perteData['id_category'] = $request->id_category;
+            $perteData['id_subcategorie'] = $request->id_subcategorie;
+            $perteData['classe'] = $request->classe;
             $perteData['id_product'] = $product->id;
             $perteData['id_unite'] = $product->id_unite;
             $perteData['designation'] = $product->name;
             $perteData['quantite'] = $request->quantite;
+            $perteData['cout_total'] = $coutTotal;
             $perteData['produit_fini_type'] = null;
             $perteData['id_plat'] = null;
             $perteData['nombre_plats'] = null;
-            $perteData['cout_total'] = null;
             
         } else if ($request->nature === 'produit fini') {
             // Produit fini loss
             $plat = DB::table('plats')->where('id', $request->id_plat)->first();
             
             if (!$plat) {
+                DB::rollBack();
                 return response()->json([
                     'status' => 404,
                     'message' => 'Plat non trouvé',
@@ -294,12 +277,14 @@ public function store(Request $request)
                 ->whereNull('lp.deleted_at')
                 ->select(DB::raw('SUM(lp.qte * p.price_achat) as cout_unitaire'))
                 ->first();
-
-                
             
             $coutUnitaire = $composition->cout_unitaire ?? 0;
             $coutTotal = $coutUnitaire * $request->nombre_plats;
             
+            // Get plat's category info from plats table or set to null
+            $perteData['id_category'] = null;
+            $perteData['id_subcategorie'] = null;
+            $perteData['classe'] = null;
             $perteData['id_product'] = null;
             $perteData['id_plat'] = $plat->id;
             $perteData['id_unite'] = null;
@@ -310,17 +295,16 @@ public function store(Request $request)
             $perteData['cout_total'] = $coutTotal;
         }
         
-        
         $perte = Perte::create($perteData);
         
-       /*  DB::commit(); */
+        DB::commit();
         
         return response()->json([
             'status' => 200,
             'message' => 'Perte déclarée avec succès',
         ]);
         
-    /* } catch (\Exception $e) {
+    } catch (\Exception $e) {
         DB::rollBack();
         
         Log::error('Error creating perte: ' . $e->getMessage(), [
@@ -332,7 +316,7 @@ public function store(Request $request)
             'status' => 500,
             'message' => 'Une erreur est survenue. Veuillez réessayer.',
         ], 500);
-    } */
+    }
 }
 
     /**
@@ -660,6 +644,27 @@ public function getPlatComposition($platId)
             'status' => 500,
             'message' => 'Erreur lors de la récupération de la composition',
         ], 500);
+    }
+}
+/**
+ * Get product price by ID
+ */
+public function getProductPrice($productId)
+{
+    try {
+        $product = Product::findOrFail($productId);
+        
+        return response()->json([
+            'status' => 200,
+            'price' => $product->price_achat
+        ]);
+        
+    } catch (\Exception $e) {
+        return response()->json([
+            'status' => 404,
+            'message' => 'Produit non trouvé',
+            'price' => null
+        ], 404);
     }
 }
 }
