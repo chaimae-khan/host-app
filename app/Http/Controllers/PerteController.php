@@ -375,7 +375,7 @@ public function store(Request $request)
      * Validate or refuse a perte
      */
     
-  public function changeStatus(Request $request)
+public function changeStatus(Request $request)
 {
     // Check if user has permission to validate pertes
     if (!auth()->user()->can('Pertes-valider')) {
@@ -385,42 +385,8 @@ public function store(Request $request)
         ], 403);
     }
 
-    
-
     try {
         $data = $request->all();
-
-        if ($data['status'] == 'Annuler') {
-
-            // 🧩 1. Fetch the perte items
-            $Pert = DB::table('pertes')
-                ->select('id_product', 'quantite')
-                ->where('id', $data['id'])
-                ->get();
-
-            // 🧩 2. Update the perte status
-            DB::table('pertes')
-                ->where('id', $data['id'])
-                ->update([
-                    'status' => 'Annuler'
-                ]);
-
-            // 🧩 3. Restore quantities to stock
-            foreach ($Pert as $item) {
-                DB::table('stock')
-                    ->where('id_product', $item->id_product)
-                    ->update([
-                        'quantite' => DB::raw("quantite + {$item->quantite}")
-                    ]);
-            }
-
-            // 🧩 4. Send JSON response
-            return response()->json([
-                'status'  => 200,
-                'message' => 'Update successfully',
-            ]);
-        }
-
         Log::info('changeStatus called with data:', $data);
 
         $perte = Perte::find($data['id']);
@@ -432,55 +398,130 @@ public function store(Request $request)
             ], 404);
         }
 
-        // Store old status for logging
         $oldStatus = $perte->status;
+
+        // Handle "Annuler" status
+        if ($data['status'] == 'Annuler') {
+            DB::beginTransaction();
+            
+            try {
+                // Restore quantities to stock based on nature
+                if ($perte->nature === 'stock' && $perte->id_product) {
+                    DB::table('stock')
+                        ->where('id_product', $perte->id_product)
+                        ->update([
+                            'quantite' => DB::raw("quantite + {$perte->quantite}"),
+                            'updated_at' => now()
+                        ]);
+                } else if ($perte->nature === 'produit fini' && $perte->id_plat) {
+                    // Restore stock for each ingredient in the plat
+                    $composition = DB::table('ligne_plat')
+                        ->where('id_plat', $perte->id_plat)
+                        ->whereNull('deleted_at')
+                        ->get();
+                    
+                    foreach ($composition as $ligne) {
+                        $quantiteARestaurer = $ligne->qte * $perte->nombre_plats;
+                        
+                        DB::table('stock')
+                            ->where('id_product', $ligne->idproduit)
+                            ->update([
+                                'quantite' => DB::raw("quantite + {$quantiteARestaurer}"),
+                                'updated_at' => now()
+                            ]);
+                    }
+                }
+                
+                // Update perte status
+                $perte->status = 'Annuler';
+                $perte->save();
+                
+                DB::commit();
+                
+                return response()->json([
+                    'status' => 200,
+                    'message' => 'Perte annulée avec succès'
+                ]);
+                
+            } catch (\Exception $e) {
+                DB::rollBack();
+                Log::error('Error canceling perte: ' . $e->getMessage());
+                
+                return response()->json([
+                    'status' => 500,
+                    'message' => 'Erreur lors de l\'annulation: ' . $e->getMessage()
+                ]);
+            }
+        }
 
         if ($data['status'] == 'Validé') {
             DB::beginTransaction();
             
             try {
-                // Validate: Reduce stock quantity
-                $stock = Stock::where('id_product', $perte->id_product)->first();
-                
-                if (!$stock) {
-                    throw new \Exception('Stock non trouvé pour ce produit');
-                }
-                
-                // Log current stock before update
-                Log::info('Before stock update', [
-                    'product_id' => $perte->id_product,
-                    'current_stock' => $stock->quantite,
-                    'perte_quantity' => $perte->quantite
-                ]);
-                
-                // Check if stock has enough quantity
-                if ($stock->quantite < $perte->quantite) {
-                    throw new \Exception('Quantité en stock insuffisante. Stock disponible: ' . $stock->quantite);
-                }
-                
-                // Calculate new quantity
-                $oldQuantity = $stock->quantite;
-                $newQuantity = $oldQuantity - $perte->quantite;
-                
-                // IMPORTANT: Use 'stock' (singular) not 'stocks' (plural)
-                DB::table('stock')
-                    ->where('id_product', $perte->id_product)
-                    ->update([
-                        'quantite' => $newQuantity,
-                        'updated_at' => now()
+                if ($perte->nature === 'stock') {
+                    // For stock losses: Reduce stock quantity
+                    $stock = Stock::where('id_product', $perte->id_product)->first();
+                    
+                    if (!$stock) {
+                        throw new \Exception('Stock non trouvé pour ce produit');
+                    }
+                    
+                    if ($stock->quantite < $perte->quantite) {
+                        throw new \Exception('Quantité en stock insuffisante. Stock disponible: ' . $stock->quantite);
+                    }
+                    
+                    $stock->quantite -= $perte->quantite;
+                    $stock->save();
+                    
+                    Log::info('Stock reduced', [
+                        'product_id' => $perte->id_product,
+                        'quantity_reduced' => $perte->quantite,
+                        'new_stock' => $stock->quantite
                     ]);
-                
-                // Refresh stock model to get updated value
-                $stock->refresh();
-                
-                // Log after update
-                Log::info('After stock update', [
-                    'product_id' => $perte->id_product,
-                    'old_quantity' => $oldQuantity,
-                    'perte_quantity' => $perte->quantite,
-                    'new_quantity' => $stock->quantite,
-                    'expected_quantity' => $newQuantity
-                ]);
+                    
+                } else if ($perte->nature === 'produit fini') {
+                    // For produit fini: Reduce stock for each ingredient in the plat
+                    $composition = DB::table('ligne_plat')
+                        ->where('id_plat', $perte->id_plat)
+                        ->whereNull('deleted_at')
+                        ->get();
+                    
+                    if ($composition->isEmpty()) {
+                        throw new \Exception('Aucune composition trouvée pour ce plat');
+                    }
+                    
+                    // First, check if all ingredients have enough stock
+                    foreach ($composition as $ligne) {
+                        $stock = Stock::where('id_product', $ligne->idproduit)->first();
+                        
+                        if (!$stock) {
+                            $product = DB::table('products')->where('id', $ligne->idproduit)->first();
+                            throw new \Exception('Stock non trouvé pour le produit: ' . ($product ? $product->name : 'ID '.$ligne->idproduit));
+                        }
+                        
+                        $quantiteNecessaire = $ligne->qte * $perte->nombre_plats;
+                        
+                        if ($stock->quantite < $quantiteNecessaire) {
+                            $product = DB::table('products')->where('id', $ligne->idproduit)->first();
+                            throw new \Exception('Quantité insuffisante pour: ' . ($product ? $product->name : 'ID '.$ligne->idproduit) . ' (Disponible: ' . $stock->quantite . ', Nécessaire: ' . $quantiteNecessaire . ')');
+                        }
+                    }
+                    
+                    // Then, reduce stock for each ingredient
+                    foreach ($composition as $ligne) {
+                        $stock = Stock::where('id_product', $ligne->idproduit)->first();
+                        $quantiteNecessaire = $ligne->qte * $perte->nombre_plats;
+                        
+                        $stock->quantite -= $quantiteNecessaire;
+                        $stock->save();
+                        
+                        Log::info('Stock reduced for product in plat', [
+                            'product_id' => $ligne->idproduit,
+                            'quantity_reduced' => $quantiteNecessaire,
+                            'new_stock' => $stock->quantite
+                        ]);
+                    }
+                }
                 
                 // Update perte status
                 $perte->status = 'Validé';
@@ -489,22 +530,16 @@ public function store(Request $request)
                 
                 DB::commit();
                 
-                Log::info('Perte validated successfully', [
-                    'perte_id' => $perte->id,
-                    'stock_reduced_from' => $oldQuantity,
-                    'stock_reduced_to' => $stock->quantite
-                ]);
+                Log::info('Perte validated successfully', ['perte_id' => $perte->id]);
                 
                 return response()->json([
                     'status' => 200,
-                    'message' => 'Perte validée avec succès. Stock réduit de ' . $oldQuantity . ' à ' . $stock->quantite
+                    'message' => 'Perte validée avec succès. Stock mis à jour.'
                 ]);
                 
             } catch (\Exception $e) {
                 DB::rollBack();
-                Log::error('Error in validation process: ' . $e->getMessage(), [
-                    'trace' => $e->getTraceAsString()
-                ]);
+                Log::error('Error in validation process: ' . $e->getMessage());
                 
                 return response()->json([
                     'status' => 500,

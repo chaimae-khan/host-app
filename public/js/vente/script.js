@@ -504,14 +504,14 @@ function sendAjaxRequest(name_product, category, filter_subcategorie, type_comma
 
 
 
-   function initializeTableVenteDataTable() {
+function initializeTableVenteDataTable() {
     try {
         if ($.fn.DataTable.isDataTable('.TableVente')) {
             $('.TableVente').DataTable().destroy();
         }
         
         var TableVente = $('.TableVente').DataTable({
-            order : [[11 , 'desc']],
+            order : [[13 , 'desc']], // ✅ Updated: was 12, now 13 because we added numero_serie column
             processing: true,
             serverSide: true,
             ajax: {
@@ -530,8 +530,22 @@ function sendAjaxRequest(name_product, category, filter_subcategorie, type_comma
                 }
             },
             columns: [
+                // ✅ COLUMN 0: Numero de Serie
+                { 
+                    data: 'numero_serie', 
+                    name: 'numero_serie',
+                    title: 'N° Série',
+                    render: function(data, type, row) {
+                        // Display with prefix based on type
+                        let prefix = row.type_commande === 'Alimentaire' ? 'A-' : 'NA-';
+                        return prefix + data;
+                    }
+                },
+                // COLUMN 1: Demandeur
                 { data: 'formateur_name', name: 'formateur_name' },
+                // COLUMN 2: Total
                 { data: 'total', name: 'total' },
+                // COLUMN 3: Statut
                 {
                     data : 'status',
                     name : 'status',
@@ -548,35 +562,40 @@ function sendAjaxRequest(name_product, category, filter_subcategorie, type_comma
                         return data;
                     }
                 },
-                /* { data: 'status', name: 'status' }, */
+                // COLUMN 4: Type Commande
                 { data: 'type_commande', name: 'type_commande' },
+                // COLUMN 5: Type Menu
                 { 
                     data: 'type_menu', 
                     name: 'type_menu',
                     render: function(data, type, row) {
-                        // Format the menu name for display
                         return formatMenuName(data);
                     }
                 },
+                // COLUMN 6: Élèves
                 { data: 'eleves', name: 'eleves' },
+                // COLUMN 7: Personnel
                 { data: 'personnel', name: 'personnel' },
+                // COLUMN 8: Invités
                 { data: 'invites', name: 'invites' },
+                // COLUMN 9: Divers
                 { data: 'divers', name: 'divers' },
-                // ADD THIS LINE - Date Usage column
+                // COLUMN 10: Date d'utilisation
                 { 
                     data: 'date_usage', 
                     name: 'date_usage',
                     render: function(data, type, row) {
-                        // Format the date for display or show empty if null
                         if (data && data !== '') {
-                            // Format date using moment.js if available, or just return as is
                             return moment(data).format('DD/MM/YYYY');
                         }
                         return '-';
                     }
                 },
+                // COLUMN 11: Créé par
                 { data: 'name', name: 'name' },
+                // COLUMN 12: Créé le
                 { data: 'created_at', name: 'created_at' },
+                // COLUMN 13: Action
                 { data: 'action', name: 'action', orderable: false, searchable: false }
             ],
             language: {
@@ -596,7 +615,6 @@ function sendAjaxRequest(name_product, category, filter_subcategorie, type_comma
                 }
             },
             drawCallback: function() {
-                // Reset all AJAX in progress flags when table is redrawn
                 ajaxInProgress = {
                     deleteRowTmp: false,
                     postInTmpVente: false,

@@ -1,0 +1,63 @@
+[33me29dd6b[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mtest[m[33m, [m[1;31morigin/test[m[33m)[m HEAD@{0}: commit: at
+[33m313ef50[m HEAD@{1}: commit: abb
+[33m673714d[m HEAD@{2}: commit: at
+[33mf90368c[m HEAD@{3}: commit: bghiit
+[33mdc3a7c4[m HEAD@{4}: pull: Fast-forward
+[33mfcac7a6[m HEAD@{5}: commit: att
+[33m480c989[m HEAD@{6}: commit: add
+[33m753062d[m HEAD@{7}: commit: at
+[33m28366a2[m HEAD@{8}: commit: att
+[33m010535d[m HEAD@{9}: pull: Fast-forward
+[33maf624e7[m HEAD@{10}: commit: data
+[33m5d817d7[m HEAD@{11}: commit: att
+[33mc4b5ec4[m HEAD@{12}: commit: att
+[33m68c8650[m HEAD@{13}: commit: abb
+[33m644e576[m HEAD@{14}: commit: at
+[33mc130ab9[m HEAD@{15}: commit: app
+[33mbe8397d[m HEAD@{16}: commit: test
+[33m82113aa[m HEAD@{17}: commit: att
+[33m5496e03[m HEAD@{18}: checkout: moving from main to test
+[33m355406c[m[33m ([m[1;32mmain[m[33m)[m HEAD@{19}: checkout: moving from test to main
+[33m5496e03[m HEAD@{20}: commit: att
+[33m57d763e[m HEAD@{21}: commit: at
+[33mf8b9f3b[m HEAD@{22}: checkout: moving from main to test
+[33m355406c[m[33m ([m[1;32mmain[m[33m)[m HEAD@{23}: commit: notification
+[33m77ef71c[m[33m ([m[1;31morigin/main[m[33m)[m HEAD@{24}: checkout: moving from test to main
+[33mf8b9f3b[m HEAD@{25}: commit: ab
+[33m9f85a9b[m HEAD@{26}: checkout: moving from main to test
+[33m77ef71c[m[33m ([m[1;31morigin/main[m[33m)[m HEAD@{27}: checkout: moving from test to main
+[33m9f85a9b[m HEAD@{28}: checkout: moving from main to test
+[33m77ef71c[m[33m ([m[1;31morigin/main[m[33m)[m HEAD@{29}: checkout: moving from test to main
+[33m9f85a9b[m HEAD@{30}: commit: app
+[33mfaaca4e[m HEAD@{31}: commit: Stop tracking .env
+[33m294f7bd[m HEAD@{32}: commit: app
+[33me74ed28[m HEAD@{33}: commit: app
+[33mccbe627[m[33m ([m[1;32mapp[m[33m)[m HEAD@{34}: checkout: moving from app to test
+[33mccbe627[m[33m ([m[1;32mapp[m[33m)[m HEAD@{35}: pull origin test: Fast-forward
+[33mff9d6bb[m[33m ([m[1;31morigin/app[m[33m)[m HEAD@{36}: reset: moving to HEAD
+[33mff9d6bb[m[33m ([m[1;31morigin/app[m[33m)[m HEAD@{37}: checkout: moving from main to app
+[33m77ef71c[m[33m ([m[1;31morigin/main[m[33m)[m HEAD@{38}: checkout: moving from app to main
+[33mff9d6bb[m[33m ([m[1;31morigin/app[m[33m)[m HEAD@{39}: reset: moving to HEAD
+[33mff9d6bb[m[33m ([m[1;31morigin/app[m[33m)[m HEAD@{40}: checkout: moving from main to app
+[33m77ef71c[m[33m ([m[1;31morigin/main[m[33m)[m HEAD@{41}: commit: abb
+[33mc7b1a4c[m HEAD@{42}: checkout: moving from new to main
+[33m4da270d[m[33m ([m[1;32mnew-branch-name[m[33m, [m[1;32mnew[m[33m)[m HEAD@{43}: checkout: moving from new-branch-name to new
+[33m4da270d[m[33m ([m[1;32mnew-branch-name[m[33m, [m[1;32mnew[m[33m)[m HEAD@{44}: commit: at
+[33mc7b1a4c[m HEAD@{45}: checkout: moving from main to new-branch-name
+[33mc7b1a4c[m HEAD@{46}: commit: ab
+[33m19734d2[m HEAD@{47}: commit: atest
+[33ma7afc96[m HEAD@{48}: commit: attt
+[33m8c7f449[m HEAD@{49}: pull: Fast-forward
+[33m44c2503[m HEAD@{50}: commit: ap
+[33md7aefe5[m HEAD@{51}: commit: command
+[33mb203e54[m HEAD@{52}: commit: at
+[33mb7a8d28[m HEAD@{53}: pull: Fast-forward
+[33m1f06441[m HEAD@{54}: commit: abb
+[33ma1c01c3[m HEAD@{55}: commit: abb
+[33mab7b112[m HEAD@{56}: commit: appt
+[33m56ff80f[m HEAD@{57}: commit: ab
+[33m9219ef1[m HEAD@{58}: commit: or
+[33m5980765[m HEAD@{59}: pull: Fast-forward
+[33me2f28af[m HEAD@{60}: Branch: renamed refs/heads/main to refs/heads/main
+[33me2f28af[m HEAD@{62}: Branch: renamed refs/heads/master to refs/heads/main
+[33me2f28af[m HEAD@{64}: commit (initial): abb

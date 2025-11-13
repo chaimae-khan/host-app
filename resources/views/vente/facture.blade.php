@@ -109,16 +109,12 @@
 </head>
 <body>
     @php
-        // ✅ MODIFIED: Change items per page to 7
         $itemsPerPage = 7;
         $totalItems = count($Data_Vente);
-        $totalPages = ceil($totalItems / $itemsPerPage);
+        $totalPages = ceil($itemsPerPage > 0 ? $totalItems / $itemsPerPage : 1);
         
-        // Generate command number format
-        $year = \Carbon\Carbon::parse($bonVente->created_at)->format('Y');
-        $isAlimentaire = ($bonVente->type_commande === 'Alimentaire');
-        $prefix = $isAlimentaire ? 'A' : 'NA';
-        $commandNumber = "{$prefix}-{$bonVente->id}/{$bonVente->type_commande}/{$year}";
+        // ✅ UPDATED: Use formatted_command_number from model
+        $commandNumber = $bonVente->formatted_command_number;
         
         // Calculate total effectif
         $totalEffectif = $bonVente->eleves + $bonVente->personnel + $bonVente->invites + $bonVente->divers;
@@ -136,23 +132,24 @@
 
     @for ($page = 0; $page < $totalPages; $page++)
         <div class="invoice-container">
-            {{-- ✅ TOP IMAGE - ON EVERY PAGE --}}
+            {{-- TOP IMAGE - ON EVERY PAGE --}}
             <img src="data:image/png;base64,{{ $imageData }}" alt="" width="750px">
            
             <div class="container">
                 <div style="display: flex;justify-content: center;text-align: center;width: 100%;">
-                    {{-- ✅ MODIFIED: Remove (Suite) from title --}}
                     <h3 class="title-centered">Bon de commande (bon de sortie)</h3>
                 </div>
             </div>
             
-            {{-- ✅ COMMAND INFO - ONLY ON FIRST PAGE --}}
+            {{-- COMMAND INFO - ONLY ON FIRST PAGE --}}
             @if($page === 0)
                 <div class="command-info">
+                    {{-- ✅ UPDATED: Display formatted command number with numero_serie --}}
                     <div><strong>N° Bon de Commande :</strong> {{ $commandNumber }}</div>
+                    <div><strong>N° de Série :</strong> {{ $bonVente->numero_serie }}</div>
                     <div><strong>Journée du :</strong> {{ $bonVente->date_usage ? \Carbon\Carbon::parse($bonVente->date_usage)->format('d/m/Y') : 'Non spécifié' }}</div>
                     <div><strong>Bénéficiaire:</strong> {{ $Formateur->prenom . ' ' . $Formateur->nom ?? 'Non spécifié' }}</div>
-                   <div><strong>Entete:</strong> {{ $Formateur->service ?? 'Non spécifié' }}</div>
+                    <div><strong>Entete:</strong> {{ $Formateur->service ?? 'Non spécifié' }}</div>
                     <div><strong>Nature de Commande :</strong> {{ $bonVente->type_commande ?? 'Alimentaire' }}</div>
                     
                     @if($bonVente->type_commande === 'Alimentaire')
@@ -162,25 +159,22 @@
                         </div>
                     @endif
                     
-                  
-                    
                     @if($bonVente->type_commande === 'Alimentaire')
                         <div><strong>Objet de prestation :</strong> {{ $objetPrestation == 'Menu eleves' ? 'Menu standard' : $objetPrestation }}</div>
                         <div><strong>Nature de prestation :</strong> {{ $naturePrestation }}</div>
                     @endif
-                  
-                  
                 </div>
             @else
-                {{-- ✅ MODIFIED: Remove page info from top, only show command number --}}
+                {{-- Display command number on continuation pages --}}
                 <div class="command-info">
                     <div><strong>N° Bon de Commande :</strong> {{ $commandNumber }}</div>
+                    <div><strong>N° de Série :</strong> {{ $bonVente->numero_serie }}</div>
                 </div>
             @endif
             
             <div>
                 <div class="container">
-                    {{-- ✅ PRODUCTS TABLE --}}
+                    {{-- PRODUCTS TABLE --}}
                     <table id="tableDetail" style="margin-top: 30px">
                         <thead>
                             <tr>
@@ -193,7 +187,6 @@
                         </thead>
                         <tbody>
                             @php
-                                // Calculate start and end indices for this page
                                 $startIndex = $page * $itemsPerPage;
                                 $endIndex = min(($page + 1) * $itemsPerPage, $totalItems);
                             @endphp
@@ -208,7 +201,7 @@
                                 </tr>
                             @endfor
                             
-                            {{-- ✅ Fill empty rows up to 7 rows per page --}}
+                            {{-- Fill empty rows up to 7 rows per page --}}
                             @for ($i = $endIndex - $startIndex; $i < $itemsPerPage; $i++)
                                 <tr>
                                     <td style="text-align: center">&nbsp;</td>
@@ -221,7 +214,7 @@
                         </tbody>
                     </table>
 
-                    {{-- ✅ SIGNATURE TABLE - ON EVERY PAGE --}}
+                    {{-- SIGNATURE TABLE - ON EVERY PAGE --}}
                     <table id="tableDetail" style="margin-top: 30px; width: 100%; border-collapse: collapse;">
                         <thead>
                             <tr>
@@ -234,13 +227,11 @@
                         <tbody>
                             <tr>
                                 @php
-                                    // Initialize variables for each status
                                     $creation = null;
                                     $validation = null;
                                     $livraison = null;
                                     $reception = null;
                                     
-                                    // Group signatures by status
                                     foreach ($getHistorique_sig as $item) {
                                         switch($item->status) {
                                             case 'Création':
@@ -291,7 +282,7 @@
                         </tbody>
                     </table>
 
-                    {{-- ✅ NEW: Page number after signature table --}}
+                    {{-- Page number after signature table --}}
                     @if($totalPages > 1)
                         <div class="page-number">
                             Page {{ $page + 1 }} sur {{ $totalPages }}
@@ -300,7 +291,7 @@
                 </div>
             </div>
             
-            {{-- ✅ BOTTOM IMAGE/FOOTER - ON EVERY PAGE --}}
+            {{-- BOTTOM IMAGE/FOOTER - ON EVERY PAGE --}}
             <footer>
                 <div class="invoice-footer">
                     <img src="data:image/png;base64,{{ $imageData_bottom }}" alt="" width="750px">

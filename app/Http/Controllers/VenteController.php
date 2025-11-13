@@ -42,18 +42,32 @@ public function index(Request $request)
     if ($request->ajax()) {
         $hashids = new Hashids();
 
-        $query = DB::table('ventes as v')
+             $query = DB::table('ventes as v')
             ->join('users as f', 'f.id', '=', 'v.id_formateur')
             ->join('users as u', 'u.id', '=', 'v.id_user')
             ->select(
-                'v.id', 'v.total', 'v.status', 'v.type_commande', 'v.type_menu',
+                'v.id', 
+                'v.numero_serie',
+                'v.total', 
+                'v.status', 
+                'v.type_commande', 
+                'v.type_menu',
                 DB::raw("CONCAT(f.prenom, ' ', f.nom) as formateur_name"),
                 DB::raw("CONCAT(u.prenom, ' ', u.nom) as name"),
-                'v.created_at', 'v.eleves', 'v.personnel', 'v.invites', 'v.divers',
-                'v.entree', 'v.plat_principal', 'v.accompagnement', 'v.dessert', 'v.date_usage',
+                'v.created_at', 
+                'v.eleves', 
+                'v.personnel', 
+                'v.invites', 
+                'v.divers',
+                'v.entree', 
+                'v.plat_principal', 
+                'v.accompagnement', 
+                'v.dessert', 
+                'v.date_usage',
                 'v.id_formateur'
             )
             ->whereNull('v.deleted_at');
+        
 
         // If user is a formateur, show only their sales
         if (Auth::user()->hasRole('Formateur')) {
@@ -413,8 +427,16 @@ public function store(Request $request)
         $dessert = $convertEmptyToNull($request->dessert);
     }
 
-    // Create new sale with audit trail (id_user will be tracked automatically)
+    // ✅ Get next numero_serie for this type_commande
+    // Using IFNULL(MAX(numero_serie), 0) + 1
+    $nextNumeroSerie = DB::table('ventes')
+        ->where('type_commande', $request->type_commande)
+        ->selectRaw('IFNULL(MAX(numero_serie), 0) + 1 as next_numero')
+        ->value('next_numero');
+
+    // Create new sale with numero_serie
     $Vente = Vente::create([
+        'numero_serie' => $nextNumeroSerie,  // ✅ Auto-generated numero_serie
         'total'     => $SumVente,
         'status'    => "Création",
         'type_commande' => $request->type_commande,
@@ -447,7 +469,7 @@ public function store(Request $request)
         'status'      => 'Création'  
     ]);
 
-    // ✅ Formateur creates → Notify Admin & Directeur
+    // Notify Admin & Directeur
     $notifyUsers = User::whereHas('roles', function($query) {
         $query->whereIn('name', ['Administrateur', 'Directeur']);
     })->get();
@@ -460,10 +482,15 @@ public function store(Request $request)
     $currentUser = User::find(Auth::id());
     $userName = $currentUser->prenom . ' ' . $currentUser->nom;
     
-    // Notify Admin & Directeur
+    // ✅ Create formatted command number for notification
+    $year = date('Y');
+    $prefix = ($request->type_commande === 'Alimentaire') ? 'A' : 'NA';
+    $formattedCommandNumber = "{$prefix}-{$nextNumeroSerie}/{$request->type_commande}/{$year}";
+    
+    // Notify with formatted command number
     foreach ($notifyUsers as $user) {
         $user->notify(new \App\Notifications\SystemNotification([
-            'message' => 'Nouvelle commande #' . $Vente->id . ' créée par ' . $userName,
+            'message' => 'Nouvelle commande ' . $formattedCommandNumber . ' créée par ' . $userName,
             'status' => 'Création',
             'view_url' => url('ShowBonVente/' . $encodedId)
         ]));

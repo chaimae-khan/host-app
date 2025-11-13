@@ -125,6 +125,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 <table class="table datatable TableVente">
                                     <thead class="thead-light">
                                         <tr>
+                                         <th scope="col">N° Série</th>
                                         <th scope="col">Demandeur</th>
                                         <th scope="col">Total</th>
                                         <th scope="col">Statut</th>
