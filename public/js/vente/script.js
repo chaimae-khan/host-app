@@ -874,10 +874,17 @@ $('#BtnSaveVente').on('click', function(e) {
             {
                 new AWN().alert(response.message , {durations: {alert: 5000}});
             }
+            else if(response.status == 900)
+            {
+                 response.messages.forEach(function(msg){
+                    new AWN().alert(msg, {durations: {alert: 5000}});
+                });
+            }
             else {
                 new AWN().alert(response.message || "Une erreur est survenue", {durations: {alert: 5000}});
             }
         },
+
         error: function(xhr, status, error) {
             // Mark save operation as complete and re-enable the button
             ajaxInProgress.saveVente = false;

@@ -392,6 +392,72 @@ public function store(Request $request)
         ]);
     }
 
+    /************** check qte réserve *********/
+    
+    $ventes = DB::table('ventes as v')
+        ->join('ligne_vente as l', 'v.id', '=', 'l.idvente')
+        ->whereNull('v.deleted_at')
+        ->where('v.status', 'Création')
+        ->select(
+            'l.idproduit',
+            DB::raw('SUM(l.qte) as total_qte_vente')
+        )
+        ->groupBy('l.idproduit')
+        ->get();
+        
+    if ($ventes->isNotEmpty()) 
+    {
+        $venteArray = [];
+        $errors = [];
+        $checked = [];
+        
+        foreach ($ventes as $ligne) 
+        {
+            $stock = DB::table('stock')->where('id_product', $ligne->idproduit)->first();
+            $product = DB::table('products')->where('id', $ligne->idproduit)->first();
+            $qte_stock_before = $stock ? $stock->quantite : 0;
+            $qte_stock_after  = $qte_stock_before - $ligne->total_qte_vente;
+            $venteArray[] = 
+            [
+                'id_product'        => $ligne->idproduit,
+                'product_name'      => $product ? $product->name : '',
+                'qte_vente'         => $ligne->total_qte_vente,
+                'qte_stock_before'  => $qte_stock_before,
+                'qte_stock_after'   => $qte_stock_after,
+            ];
+        }
+        
+        foreach ($TempVente as $tmp) 
+        {
+            $venteItem = collect($venteArray)->firstWhere('id_product', $tmp->idproduit);
+            if ($venteItem) 
+            {
+                if ($venteItem['qte_stock_after'] < $tmp->qte) 
+                {
+                    $errors[] =  "⚠️ Le produit {$venteItem['product_name']} a une quantité de {$venteItem['qte_stock_after']} déjà réservée par d'autres commandes, insuffisant pour la quantité demandée ({$tmp->qte}).";;
+                } 
+                else 
+                {
+                    $checked[] = [
+                        'id_product' => $tmp->idproduit,
+                        'qte_stock_after' => $venteItem['qte_stock_after'],
+                        'tmp_qte' => $tmp->qte
+                    ];
+                }
+            } 
+        }
+        
+        if (!empty($errors)) 
+        {
+            return response()->json([
+                'status' => 900,
+                'messages' => $errors
+            ]);
+        }
+    }
+    
+    /************** check qte réserve *********/
+
     // Calculate total sales amount
     $SumVente = $TempVente->sum('total_by_product');
     
@@ -436,7 +502,7 @@ public function store(Request $request)
 
     // Create new sale with numero_serie
     $Vente = Vente::create([
-        'numero_serie' => $nextNumeroSerie,  // ✅ Auto-generated numero_serie
+        'numero_serie' => $nextNumeroSerie,
         'total'     => $SumVente,
         'status'    => "Création",
         'type_commande' => $request->type_commande,
