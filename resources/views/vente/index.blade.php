@@ -68,6 +68,7 @@ document.addEventListener('DOMContentLoaded', function () {
     var annulerCommande = "{{ url('annulerCommande') }}"; 
     var getCommandDetails = "{{url('getCommandDetails')}}";
     var getLigneVenteUrl = "{{ route('vente.ligne-vente', ':id') }}";
+    var showventeByUpdate = "{{ url('showventeByUpdate') }}";
 
 </script>
 <style>
@@ -735,9 +736,11 @@ document.addEventListener('DOMContentLoaded', function () {
                                 <th>#</th>
                                 <th>Produit</th>
                                 <th>Quantité Demandée</th>
+                                <th>Quantité Livrée</th>
                                 <th>Stock Disponible</th>
                                 <th>Seuil</th>
                                 <th>Local</th>
+                                <th>Action</th>
                             </tr>
                         </thead>
                         <tbody>

@@ -1917,6 +1917,8 @@ $('.TableVente tbody').on('click', '.ViewCommandDetails', function(e) {
     
     let venteId = $(this).attr('data-id');
     let row = $(this).closest('tr');
+
+   
     
     // Get data directly from the DataTable row
     let rowData = $('.TableVente').DataTable().row(row).data();
@@ -2021,11 +2023,37 @@ $('.TableVente tbody').on('click', '.ViewCommandDetails', function(e) {
         // Fetch menu details via AJAX to get plat names
         $.ajax({
             type: "GET",
-            url: ShowBonVente.replace(':id', venteId), // Assuming you have this URL
-            dataType: "html",
-            success: function(html) {
+            url: showventeByUpdate,
+            data : 
+            {
+                venteId : venteId,
+            },
+            dataType: "json",
+            success: function(response) 
+            {
+               
+                 let table = $('#TableViewCommandProducts').DataTable();
+                    table.clear(); // remove old rows
+
+                    data.forEach(function(row, index) {
+                        table.row.add([
+                            index + 1,
+                            row.name_product,
+                            row.qte,
+                            row.newquantet,
+                            row.qtestock,
+                            row.seuil,
+                            row.local,
+                            `<a href="#" class="btn btn-sm bg-primary-subtle me-1" data-id="${row.id}">
+                                <i class="fa-solid fa-pen-to-square text-primary"></i>
+                            </a>`
+                        ]);
+                    });
+
+                    table.draw();
+                });
                 // Parse the HTML response to extract menu composition
-                let parser = new DOMParser();
+                /* let parser = new DOMParser();
                 let doc = parser.parseFromString(html, 'text/html');
                 
                 // Try to extract menu data from the page
@@ -2035,7 +2063,7 @@ $('.TableVente tbody').on('click', '.ViewCommandDetails', function(e) {
                 
                 $('#view_entree').text(entree);
                 $('#view_plat_principal').text(platPrincipal);
-                $('#view_dessert').text(dessert);
+                $('#view_dessert').text(dessert); */
             },
             error: function() {
                 // If AJAX fails, show raw data
