@@ -730,7 +730,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     <i class="fa-solid fa-box"></i> Produits de la commande
                 </h6>
                 <div class="table-responsive">
-                    <table class="table table-striped table-hover" id="TableViewCommandProducts">
+                    <table class="table table-striped table-hover" id="TableViewCommandProductss">
                         <thead class="thead-light">
                             <tr>
                                 <th>#</th>
@@ -741,6 +741,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 <th>Seuil</th>
                                 <th>Local</th>
                                 <th>Action</th>
+                               
                             </tr>
                         </thead>
                         <tbody>
@@ -752,6 +753,9 @@ document.addEventListener('DOMContentLoaded', function () {
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
                     <i class="fa-solid fa-times"></i> Fermer
+                </button>
+                <button type="button" class="btn btn-primary" id="btnSaveQteLivree">
+                     Save
                 </button>
             </div>
         </div>

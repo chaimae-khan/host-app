@@ -2031,27 +2031,59 @@ $('.TableVente tbody').on('click', '.ViewCommandDetails', function(e) {
             dataType: "json",
             success: function(response) 
             {
-               
-                 let table = $('#TableViewCommandProducts').DataTable();
-                    table.clear(); // remove old rows
+               if(response.status == 200)
+               {
+                    if ($.fn.DataTable.isDataTable('#TableViewCommandProductss')) {
+                        $('#TableViewCommandProductss').DataTable().clear().destroy(); // Clear and destroy old instance
+                    }
+                    let table = $('#TableViewCommandProductss').DataTable({
+                        language: {
+                            "sInfo": "Affichage de l'élément _START_ à _END_ sur _TOTAL_ éléments",
+                            "sInfoEmpty": "Affichage de l'élément 0 à 0 sur 0 élément",
+                            "sInfoFiltered": "(filtré à partir de _MAX_ éléments au total)",
+                            "sLengthMenu": "Afficher _MENU_ éléments",
+                            "sLoadingRecords": "Chargement...",
+                            "sProcessing": "Traitement...",
+                            "sSearch": "Rechercher :",
+                            "sZeroRecords": "Aucun élément correspondant trouvé",
+                            "oPaginate": {
+                                "sFirst": "Premier",
+                                "sLast": "Dernier",
+                                "sNext": "Suivant",
+                                "sPrevious": "Précédent"
+                            }
+                        }
+                    });
 
-                    data.forEach(function(row, index) {
+
+                    // Clear all previous rows
+                    table.clear().draw();
+
+                    // Append new rows
+                    $.each(response.data, function(index, value) {
                         table.row.add([
                             index + 1,
-                            row.name_product,
-                            row.qte,
-                            row.newquantet,
-                            row.qtestock,
-                            row.seuil,
-                            row.local,
-                            `<a href="#" class="btn btn-sm bg-primary-subtle me-1" data-id="${row.id}">
+                            value.name_product,
+                            value.qte,
+                            value.newquantet,
+                            value.qtestock,
+                            value.seuil,
+                            value.local,
+                            `<a href="#" class="btn btn-sm bg-primary-subtle me-1 edit-btn" data-id="${value.id}" data-vente="${value.idvente}">
                                 <i class="fa-solid fa-pen-to-square text-primary"></i>
                             </a>`
                         ]);
                     });
 
+                    // Draw table
                     table.draw();
-                });
+
+               }
+                
+
+              
+               
+                
                 // Parse the HTML response to extract menu composition
                 /* let parser = new DOMParser();
                 let doc = parser.parseFromString(html, 'text/html');
@@ -2147,6 +2179,67 @@ $('.TableVente tbody').on('click', '.ViewCommandDetails', function(e) {
         }
     });
 });
+
+$('#TableViewCommandProductss tbody').on('click', '.edit-btn', function(e) {
+    e.preventDefault();
+
+    // Get the DataTable row
+    let table = $('#TableViewCommandProductss').DataTable();
+    let $row = $(this).closest('tr');
+    let rowData = table.row($row).data(); // current row data array
+
+    // Find the index of the column you want to edit (newquantet column)
+    // In your row array, newquantet is at index 3 (0-based)
+    let cellIndex = 3;
+
+    // Replace the cell content with input
+    table.cell($row, cellIndex).data(
+        `<input type="number"  class="form-control form-control-sm newquantet-input" value="${rowData[cellIndex - 1]}">`
+    ).draw(false);
+
+    // Optional: focus the input
+    $row.find('input').focus();
+});
+
+
+$(document).on('#TableViewCommandProductss tbody').on('input','.newquantet-input',function()
+{
+    let table = $('#TableViewCommandProductss').DataTable();
+    let $row = $(this).closest('tr');
+    let rowData = table.row($row).data();
+    let id_ligne_vente = rowData[0];
+    let $input = $row.find('td').eq(3).find('input.newquantet-input');
+    let qte_livree     = input.val();
+    let qte_demande    = rowData[2];
+    let qte_stock      = rowData[4];
+   
+    if (Number(qte_livree) > Number(qte_stock)) 
+    {
+        new AWN().alert("Quantité livrée supérieure à quantité stock", {
+            durations: { info: 5000 }
+        });
+        return false;
+    }
+    else
+    {
+       /*  $.ajax({
+            type: "get",
+            url: ,
+            data: 
+            {
+                id_ligne_vente : id_ligne_vente,
+                qte_demande    : qte_demande,
+                qte_livree     : qte_livree
+            },
+            dataType: "json",
+            success: function (response) 
+            {
+
+            }
+        }); */
+    }
+});
+
 
 // Clean up modal when closed
 $('#ModalViewCommand').on('hidden.bs.modal', function() {

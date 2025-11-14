@@ -807,50 +807,44 @@ private function getStatusHistory($venteId)
     }
 
 
-public function showventeByUpdate(Request $request)
-{
-    //dd($request->all());
-    $idvente = $request->all();
-   
-    $id = $idvente['venteId'];
-
-    $ligne_vente = DB::table('ligne_vente as l')
-        ->join('ventes as v','v.id','=','l.idvente')
-        ->join('products as p','p.id','=','l.idproduit')
-        ->join('locals as loc','loc.id','=','p.id_local')
-        ->join('stock as s','s.id_product','=','l.idproduit')
-        ->select(
-            'l.qte',
-            'l.idproduit',
-            'loc.name as local',
-            'p.seuil',
-            's.quantite as qtestock',
-            'p.name as name_product',
-            'l.id',
-            DB::raw('IFNULL(l.newquantet, 0) as newquantet')
-        )
-        ->where('v.id', $id)
-        ->get();
-
-    return DataTables::of($ligne_vente)
-        ->addIndexColumn()
-        ->addColumn('action', function ($row) {
-            $btn = '';
-            $btn .= '<a href="#" class="btn btn-sm bg-primary-subtle me-1"
-                        data-id="' . $row->id . '">
-                        <i class="fa-solid fa-pen-to-square text-primary"></i>
-                    </a>';
-            return $btn;
-        })
-        ->rawColumns(['action'])
-        ->make(true);
-
-   
+    public function showventeByUpdate(Request $request)
+    {
+        //dd($request->all());
+        $idvente = $request->all();
     
-    
-    
+        $id = $idvente['venteId'];
 
-}
+        $ligne_vente = DB::table('ligne_vente as l')
+            ->join('ventes as v','v.id','=','l.idvente')
+            ->join('products as p','p.id','=','l.idproduit')
+            ->join('locals as loc','loc.id','=','p.id_local')
+            ->join('stock as s','s.id_product','=','l.idproduit')
+            ->select(
+                'l.qte',
+                'l.idproduit',
+                'loc.name as local',
+                'p.seuil',
+                's.quantite as qtestock',
+                'p.name as name_product',
+                'l.id',
+                'v.id as idvente',
+                DB::raw('IFNULL(l.newquantet, 0) as newquantet')
+            )
+            ->where('v.id', $id)
+            ->get();
+
+        return response()->json([
+            'status'   => 200,
+            'data'     => $ligne_vente
+        ]);
+
+
+    }
+
+    public function UpdateLigneVente(Request $request)
+    {
+
+    }
 public function ShowBonVente($id)
 {
     if (!auth()->user()->can('Commande')) {
