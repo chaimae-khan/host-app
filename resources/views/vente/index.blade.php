@@ -70,7 +70,6 @@ document.addEventListener('DOMContentLoaded', function () {
     var getLigneVenteUrl = "{{ route('vente.ligne-vente', ':id') }}";
 
 </script>
-
 <style>
     .table-responsive {
         overflow-x: hidden;
