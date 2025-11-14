@@ -42,7 +42,7 @@ public function index(Request $request)
     if ($request->ajax()) {
         $hashids = new Hashids();
 
-             $query = DB::table('ventes as v')
+        $query = DB::table('ventes as v')
             ->join('users as f', 'f.id', '=', 'v.id_formateur')
             ->join('users as u', 'u.id', '=', 'v.id_user')
             ->select(
@@ -68,7 +68,6 @@ public function index(Request $request)
             )
             ->whereNull('v.deleted_at');
         
-
         // If user is a formateur, show only their sales
         if (Auth::user()->hasRole('Formateur')) {
             $query->where('v.id_formateur', Auth::id());
@@ -88,6 +87,22 @@ public function index(Request $request)
                     ->exists();
 
                 $isFormateur = ($row->id_formateur == auth()->id());
+                
+                // ✅ Check if user is Magasinier
+                $isMagasinier = DB::table('model_has_roles')
+                    ->join('roles', 'model_has_roles.role_id', '=', 'roles.id')
+                    ->where('model_has_roles.model_id', auth()->id())
+                    ->where('roles.name', 'Magasinier')
+                    ->exists();
+
+                // ✅ NEW: Add info icon for Magasinier to view command details (always visible)
+                if ($isMagasinier) {
+                    $btn .= '<a href="#" class="btn btn-sm bg-warning-subtle me-1 ViewCommandDetails"
+                                data-id="' . $row->id . '" 
+                                title="Voir détails commande">
+                                <i class="fa-solid fa-info-circle text-warning"></i>
+                            </a>';
+                }
 
                 if($row->status == 'Annuler' )
                 {
@@ -115,7 +130,7 @@ public function index(Request $request)
                 if (auth()->user()->can('Commande')) {
                     // Edit button (not shown if Validation)
                     if (auth()->user()->can('Commande-modifier') && $row->status !== 'Validation') {
-                        $btn .= '<a href="#" class="btn btn-sm bg-primary-subtle me-1"
+                        $btn .= '<a href="#" class="btn btn-sm bg-primary-subtle me-1 EditVenteStatus"
                                     data-id="' . $row->id . '">
                                     <i class="fa-solid fa-pen-to-square text-primary"></i>
                                 </a>';
@@ -148,13 +163,11 @@ public function index(Request $request)
 
                     if($row->status == 'Validation' && $isAdmin)
                     {
-                         $btn .= '<a href="#" class="btn btn-sm bg-primary-subtle me-1"
+                         $btn .= '<a href="#" class="btn btn-sm bg-primary-subtle me-1 EditVenteStatus"
                                     data-id="' . $row->id . '">
                                     <i class="fa-solid fa-pen-to-square text-primary"></i>
                                 </a>';
                     }
-
-                    
                 }
 
                 return $btn;
@@ -173,20 +186,20 @@ public function index(Request $request)
     $unites = Unite::all();
     $class = DB::select("SELECT DISTINCT(classe) AS classe FROM categories");
 
-  $Plat_Entre = DB::table('plats')
-    ->where('type', 'Entrée')
-    ->whereNull('deleted_at')
-    ->get();
+    $Plat_Entre = DB::table('plats')
+        ->where('type', 'Entrée')
+        ->whereNull('deleted_at')
+        ->get();
 
-$Plat_Dessert = DB::table('plats')
-    ->where('type', 'Dessert')
-    ->whereNull('deleted_at')
-    ->get();
+    $Plat_Dessert = DB::table('plats')
+        ->where('type', 'Dessert')
+        ->whereNull('deleted_at')
+        ->get();
 
-$Plat_Principal = DB::table('plats')
-    ->where('type', 'Plat Principal')
-    ->whereNull('deleted_at')
-    ->get();
+    $Plat_Principal = DB::table('plats')
+        ->where('type', 'Plat Principal')
+        ->whereNull('deleted_at')
+        ->get();
 
     return view('vente.index', compact(
         'formateurs', 'categories', 'subcategories', 'locals',
@@ -935,6 +948,14 @@ public function FactureVente($id)
     
     $bonVente = Vente::findOrFail($id);
     
+    // ✅ ADD THIS: Calculate French month from created_at
+    $frenchMonths = [
+        1 => 'janvier', 2 => 'février', 3 => 'mars', 4 => 'avril',
+        5 => 'mai', 6 => 'juin', 7 => 'juillet', 8 => 'août',
+        9 => 'septembre', 10 => 'octobre', 11 => 'novembre', 12 => 'décembre'
+    ];
+    $month = $frenchMonths[date('n', strtotime($bonVente->created_at))];
+    
     // ✅ CONVERT PLAT IDs TO NAMES (same as ShowBonVente)
     if ($bonVente->entree) {
         $entreeIds = explode(',', $bonVente->entree);
@@ -963,7 +984,7 @@ public function FactureVente($id)
     // Rest of existing code...
     $Formateur = DB::table('users as f')
         ->join('ventes as v', 'v.id_formateur', '=', 'f.id')
-        ->select('f.*')  // This already includes f.service
+        ->select('f.*')
         ->where('v.id', $id)
         ->first();
 
@@ -1011,7 +1032,8 @@ public function FactureVente($id)
         'Data_Vente',
         'imageData',
         'imageData_bottom',
-        'getHistorique_sig'
+        'getHistorique_sig',
+        'month'  // ✅ ADD THIS to pass the month to the blade
     ))->render();
 
     $pdf = Pdf::loadHTML($html)->output();
@@ -1055,21 +1077,6 @@ public function update(Request $request)
             'message' => 'Vous n\'avez pas la permission de modifier une commande'
         ], 403);
     }
-    /* dd($request->id);
-
-    // extract id produit 
-    $extract_id_product = DB::table('ventes as v')
-    ->join('ligne_vente as l', 'l.idvente', '=', 'v.id')
-    ->join('products as p','p.id','=','l.idproduit')
-    ->select(
-        'l.idproduit',
-        DB::raw('SUM(l.contete_formateur) as qte_formateur'),'p.name'
-    )
-    ->where('v.id', $request->id)
-    ->where('v.status','=','Création')
-    ->groupBy('l.idproduit')
-    ->get();
-    dd($extract_id_product); */
 
     $vente = Vente::find($request->id);
 
@@ -1088,7 +1095,7 @@ public function update(Request $request)
     }
 
     $validator = Validator::make($request->all(), [
-        'status' => 'required|string|in:Création,Validation,Refus,Livraison,Réception,Visé',
+        'status' => 'required|string|in:Création,Visa Directeur,Visa Économe,Visa Chargé,Validation,Refus,Livraison,Réception,Visé',
         'motif_refus' => 'required_if:status,Refus|nullable|string|max:500',
         'type_menu' => 'sometimes|string|in:Menu eleves,Menu specials,Menu d\'application',
         'type_commande' => 'sometimes|string|in:Alimentaire,Non Alimentaire,Fournitures et matériels',
@@ -1099,7 +1106,7 @@ public function update(Request $request)
     ], [
         'required' => 'Le champ :attribute est requis.',
         'motif_refus.required_if' => 'Le motif de refus est obligatoire.',
-        'in' => 'Le statut doit être l\'un des suivants: Création, Validation, Refus, Livraison, Réception, Visé',
+        'in' => 'Le statut doit être valide',
         'string' => 'Le champ :attribute doit être du texte',
         'max' => 'Le champ :attribute ne peut pas dépasser :max caractères',
     ], [
@@ -1121,7 +1128,6 @@ public function update(Request $request)
     }
 
     $oldStatus = $vente->status;
-
     $vente->status = $request->status;
     
     // Save motif_refus if status is Refus
@@ -1153,20 +1159,71 @@ public function update(Request $request)
     
     $vente->save();
     
+    // Save signature for visa statuses
+    if (in_array($request->status, ['Visa Directeur', 'Visa Économe', 'Visa Chargé', 'Réception', 'Livraison'])) {
+        $path_signature = Auth::user()->signature;
+        Historique_Sig::create([
+            'signature'   => $path_signature,
+            'iduser'      => Auth::user()->id,
+            'idvente'     => $vente->id,
+            'status'      => $request->status
+        ]);
+    }
+    
     // 🔔 Notification logic after updating status
     $hashids = new \Hashids\Hashids();
     $encodedId = $hashids->encode($vente->id);
-
     $currentUser = \App\Models\User::find(\Auth::id());
     $currentUserName = $currentUser->prenom . ' ' . $currentUser->nom;
-
-    // Notify based on status
     $creatorUser = \App\Models\User::find($vente->id_user);
 
     if ($creatorUser) {
         switch ($request->status) {
-   
-        
+            case 'Visa Directeur':
+                // Notify Économe after Directeur des études visa (Alimentaire only)
+                $economeUsers = \App\Models\User::whereHas('roles', function($query) {
+                    $query->where('name', 'Économe');
+                })->get();
+                
+                foreach ($economeUsers as $econome) {
+                    $econome->notify(new \App\Notifications\SystemNotification([
+                        'message' => 'Commande Alimentaire #' . $vente->id . ' visée par le Directeur des études - en attente de votre visa',
+                        'status'  => 'Visa Directeur',
+                        'view_url' => url('ShowBonVente/' . $encodedId),
+                    ]));
+                }
+                break;
+
+            case 'Visa Économe':
+                // Notify Administrateur after Économe visa
+                $adminUsers = \App\Models\User::whereHas('roles', function($query) {
+                    $query->where('name', 'Administrateur');
+                })->get();
+                
+                foreach ($adminUsers as $admin) {
+                    $admin->notify(new \App\Notifications\SystemNotification([
+                        'message' => 'Commande #' . $vente->id . ' visée par l\'Économe - prête pour validation',
+                        'status'  => 'Visa Économe',
+                        'view_url' => url('ShowBonVente/' . $encodedId),
+                    ]));
+                }
+                break;
+
+            case 'Visa Chargé':
+                // Notify Économe after Chargé d'inventaire visa (Non Alimentaire only)
+                $economeUsers = \App\Models\User::whereHas('roles', function($query) {
+                    $query->where('name', 'Économe');
+                })->get();
+                
+                foreach ($economeUsers as $econome) {
+                    $econome->notify(new \App\Notifications\SystemNotification([
+                        'message' => 'Commande Non Alimentaire #' . $vente->id . ' visée par le Chargé d\'inventaire - en attente de votre visa',
+                        'status'  => 'Visa Chargé',
+                        'view_url' => url('ShowBonVente/' . $encodedId),
+                    ]));
+                }
+                break;
+
             case 'Refus':
                 $creatorUser->notify(new \App\Notifications\SystemNotification([
                     'message' => 'Votre commande #' . $vente->id . ' a été refusée par ' . $currentUserName,
@@ -1211,26 +1268,6 @@ public function update(Request $request)
                 }
                 break;
         }
-    }
-    
-    if($request->status == 'Réception') {
-        $path_signature = Auth::user()->signature;
-        Historique_Sig::create([
-            'signature'   => $path_signature,
-            'iduser'      => Auth::user()->id,
-            'idvente'     => $vente->id,
-            'status'      => 'Réception'  
-        ]);
-    }
-    
-    if($request->status == 'Livraison') {
-        $path_signature = Auth::user()->signature;
-        Historique_Sig::create([
-            'signature'   => $path_signature,
-            'iduser'      => Auth::user()->id,
-            'idvente'     => $vente->id,
-            'status'      => 'Livraison'  
-        ]);
     }
 
     if ($oldStatus !== $request->status) {
@@ -1851,5 +1888,135 @@ public function cleanTmpVente(Request $request)
         ]);
 
     }
+public function getCommandDetails(Request $request)
+{
+    try {
+        $venteId = $request->id;
+        
+        // Get vente details
+        $vente = Vente::find($venteId);
+        
+        if (!$vente) {
+            return response()->json([
+                'status' => 404,
+                'message' => 'Commande non trouvée'
+            ], 404);
+        }
+        
+        // Get formateur info
+        $formateur = DB::table('users')
+            ->where('id', $vente->id_formateur)
+            ->select(DB::raw("CONCAT(prenom, ' ', nom) as name"), 'id')
+            ->first();
+        
+        // Get ligne_vente products with details
+        $products = DB::table('ligne_vente as l')
+            ->join('products as p', 'l.idproduit', '=', 'p.id')
+            ->join('stock as s', 's.id_product', '=', 'p.id')
+            ->join('locals as loc', 'loc.id', '=', 's.id_local')
+            ->where('l.idvente', $venteId)
+            ->select(
+                'l.id',
+                'l.idproduit',
+                'p.name as product_name',
+                'l.qte',
+                's.quantite as stock_quantity',
+                'p.seuil',
+                'loc.name as local_name'
+            )
+            ->get();
+        
+        // Convert plat IDs to names
+        $entreeNames = null;
+        $platPrincipalNames = null;
+        $dessertNames = null;
+        
+        if ($vente->entree) {
+            $entreeIds = explode(',', $vente->entree);
+            $entreeNames = DB::table('plats')->whereIn('id', $entreeIds)->pluck('name')->toArray();
+            $entreeNames = implode(', ', $entreeNames);
+        }
+        
+        if ($vente->plat_principal) {
+            $platIds = explode(',', $vente->plat_principal);
+            $platPrincipalNames = DB::table('plats')->whereIn('id', $platIds)->pluck('name')->toArray();
+            $platPrincipalNames = implode(', ', $platPrincipalNames);
+        }
+        
+        if ($vente->dessert) {
+            $dessertIds = explode(',', $vente->dessert);
+            $dessertNames = DB::table('plats')->whereIn('id', $dessertIds)->pluck('name')->toArray();
+            $dessertNames = implode(', ', $dessertNames);
+        }
+        
+        return response()->json([
+            'status' => 200,
+            'vente' => [
+                'id' => $vente->id,
+                'numero_serie' => $vente->numero_serie,
+                'type_commande' => $vente->type_commande,
+                'type_menu' => $vente->type_menu,
+                'eleves' => $vente->eleves,
+                'personnel' => $vente->personnel,
+                'invites' => $vente->invites,
+                'divers' => $vente->divers,
+                'date_usage' => $vente->date_usage,
+                'entree' => $entreeNames,
+                'plat_principal' => $platPrincipalNames,
+                'dessert' => $dessertNames,
+                'status' => $vente->status,
+                'total' => $vente->total,
+                'created_at' => $vente->created_at
+            ],
+            'formateur' => $formateur,
+            'products' => $products
+        ]);
+        
+    } catch (\Exception $e) {
+        \Log::error('Error in getCommandDetails: ' . $e->getMessage());
+        
+        return response()->json([
+            'status' => 500,
+            'message' => 'Une erreur est survenue',
+            'error' => $e->getMessage()
+        ], 500);
+    }
+}
+// Add this method to your VenteController.php
 
+public function getLigneVente($venteId)
+{
+    try {
+        // Get ligne_vente products with details
+        $products = DB::table('ligne_vente as l')
+            ->join('products as p', 'l.idproduit', '=', 'p.id')
+            ->join('stock as s', 's.id_product', '=', 'p.id')
+            ->join('locals as loc', 'loc.id', '=', 's.id_local')
+            ->where('l.idvente', $venteId)
+            ->select(
+                'l.id',
+                'l.idproduit',
+                'p.name as product_name',
+                'l.qte',
+                's.quantite as stock_quantity',
+                'p.seuil',
+                'loc.name as local_name'
+            )
+            ->get();
+        
+        return response()->json([
+            'status' => 200,
+            'products' => $products
+        ]);
+        
+    } catch (\Exception $e) {
+        \Log::error('Error in getLigneVente: ' . $e->getMessage());
+        
+        return response()->json([
+            'status' => 500,
+            'message' => 'Une erreur est survenue',
+            'products' => []
+        ], 500);
+    }
+}
 }

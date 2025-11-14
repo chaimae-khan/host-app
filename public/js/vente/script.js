@@ -874,17 +874,11 @@ $('#BtnSaveVente').on('click', function(e) {
             {
                 new AWN().alert(response.message , {durations: {alert: 5000}});
             }
-            else if(response.status == 900)
-            {
-                 response.messages.forEach(function(msg){
-                    new AWN().alert(msg, {durations: {alert: 5000}});
-                });
-            }
             else {
                 new AWN().alert(response.message || "Une erreur est survenue", {durations: {alert: 5000}});
             }
         },
-
+        
         error: function(xhr, status, error) {
             // Mark save operation as complete and re-enable the button
             ajaxInProgress.saveVente = false;
@@ -1913,6 +1907,244 @@ $('#ModalAddVente').on('hidden.bs.modal', function () {
 // Handle when user clicks "Fermer" button specifically
 $('#ModalAddVente .btn-secondary[data-bs-dismiss="modal"]').on('click', function() {
     $('#ModalAddVente').modal('hide');
+});
+// ============================================
+// VIEW COMMAND DETAILS MODAL HANDLER (Simplified - No getCommandDetails)
+// ============================================
+
+$('.TableVente tbody').on('click', '.ViewCommandDetails', function(e) {
+    e.preventDefault();
+    
+    let venteId = $(this).attr('data-id');
+    let row = $(this).closest('tr');
+    
+    // Get data directly from the DataTable row
+    let rowData = $('.TableVente').DataTable().row(row).data();
+    
+    // Show modal
+    $('#ModalViewCommand').modal('show');
+    
+    // ========================================
+    // POPULATE LEFT SIDE - COMMAND INFO
+    // ========================================
+    
+    // N° Série
+    let prefix = rowData.type_commande === 'Alimentaire' ? 'A-' : 'NA-';
+    let year = new Date().getFullYear();
+    $('#view_numero_serie').text(prefix + rowData.numero_serie + '/' + rowData.type_commande + '/' + year);
+    
+    // Demandeur
+    $('#view_formateur').text(rowData.formateur_name);
+    
+    // Type de commande
+    $('#view_type_commande').text(rowData.type_commande);
+    
+    // Status badge with appropriate color
+    let badgeClass = 'bg-secondary';
+    let statusText = rowData.status;
+    
+    switch(rowData.status) {
+        case 'Création': 
+            badgeClass = 'bg-info'; 
+            break;
+        case 'Visa Directeur': 
+            badgeClass = 'bg-primary'; 
+            statusText = 'Visa Directeur';
+            break;
+        case 'Visa Économe': 
+            badgeClass = 'bg-warning'; 
+            statusText = 'Visa Économe';
+            break;
+        case 'Visa Chargé': 
+            badgeClass = 'bg-info'; 
+            statusText = 'Visa Chargé';
+            break;
+        case 'Validation': 
+            badgeClass = 'bg-success'; 
+            statusText = 'Réception';
+            break;
+        case 'Réception': 
+            badgeClass = 'bg-success'; 
+            statusText = 'Validation';
+            break;
+        case 'Refus': 
+            badgeClass = 'bg-danger'; 
+            break;
+        case 'Livraison': 
+            badgeClass = 'bg-primary'; 
+            break;
+        case 'Visé': 
+            badgeClass = 'bg-secondary'; 
+            break;
+        case 'Annuler': 
+            badgeClass = 'bg-dark'; 
+            break;
+    }
+    
+    $('#view_status').removeClass().addClass('badge ' + badgeClass).text(statusText);
+    
+    // Date d'utilisation
+    if (rowData.date_usage && rowData.date_usage !== '' && rowData.date_usage !== null) {
+        $('#view_date_usage').text(moment(rowData.date_usage).format('DD/MM/YYYY'));
+    } else {
+        $('#view_date_usage').text('-');
+    }
+    
+    // ========================================
+    // HANDLE ALIMENTAIRE VS NON ALIMENTAIRE
+    // ========================================
+    
+    if (rowData.type_commande === 'Alimentaire') {
+        // Show Alimentaire-specific fields
+        $('#view_menu_container').show();
+        $('#view_quantity_fields_container').show();
+        $('#view_menu_attributes_container').show();
+        
+        // Format menu name
+        let menuName = rowData.type_menu;
+        if (menuName === 'Menu eleves') {
+            menuName = 'Menu standard';
+        }
+        $('#view_type_menu').text(menuName || '-');
+        
+        // Populate quantities
+        $('#view_eleves').text(rowData.eleves || 0);
+        $('#view_personnel').text(rowData.personnel || 0);
+        $('#view_invites').text(rowData.invites || 0);
+        $('#view_divers').text(rowData.divers || 0);
+        
+        // Show loading for menu composition and products
+        $('#view_entree').html('<i class="fa-solid fa-spinner fa-spin"></i> Chargement...');
+        $('#view_plat_principal').html('<i class="fa-solid fa-spinner fa-spin"></i> Chargement...');
+        $('#view_dessert').html('<i class="fa-solid fa-spinner fa-spin"></i> Chargement...');
+        
+        // Fetch menu details via AJAX to get plat names
+        $.ajax({
+            type: "GET",
+            url: ShowBonVente.replace(':id', venteId), // Assuming you have this URL
+            dataType: "html",
+            success: function(html) {
+                // Parse the HTML response to extract menu composition
+                let parser = new DOMParser();
+                let doc = parser.parseFromString(html, 'text/html');
+                
+                // Try to extract menu data from the page
+                let entree = $(doc).find('#entree_data').text() || rowData.entree || '-';
+                let platPrincipal = $(doc).find('#plat_principal_data').text() || rowData.plat_principal || '-';
+                let dessert = $(doc).find('#dessert_data').text() || rowData.dessert || '-';
+                
+                $('#view_entree').text(entree);
+                $('#view_plat_principal').text(platPrincipal);
+                $('#view_dessert').text(dessert);
+            },
+            error: function() {
+                // If AJAX fails, show raw data
+                $('#view_entree').text(rowData.entree || '-');
+                $('#view_plat_principal').text(rowData.plat_principal || '-');
+                $('#view_dessert').text(rowData.dessert || '-');
+            }
+        });
+        
+    } else {
+        // Hide Alimentaire-specific fields for Non Alimentaire
+        $('#view_menu_container').hide();
+        $('#view_quantity_fields_container').hide();
+        $('#view_menu_attributes_container').hide();
+    }
+    
+    // ========================================
+    // POPULATE RIGHT SIDE - TOTAL & PRODUCTS
+    // ========================================
+    
+    // Total
+    $('#view_total').text(parseFloat(rowData.total).toFixed(2) + ' DH');
+    
+    // Show loading in products table
+    $('#TableViewCommandProducts tbody').html(
+        '<tr><td colspan="6" class="text-center">' +
+        '<i class="fa-solid fa-spinner fa-spin"></i> Chargement des produits...' +
+        '</td></tr>'
+    );
+    
+    // Fetch products from ligne_vente via simple AJAX
+    $.ajax({
+        type: "GET",
+        url: "/vente/ligne-vente/" + venteId, // You need to create this simple route
+        dataType: "json",
+        success: function(response) {
+            if (response.status === 200 && response.products.length > 0) {
+                let productsHtml = '';
+                
+                $.each(response.products, function(index, product) {
+                    // Check if stock is low
+                    let stockClass = '';
+                    let stockBadge = '';
+                    
+                    if (product.stock_quantity <= product.seuil) {
+                        stockClass = 'text-danger fw-bold';
+                        stockBadge = ' <span class="badge bg-danger ms-1">Bas</span>';
+                    } else if (product.stock_quantity <= product.seuil * 1.5) {
+                        stockClass = 'text-warning fw-bold';
+                        stockBadge = ' <span class="badge bg-warning ms-1">Moyen</span>';
+                    } else {
+                        stockClass = 'text-success';
+                    }
+                    
+                    productsHtml += '<tr>';
+                    productsHtml += '<td>' + (index + 1) + '</td>';
+                    productsHtml += '<td>' + product.product_name + '</td>';
+                    productsHtml += '<td><span class="badge bg-primary">' + product.qte + '</span></td>';
+                    productsHtml += '<td class="' + stockClass + '">' + product.stock_quantity + stockBadge + '</td>';
+                    productsHtml += '<td>' + product.seuil + '</td>';
+                    productsHtml += '<td><span class="badge bg-secondary">' + product.local_name + '</span></td>';
+                    productsHtml += '</tr>';
+                });
+                
+                $('#TableViewCommandProducts tbody').html(productsHtml);
+            } else {
+                $('#TableViewCommandProducts tbody').html(
+                    '<tr><td colspan="6" class="text-center text-muted">' +
+                    '<i class="fa-solid fa-box-open"></i> Aucun produit trouvé' +
+                    '</td></tr>'
+                );
+            }
+        },
+        error: function(xhr, status, error) {
+            console.error("Error loading products:", error);
+            $('#TableViewCommandProducts tbody').html(
+                '<tr><td colspan="6" class="text-center text-danger">' +
+                '<i class="fa-solid fa-exclamation-circle"></i> Erreur lors du chargement des produits' +
+                '</td></tr>'
+            );
+        }
+    });
+});
+
+// Clean up modal when closed
+$('#ModalViewCommand').on('hidden.bs.modal', function() {
+    // Clear all text fields
+    $('#view_numero_serie').text('');
+    $('#view_formateur').text('');
+    $('#view_type_commande').text('');
+    $('#view_status').removeClass().addClass('badge').text('');
+    $('#view_date_usage').text('');
+    $('#view_type_menu').text('');
+    $('#view_eleves').text('');
+    $('#view_personnel').text('');
+    $('#view_invites').text('');
+    $('#view_divers').text('');
+    $('#view_entree').text('');
+    $('#view_plat_principal').text('');
+    $('#view_dessert').text('');
+    $('#view_total').text('0.00 DH');
+    
+    // Clear products table
+    $('#TableViewCommandProducts tbody').html('');
+    
+    // Hide conditional containers
+    $('#view_menu_container').hide();
+    $('#view_quantity_fields_container').hide();
+    $('#view_menu_attributes_container').hide();
 });
 
 

@@ -64,8 +64,11 @@ document.addEventListener('DOMContentLoaded', function () {
     var searchVenteProducts_url = "{{ route('vente.search.products') }}";
     var getcategorybytypemenu = "{{ url('getcategorybytypemenu') }}";
     var sendPlatToTmpVente   = "{{ url('sendPlatToTmpVente') }}";
-     var cleanTmpVente = "{{ url('cleanTmpVente') }}"; 
-     var annulerCommande = "{{ url('annulerCommande') }}"; 
+    var cleanTmpVente = "{{ url('cleanTmpVente') }}"; 
+    var annulerCommande = "{{ url('annulerCommande') }}"; 
+    var getCommandDetails = "{{url('getCommandDetails')}}";
+    var getLigneVenteUrl = "{{ route('vente.ligne-vente', ':id') }}";
+
 </script>
 
 <style>
@@ -599,6 +602,15 @@ document.addEventListener('DOMContentLoaded', function () {
                             @if (Auth::user()->getRoleNames()->contains('Magasinier'))
                                 <option value="Livraison">Livraison</option>
                             @endif
+                        @if(auth()->user()->hasRole('Directeur des études'))
+                            <option value="Visa Directeur">Visa Directeur des études</option>
+                        @endif
+                        @if(auth()->user()->hasRole('Chargé d\'inventaire'))
+                            <option value="Visa Chargé">Visa Chargé d'inventaire</option>
+                        @endif
+                        @if(auth()->user()->hasRole('Économe'))
+                            <option value="Visa Économe">Visa Économe</option>
+                        @endif
                             
                             @if (Auth::user()->getRoleNames()->contains('Administrateur'))
                                 <option value="Refus">Refus</option>
@@ -646,6 +658,312 @@ document.addEventListener('DOMContentLoaded', function () {
         </div>
     </div>
     @endcan
+    <!-- Modal View Command Details (Read-Only) -->
+<div class="modal fade" id="ModalViewCommand" tabindex="-1" aria-labelledby="ModalViewCommandLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-warning-subtle">
+                <h5 class="modal-title" id="ModalViewCommandLabel">
+                    <i class="fa-solid fa-info-circle text-warning"></i> Détails de la commande
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Command Information -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <h6 class="card-subtitle mb-3 text-muted">Informations générales</h6>
+                                <p><strong>N° Série:</strong> <span id="view_numero_serie" class="text-primary"></span></p>
+                                <p><strong>Demandeur:</strong> <span id="view_formateur"></span></p>
+                                <p><strong>Type de commande:</strong> <span id="view_type_commande" class="badge bg-info"></span></p>
+                                <p><strong>Statut:</strong> <span id="view_status" class="badge"></span></p>
+                                <p><strong>Total:</strong> <span id="view_total" class="text-success fw-bold"></span></p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <h6 class="card-subtitle mb-3 text-muted">Détails supplémentaires</h6>
+                                <p><strong>Type de menu:</strong> <span id="view_type_menu"></span></p>
+                                <p><strong>Date d'utilisation:</strong> <span id="view_date_usage"></span></p>
+                                <div id="quantity_info_container">
+                                    <p><strong>Nombre d'élèves:</strong> <span id="view_eleves"></span></p>
+                                    <p><strong>Nombre de personnel:</strong> <span id="view_personnel"></span></p>
+                                    <p><strong>Nombre d'invités:</strong> <span id="view_invites"></span></p>
+                                    <p><strong>Divers:</strong> <span id="view_divers"></span></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Menu Details (only for Alimentaire) -->
+                <div id="menu_details_container" class="mb-4" style="display: none;">
+                    <div class="card bg-info-subtle">
+                        <div class="card-header">
+                            <h6 class="mb-0"><i class="mdi mdi-silverware-fork-knife"></i> Composition du Menu</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <p><strong><i class="mdi mdi-food-fork-drink"></i> Entrée:</strong></p>
+                                    <p id="view_entree" class="ms-3"></p>
+                                </div>
+                                <div class="col-md-4">
+                                    <p><strong><i class="mdi mdi-food"></i> Plat Principal:</strong></p>
+                                    <p id="view_plat_principal" class="ms-3"></p>
+                                </div>
+                                <div class="col-md-4">
+                                    <p><strong><i class="mdi mdi-cupcake"></i> Dessert:</strong></p>
+                                    <p id="view_dessert" class="ms-3"></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Products List -->
+                <h6 class="mt-4 mb-3">
+                    <i class="fa-solid fa-box"></i> Produits de la commande
+                </h6>
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover" id="TableViewCommandProducts">
+                        <thead class="thead-light">
+                            <tr>
+                                <th>#</th>
+                                <th>Produit</th>
+                                <th>Quantité Demandée</th>
+                                <th>Stock Disponible</th>
+                                <th>Seuil</th>
+                                <th>Local</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Will be populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fa-solid fa-times"></i> Fermer
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Modal View Command Details (Read-Only Version of Add Command Modal) -->
+<div class="modal fade" id="ModalViewCommand" tabindex="-1" aria-labelledby="ModalViewCommandLabel" aria-hidden="true">
+    <div class="modal-dialog modal-fullscreen">
+        <div class="modal-content">
+            <div class="modal-header bg-warning-subtle">
+                <h5 class="modal-title" id="ModalViewCommandLabel">
+                    <i class="fa-solid fa-info-circle text-warning"></i> Détails de la commande
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <!-- ============================================ -->
+                    <!-- LEFT SIDE - Command Information (Read-Only) -->
+                    <!-- ============================================ -->
+                    <div class="col-sm-12 col-md-12 col-xl-6">
+                        <div class="card bg-light shadow">
+                            <div class="card-body">
+                                <!-- N° Série and Status Row -->
+                                <div class="row mb-3">
+                                    <div class="col-6">
+                                        <div class="form-group">
+                                            <label class="label-form fw-bold">N° Série</label>
+                                            <p class="form-control-plaintext text-primary fw-bold fs-5" id="view_numero_serie">-</p>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="form-group">
+                                            <label class="label-form fw-bold">Statut</label>
+                                            <p class="form-control-plaintext">
+                                                <span id="view_status" class="badge bg-secondary fs-6">-</span>
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Demandeur -->
+                                <div class="form-group mb-3">
+                                    <label class="label-form fw-bold">Demandeur</label>
+                                    <p class="form-control-plaintext" id="view_formateur">-</p>
+                                </div>
+                                
+                                <!-- Type de commande -->
+                                <div class="form-group mb-3">
+                                    <label class="form-label fw-bold">Type de commande</label>
+                                    <p class="form-control-plaintext">
+                                        <span id="view_type_commande" class="badge bg-info fs-6">-</span>
+                                    </p>
+                                </div>
+
+                                <!-- Date d'utilisation -->
+                                <div class="form-group mb-3">
+                                    <label class="form-label fw-bold">Date d'utilisation</label>
+                                    <p class="form-control-plaintext" id="view_date_usage">-</p>
+                                </div>
+
+                                <!-- Type de menu (only for Alimentaire) -->
+                                <div class="form-group mb-3" id="view_menu_container" style="display: none;">
+                                    <label class="form-label fw-bold">Type de menu</label>
+                                    <p class="form-control-plaintext" id="view_type_menu">-</p>
+                                </div>
+
+                                <!-- Quantity Fields (only for Alimentaire) -->
+                                <div id="view_quantity_fields_container" style="display: none;">
+                                    <div class="card bg-primary-subtle mb-3">
+                                        <div class="card-body">
+                                            <h6 class="card-title mb-3">
+                                                <i class="fa-solid fa-users"></i> Nombre de convives
+                                            </h6>
+                                            <div class="row">
+                                                <div class="col-6">
+                                                    <div class="form-group mb-2">
+                                                        <label class="form-label fw-bold small">Élèves</label>
+                                                        <p class="form-control-plaintext fs-5" id="view_eleves">0</p>
+                                                    </div>
+                                                </div>
+                                                <div class="col-6">
+                                                    <div class="form-group mb-2">
+                                                        <label class="form-label fw-bold small">Personnel</label>
+                                                        <p class="form-control-plaintext fs-5" id="view_personnel">0</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="row">
+                                                <div class="col-6">
+                                                    <div class="form-group mb-2">
+                                                        <label class="form-label fw-bold small">Invités</label>
+                                                        <p class="form-control-plaintext fs-5" id="view_invites">0</p>
+                                                    </div>
+                                                </div>
+                                                <div class="col-6">
+                                                    <div class="form-group mb-2">
+                                                        <label class="form-label fw-bold small">Divers</label>
+                                                        <p class="form-control-plaintext fs-5" id="view_divers">0</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Menu Attributes (only for Alimentaire) -->
+                                <div id="view_menu_attributes_container" style="display: none;">
+                                    <div class="card bg-info-subtle">
+                                        <div class="card-header">
+                                            <h6 class="mb-0">
+                                                <i class="mdi mdi-silverware-fork-knife"></i> Composition du Menu
+                                            </h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="row">
+                                                <div class="col-md-6">
+                                                    <div class="form-group mb-3">
+                                                        <label class="form-label fw-bold">
+                                                            <i class="mdi mdi-food-fork-drink"></i> Entrée
+                                                        </label>
+                                                        <p class="form-control-plaintext" id="view_entree">-</p>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <div class="form-group mb-3">
+                                                        <label class="form-label fw-bold">
+                                                            <i class="mdi mdi-food"></i> Plat Principal
+                                                        </label>
+                                                        <p class="form-control-plaintext" id="view_plat_principal">-</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="row">
+                                                <div class="col-md-6">
+                                                    <div class="form-group mb-3">
+                                                        <label class="form-label fw-bold">
+                                                            <i class="mdi mdi-cupcake"></i> Dessert
+                                                        </label>
+                                                        <p class="form-control-plaintext" id="view_dessert">-</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ============================================ -->
+                    <!-- RIGHT SIDE - Total & Products List -->
+                    <!-- ============================================ -->
+                    <div class="col-sm-12 col-md-12 col-xl-6">
+                        <div class="card shadow bg-light">
+                            <div class="card-body">
+                                <!-- Total Card -->
+                                <div class="form-group mb-3" style="min-height: 123px;">
+                                    <div class="card text-start bg-success-subtle">
+                                        <div class="card-body">
+                                            <h6 class="card-subtitle mb-2 text-muted">
+                                                <i class="fa-solid fa-coins"></i> Total de la commande
+                                            </h6>
+                                            <p class="card-text fs-3 fw-bold text-success mb-0">
+                                                <span id="view_total">0.00 DH</span>
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Products Table -->
+                                <div class="form-group">
+                                    <h6 class="mb-3">
+                                        <i class="fa-solid fa-box"></i> Produits de la commande
+                                    </h6>
+                                    <div class="card text-start">
+                                        <div class="card-body">
+                                            <div class="table-responsive">
+                                                <table class="table table-striped table-hover w-100" id="TableViewCommandProducts">
+                                                    <thead class="thead-light">
+                                                        <tr>
+                                                            <th scope="col" class="text-center">#</th>
+                                                            <th scope="col">Produit</th>
+                                                            <th scope="col" class="text-center">Qté</th>
+                                                            <th scope="col" class="text-center">Stock</th>
+                                                            <th scope="col" class="text-center">Seuil</th>
+                                                            <th scope="col">Local</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        <tr>
+                                                            <td colspan="6" class="text-center">
+                                                                <i class="fa-solid fa-spinner fa-spin"></i> Chargement...
+                                                            </td>
+                                                        </tr>
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer text-end">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fa-solid fa-times"></i> Fermer
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
     <script>
     $('#Class_Categorie').on('change',function()
     {
@@ -975,4 +1293,5 @@ $(document).ready(function() {
 
 </script>
 
-</div>@endsection
+</div>
+@endsection

@@ -89,14 +89,14 @@
             text-align: center;
             font-weight: bold;
             font-size: 16px;
-            margin: 15px 0;
+            margin: 10px 0;
         }
         .command-info {
-            margin: 10px 20px;
+            margin: 5px 20px;
             font-size: 11px;
         }
         .command-info div {
-            margin: 5px 0;
+            margin: 2px 0;
         }
         .page-number {
             text-align: center;
@@ -113,8 +113,10 @@
         $totalItems = count($Data_Vente);
         $totalPages = ceil($itemsPerPage > 0 ? $totalItems / $itemsPerPage : 1);
         
-        // ✅ UPDATED: Use formatted_command_number from model
-        $commandNumber = $bonVente->formatted_command_number;
+        // ✅ UPDATED: Create command number with French month
+        $year = date('Y', strtotime($bonVente->created_at));
+        $prefix = ($bonVente->type_commande === 'Alimentaire') ? 'A' : 'NA';
+        $commandNumber = "{$prefix}-{$bonVente->numero_serie}/{$bonVente->type_commande}/{$month}/{$year}";
         
         // Calculate total effectif
         $totalEffectif = $bonVente->eleves + $bonVente->personnel + $bonVente->invites + $bonVente->divers;
@@ -144,7 +146,7 @@
             {{-- COMMAND INFO - ONLY ON FIRST PAGE --}}
             @if($page === 0)
                 <div class="command-info">
-                    {{-- ✅ UPDATED: Display formatted command number with numero_serie --}}
+                    {{-- ✅ UPDATED: Display formatted command number with month --}}
                     <div><strong>N° Bon de Commande :</strong> {{ $commandNumber }}</div>
                     <div><strong>N° de Série :</strong> {{ $bonVente->numero_serie }}</div>
                     <div><strong>Journée du :</strong> {{ $bonVente->date_usage ? \Carbon\Carbon::parse($bonVente->date_usage)->format('d/m/Y') : 'Non spécifié' }}</div>
@@ -175,7 +177,7 @@
             <div>
                 <div class="container">
                     {{-- PRODUCTS TABLE --}}
-                    <table id="tableDetail" style="margin-top: 30px">
+                    <table id="tableDetail" style="margin-top: 10px">
                         <thead>
                             <tr>
                                 <td style="text-align: center"><strong>Désignations</strong></td>
@@ -214,20 +216,31 @@
                         </tbody>
                     </table>
 
-                    {{-- SIGNATURE TABLE - ON EVERY PAGE --}}
+                    {{-- ✅ UPDATED SIGNATURE TABLE - ON EVERY PAGE --}}
                     <table id="tableDetail" style="margin-top: 30px; width: 100%; border-collapse: collapse;">
                         <thead>
                             <tr>
-                                <td style="text-align: center; border: 1px solid black; padding: 10px;"><strong>A la Commande (Date + Signature)</strong></td>
-                                <td style="text-align: center; border: 1px solid black; padding: 10px;"><strong>Validation</strong></td>
-                                <td style="text-align: center; border: 1px solid black; padding: 10px;"><strong>A la Livraison</strong></td>
-                                <td style="text-align: center; border: 1px solid black; padding: 10px;"><strong>A la Réception (Date + Signature)</strong></td>
+                                <td style="text-align: center; border: 1px solid black; padding: 10px;"><strong>A la Commande</strong></td>
+                                
+                                @if($bonVente->type_commande === 'Alimentaire')
+                                    <td style="text-align: center; border: 1px solid black; padding: 10px;"><strong>Visa Directeur des études</strong></td>
+                                @else
+                                    <td style="text-align: center; border: 1px solid black; padding: 10px;"><strong>Visa Chargé d'inventaire</strong></td>
+                                @endif
+                                
+                                <td style="text-align: center; border: 1px solid black; padding: 10px;"><strong>Visa Économe</strong></td>
+                                <td style="text-align: center; border: 1px solid black; padding: 10px;"><strong>Validation directrice</strong></td>
+                                <td style="text-align: center; border: 1px solid black; padding: 10px;"><strong>Livraison</strong></td>
+                                <td style="text-align: center; border: 1px solid black; padding: 10px;"><strong>Réception</strong></td>
                             </tr>
                         </thead>
                         <tbody>
                             <tr>
                                 @php
                                     $creation = null;
+                                    $visaDirecteur = null;
+                                    $visaCharge = null;
+                                    $visaEconome = null;
                                     $validation = null;
                                     $livraison = null;
                                     $reception = null;
@@ -236,6 +249,15 @@
                                         switch($item->status) {
                                             case 'Création':
                                                 $creation = $item;
+                                                break;
+                                            case 'Visa Directeur':
+                                                $visaDirecteur = $item;
+                                                break;
+                                            case 'Visa Chargé':
+                                                $visaCharge = $item;
+                                                break;
+                                            case 'Visa Économe':
+                                                $visaEconome = $item;
                                                 break;
                                             case 'Validation':
                                                 $validation = $item;
@@ -250,6 +272,7 @@
                                     }
                                 @endphp
                                 
+                                {{-- Création --}}
                                 <td style="text-align: center; border: 1px solid black; height: 100px; vertical-align: top; padding: 10px;">
                                     @if($creation)
                                         <img src="data:image/png;base64,{{ $creation->signature }}" alt="" style="max-height: 50px; max-width: 100px;">
@@ -257,13 +280,43 @@
                                         <br>{{ \Carbon\Carbon::parse($creation->created_at)->format('Y-m-d H:i:s') }}
                                     @endif
                                 </td>
+                                
+                                {{-- Visa Directeur des études (Alimentaire) OR Visa Chargé d'inventaire (Non Alimentaire) --}}
                                 <td style="text-align: center; border: 1px solid black; height: 100px; vertical-align: top; padding: 10px;">
-                                   @if($reception)
+                                    @if($bonVente->type_commande === 'Alimentaire')
+                                        @if($visaDirecteur)
+                                            <img src="data:image/png;base64,{{ $visaDirecteur->signature }}" alt="" style="max-height: 50px; max-width: 100px;">
+                                            <br>{{ $visaDirecteur->name }}
+                                            <br>{{ \Carbon\Carbon::parse($visaDirecteur->created_at)->format('Y-m-d H:i:s') }}
+                                        @endif
+                                    @else
+                                        @if($visaCharge)
+                                            <img src="data:image/png;base64,{{ $visaCharge->signature }}" alt="" style="max-height: 50px; max-width: 100px;">
+                                            <br>{{ $visaCharge->name }}
+                                            <br>{{ \Carbon\Carbon::parse($visaCharge->created_at)->format('Y-m-d H:i:s') }}
+                                        @endif
+                                    @endif
+                                </td>
+                                
+                                {{-- Visa Économe --}}
+                                <td style="text-align: center; border: 1px solid black; height: 100px; vertical-align: top; padding: 10px;">
+                                    @if($visaEconome)
+                                        <img src="data:image/png;base64,{{ $visaEconome->signature }}" alt="" style="max-height: 50px; max-width: 100px;">
+                                        <br>{{ $visaEconome->name }}
+                                        <br>{{ \Carbon\Carbon::parse($visaEconome->created_at)->format('Y-m-d H:i:s') }}
+                                    @endif
+                                </td>
+                                
+                                {{-- Validation Admin (was Réception in database) --}}
+                                <td style="text-align: center; border: 1px solid black; height: 100px; vertical-align: top; padding: 10px;">
+                                    @if($reception)
                                         <img src="data:image/png;base64,{{ $reception->signature }}" alt="" style="max-height: 50px; max-width: 100px;">
                                         <br>{{ $reception->name }}
                                         <br>{{ \Carbon\Carbon::parse($reception->created_at)->format('Y-m-d H:i:s') }}
                                     @endif
                                 </td>
+                                
+                                {{-- Livraison --}}
                                 <td style="text-align: center; border: 1px solid black; height: 100px; vertical-align: top; padding: 10px;">
                                     @if($livraison)
                                         <img src="data:image/png;base64,{{ $livraison->signature }}" alt="" style="max-height: 50px; max-width: 100px;">
@@ -271,6 +324,8 @@
                                         <br>{{ \Carbon\Carbon::parse($livraison->created_at)->format('Y-m-d H:i:s') }}
                                     @endif
                                 </td>
+                                
+                                {{-- Réception (was Validation in database) --}}
                                 <td style="text-align: center; border: 1px solid black; height: 100px; vertical-align: top; padding: 10px;">
                                     @if($validation)
                                         <img src="data:image/png;base64,{{ $validation->signature}}" alt="" style="max-height: 50px; max-width: 100px;">
