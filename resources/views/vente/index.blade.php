@@ -69,6 +69,7 @@ document.addEventListener('DOMContentLoaded', function () {
     var getCommandDetails = "{{url('getCommandDetails')}}";
     var getLigneVenteUrl = "{{ route('vente.ligne-vente', ':id') }}";
     var showventeByUpdate = "{{ url('showventeByUpdate') }}";
+    var updateLigneQuantityUrl = "{{ route('vente.update.ligne.quantity') }}";
 
 </script>
 <style>
@@ -658,7 +659,8 @@ document.addEventListener('DOMContentLoaded', function () {
         </div>
     </div>
     @endcan
-    <!-- Modal View Command Details (Read-Only) -->
+
+<!-- Modal View Command Details - SINGLE VERSION -->
 <div class="modal fade" id="ModalViewCommand" tabindex="-1" aria-labelledby="ModalViewCommandLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl">
         <div class="modal-content">
@@ -741,7 +743,6 @@ document.addEventListener('DOMContentLoaded', function () {
                                 <th>Seuil</th>
                                 <th>Local</th>
                                 <th>Action</th>
-                               
                             </tr>
                         </thead>
                         <tbody>
@@ -754,222 +755,14 @@ document.addEventListener('DOMContentLoaded', function () {
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
                     <i class="fa-solid fa-times"></i> Fermer
                 </button>
-                <button type="button" class="btn btn-primary" id="btnSaveQteLivree">
-                     Save
-                </button>
+                 <button type="button" class="btn btn-primary" id="BtnSaveAllQuantities">
+        <i class="fa-solid fa-save"></i> Sauvegarder
+    </button>
             </div>
         </div>
     </div>
 </div>
-<!-- Modal View Command Details (Read-Only Version of Add Command Modal) -->
-<div class="modal fade" id="ModalViewCommand" tabindex="-1" aria-labelledby="ModalViewCommandLabel" aria-hidden="true">
-    <div class="modal-dialog modal-fullscreen">
-        <div class="modal-content">
-            <div class="modal-header bg-warning-subtle">
-                <h5 class="modal-title" id="ModalViewCommandLabel">
-                    <i class="fa-solid fa-info-circle text-warning"></i> Détails de la commande
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
-            </div>
-            <div class="modal-body">
-                <div class="row">
-                    <!-- ============================================ -->
-                    <!-- LEFT SIDE - Command Information (Read-Only) -->
-                    <!-- ============================================ -->
-                    <div class="col-sm-12 col-md-12 col-xl-6">
-                        <div class="card bg-light shadow">
-                            <div class="card-body">
-                                <!-- N° Série and Status Row -->
-                                <div class="row mb-3">
-                                    <div class="col-6">
-                                        <div class="form-group">
-                                            <label class="label-form fw-bold">N° Série</label>
-                                            <p class="form-control-plaintext text-primary fw-bold fs-5" id="view_numero_serie">-</p>
-                                        </div>
-                                    </div>
-                                    <div class="col-6">
-                                        <div class="form-group">
-                                            <label class="label-form fw-bold">Statut</label>
-                                            <p class="form-control-plaintext">
-                                                <span id="view_status" class="badge bg-secondary fs-6">-</span>
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
 
-                                <!-- Demandeur -->
-                                <div class="form-group mb-3">
-                                    <label class="label-form fw-bold">Demandeur</label>
-                                    <p class="form-control-plaintext" id="view_formateur">-</p>
-                                </div>
-                                
-                                <!-- Type de commande -->
-                                <div class="form-group mb-3">
-                                    <label class="form-label fw-bold">Type de commande</label>
-                                    <p class="form-control-plaintext">
-                                        <span id="view_type_commande" class="badge bg-info fs-6">-</span>
-                                    </p>
-                                </div>
-
-                                <!-- Date d'utilisation -->
-                                <div class="form-group mb-3">
-                                    <label class="form-label fw-bold">Date d'utilisation</label>
-                                    <p class="form-control-plaintext" id="view_date_usage">-</p>
-                                </div>
-
-                                <!-- Type de menu (only for Alimentaire) -->
-                                <div class="form-group mb-3" id="view_menu_container" style="display: none;">
-                                    <label class="form-label fw-bold">Type de menu</label>
-                                    <p class="form-control-plaintext" id="view_type_menu">-</p>
-                                </div>
-
-                                <!-- Quantity Fields (only for Alimentaire) -->
-                                <div id="view_quantity_fields_container" style="display: none;">
-                                    <div class="card bg-primary-subtle mb-3">
-                                        <div class="card-body">
-                                            <h6 class="card-title mb-3">
-                                                <i class="fa-solid fa-users"></i> Nombre de convives
-                                            </h6>
-                                            <div class="row">
-                                                <div class="col-6">
-                                                    <div class="form-group mb-2">
-                                                        <label class="form-label fw-bold small">Élèves</label>
-                                                        <p class="form-control-plaintext fs-5" id="view_eleves">0</p>
-                                                    </div>
-                                                </div>
-                                                <div class="col-6">
-                                                    <div class="form-group mb-2">
-                                                        <label class="form-label fw-bold small">Personnel</label>
-                                                        <p class="form-control-plaintext fs-5" id="view_personnel">0</p>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div class="row">
-                                                <div class="col-6">
-                                                    <div class="form-group mb-2">
-                                                        <label class="form-label fw-bold small">Invités</label>
-                                                        <p class="form-control-plaintext fs-5" id="view_invites">0</p>
-                                                    </div>
-                                                </div>
-                                                <div class="col-6">
-                                                    <div class="form-group mb-2">
-                                                        <label class="form-label fw-bold small">Divers</label>
-                                                        <p class="form-control-plaintext fs-5" id="view_divers">0</p>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Menu Attributes (only for Alimentaire) -->
-                                <div id="view_menu_attributes_container" style="display: none;">
-                                    <div class="card bg-info-subtle">
-                                        <div class="card-header">
-                                            <h6 class="mb-0">
-                                                <i class="mdi mdi-silverware-fork-knife"></i> Composition du Menu
-                                            </h6>
-                                        </div>
-                                        <div class="card-body">
-                                            <div class="row">
-                                                <div class="col-md-6">
-                                                    <div class="form-group mb-3">
-                                                        <label class="form-label fw-bold">
-                                                            <i class="mdi mdi-food-fork-drink"></i> Entrée
-                                                        </label>
-                                                        <p class="form-control-plaintext" id="view_entree">-</p>
-                                                    </div>
-                                                </div>
-                                                <div class="col-md-6">
-                                                    <div class="form-group mb-3">
-                                                        <label class="form-label fw-bold">
-                                                            <i class="mdi mdi-food"></i> Plat Principal
-                                                        </label>
-                                                        <p class="form-control-plaintext" id="view_plat_principal">-</p>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div class="row">
-                                                <div class="col-md-6">
-                                                    <div class="form-group mb-3">
-                                                        <label class="form-label fw-bold">
-                                                            <i class="mdi mdi-cupcake"></i> Dessert
-                                                        </label>
-                                                        <p class="form-control-plaintext" id="view_dessert">-</p>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- ============================================ -->
-                    <!-- RIGHT SIDE - Total & Products List -->
-                    <!-- ============================================ -->
-                    <div class="col-sm-12 col-md-12 col-xl-6">
-                        <div class="card shadow bg-light">
-                            <div class="card-body">
-                                <!-- Total Card -->
-                                <div class="form-group mb-3" style="min-height: 123px;">
-                                    <div class="card text-start bg-success-subtle">
-                                        <div class="card-body">
-                                            <h6 class="card-subtitle mb-2 text-muted">
-                                                <i class="fa-solid fa-coins"></i> Total de la commande
-                                            </h6>
-                                            <p class="card-text fs-3 fw-bold text-success mb-0">
-                                                <span id="view_total">0.00 DH</span>
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Products Table -->
-                                <div class="form-group">
-                                    <h6 class="mb-3">
-                                        <i class="fa-solid fa-box"></i> Produits de la commande
-                                    </h6>
-                                    <div class="card text-start">
-                                        <div class="card-body">
-                                            <div class="table-responsive">
-                                                <table class="table table-striped table-hover w-100" id="TableViewCommandProducts">
-                                                    <thead class="thead-light">
-                                                        <tr>
-                                                            <th scope="col" class="text-center">#</th>
-                                                            <th scope="col">Produit</th>
-                                                            <th scope="col" class="text-center">Qté</th>
-                                                            <th scope="col" class="text-center">Stock</th>
-                                                            <th scope="col" class="text-center">Seuil</th>
-                                                            <th scope="col">Local</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        <tr>
-                                                            <td colspan="6" class="text-center">
-                                                                <i class="fa-solid fa-spinner fa-spin"></i> Chargement...
-                                                            </td>
-                                                        </tr>
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer text-end">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                    <i class="fa-solid fa-times"></i> Fermer
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
     <script>
     $('#Class_Categorie').on('change',function()
     {
@@ -1297,6 +1090,260 @@ $(document).ready(function() {
     initializeTableTmpVente('.TableTmpVente', Formateur,"Plat");
 });
 
+</script>
+<script>
+$(document).ready(function() {
+    console.log('🚀 Editable quantity script loaded');
+    
+    // ============================================
+    // EDIT BUTTON - Switch to edit mode
+    // ============================================
+    $(document).on('click', '.edit-btn', function(e) {
+        e.preventDefault();
+        console.log('✏️ Edit button clicked');
+        
+        let $row = $(this).closest('tr');
+        let table = $('#TableViewCommandProductss').DataTable();
+        let rowData = table.row($row).data();
+        
+        if (!rowData) {
+            console.error('❌ No row data found');
+            return;
+        }
+        
+        // Get values from DataTable
+        let idLigneVente = $(this).data('id');
+        let qteCommandee = rowData[2]; // Index 2: Quantité Demandée
+        let qteLivree = rowData[3];    // Index 3: Quantité Livrée
+        let qteStock = rowData[4];     // Index 4: Stock Disponible
+        
+        console.log('📊 Row data:', { idLigneVente, qteCommandee, qteLivree, qteStock });
+        
+        // Replace cell with input
+        let $cell = $row.find('td').eq(3); // Column 3 = Quantité Livrée
+        
+        $cell.html(`
+            <input type="number" 
+                   class="form-control form-control-sm newquantet-input" 
+                   value="${qteLivree}" 
+                   data-id="${idLigneVente}"
+                   data-qte-commandee="${qteCommandee}"
+                   data-qte-stock="${qteStock}"
+                   min="0"
+                   step="0.01">
+        `);
+        
+        // Focus and select input
+        $cell.find('input').focus().select();
+        
+        // Toggle buttons
+        $(this).hide();
+        $row.find('.save-btn, .cancel-btn').show();
+    });
+    
+    // ============================================
+    // SAVE BUTTON - Save quantity change
+    // ============================================
+    $(document).on('click', '.save-btn', function(e) {
+        e.preventDefault();
+        console.log('💾 Save button clicked!');
+        
+        let $row = $(this).closest('tr');
+        let $input = $row.find('.newquantet-input');
+        
+        if (!$input.length) {
+            console.warn('⚠️ No input found');
+            new AWN().alert('Aucune modification détectée', { durations: { alert: 3000 } });
+            return;
+        }
+        
+        // Get data from input
+        let idLigneVente = $input.data('id');
+        let qteLivree = parseFloat($input.val());
+        let qteCommandee = parseFloat($input.data('qte-commandee'));
+        let qteStock = parseFloat($input.data('qte-stock'));
+        
+        console.log('📦 Data to save:', { idLigneVente, qteLivree, qteCommandee, qteStock });
+        
+        // Validation
+        if (isNaN(qteLivree) || qteLivree < 0) {
+            console.error('❌ Invalid quantity');
+            new AWN().alert('Quantité invalide', { durations: { alert: 3000 } });
+            $input.focus();
+            return;
+        }
+        
+        if (qteLivree > qteStock) {
+            console.error('❌ Insufficient stock');
+            new AWN().alert(`Stock insuffisant. Disponible: ${qteStock}`, { 
+                durations: { alert: 5000 } 
+            });
+            $input.focus();
+            return;
+        }
+        
+        // Disable buttons during save
+        let $saveBtn = $(this);
+        let $cancelBtn = $row.find('.cancel-btn');
+        $saveBtn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i>');
+        $cancelBtn.prop('disabled', true);
+        
+        console.log('📡 Sending AJAX to:', updateLigneQuantityUrl);
+        
+        // AJAX call
+        $.ajax({
+            type: "POST",
+            url: updateLigneQuantityUrl,
+            data: {
+                _token: csrf_token,
+                id_ligne_vente: idLigneVente,
+                qte_livree: qteLivree
+            },
+            dataType: "json",
+            success: function(response) {
+                console.log('✅ Success response:', response);
+                
+                if (response.status === 200) {
+                    new AWN().success(response.message, { durations: { success: 3000 } });
+                    
+                    // Update cell with badge
+                    let $cell = $row.find('td').eq(3);
+                    $cell.html(`<span class="badge bg-success">${qteLivree}</span>`);
+                    
+                    // Toggle buttons back
+                    $row.find('.edit-btn').show();
+                    $saveBtn.hide().prop('disabled', false)
+                        .html('<i class="fa-solid fa-check text-success"></i>');
+                    $cancelBtn.hide().prop('disabled', false);
+                    
+                    // Refresh table
+                    let venteId = $('#ModalViewCommand').data('vente-id');
+                    if (venteId) {
+                        console.log('🔄 Refreshing table for vente:', venteId);
+                        refreshProductsTable(venteId);
+                    }
+                } else {
+                    console.error('⚠️ Server returned error:', response);
+                    new AWN().alert(response.message || 'Erreur lors de la mise à jour', {
+                        durations: { alert: 5000 }
+                    });
+                    
+                    // Re-enable buttons
+                    $saveBtn.prop('disabled', false)
+                        .html('<i class="fa-solid fa-check text-success"></i>');
+                    $cancelBtn.prop('disabled', false);
+                }
+            },
+            error: function(xhr) {
+                console.error('❌ AJAX Error:', xhr);
+                console.error('Response:', xhr.responseText);
+                
+                let errorMsg = 'Erreur lors de la mise à jour';
+                try {
+                    let response = JSON.parse(xhr.responseText);
+                    errorMsg = response.message || response.details || errorMsg;
+                } catch(e) {
+                    console.error('Cannot parse error response');
+                }
+                
+                new AWN().alert(errorMsg, { durations: { alert: 5000 } });
+                
+                // Re-enable buttons
+                $saveBtn.prop('disabled', false)
+                    .html('<i class="fa-solid fa-check text-success"></i>');
+                $cancelBtn.prop('disabled', false);
+            }
+        });
+    });
+    
+    // ============================================
+    // CANCEL BUTTON - Revert changes
+    // ============================================
+    $(document).on('click', '.cancel-btn', function(e) {
+        e.preventDefault();
+        console.log('❌ Cancel button clicked');
+        
+        let $row = $(this).closest('tr');
+        let $input = $row.find('.newquantet-input');
+        
+        if ($input.length) {
+            let originalValue = $input.val();
+            let $cell = $row.find('td').eq(3);
+            $cell.html(`<span class="badge bg-success">${originalValue}</span>`);
+        }
+        
+        // Toggle buttons back
+        $row.find('.edit-btn').show();
+        $row.find('.save-btn, .cancel-btn').hide();
+    });
+    
+    // ============================================
+    // KEYBOARD SHORTCUTS
+    // ============================================
+    $(document).on('keydown', '.newquantet-input', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            console.log('⌨️ Enter pressed - saving');
+            $(this).closest('tr').find('.save-btn').click();
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            console.log('⌨️ Escape pressed - canceling');
+            $(this).closest('tr').find('.cancel-btn').click();
+        }
+    });
+    
+    // ============================================
+    // HELPER FUNCTION - Refresh table
+    // ============================================
+    function refreshProductsTable(venteId) {
+        console.log('🔄 Refreshing products table for vente:', venteId);
+        
+        $.ajax({
+            url: showventeByUpdate,
+            data: { venteId: venteId },
+            success: function(resp) {
+                console.log('✅ Table data refreshed:', resp);
+                
+                if (resp.status === 200) {
+                    let table = $('#TableViewCommandProductss').DataTable();
+                    table.clear();
+                    
+                    $.each(resp.data, function(index, value) {
+                        table.row.add([
+                            index + 1,
+                            value.name_product,
+                            value.newquantet,  // Quantité Demandée
+                            value.qte,         // Quantité Livrée
+                            value.qtestock,
+                            value.seuil,
+                            value.local,
+                            value.action
+                        ]);
+                    });
+                    
+                    table.draw();
+                }
+            },
+            error: function(xhr) {
+                console.error('❌ Error refreshing table:', xhr);
+            }
+        });
+    }
+    
+    // ============================================
+    // STORE VENTE ID when modal opens
+    // ============================================
+    $('#ModalViewCommand').on('shown.bs.modal', function(e) {
+        // Try to get vente ID from the button that opened the modal
+        let $button = $(e.relatedTarget);
+        let venteId = $button.data('id');
+        
+        if (venteId) {
+            console.log('📝 Storing vente ID:', venteId);
+            $(this).data('vente-id', venteId);
+        }
+    });
+});
 </script>
 
 </div>

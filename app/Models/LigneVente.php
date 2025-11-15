@@ -17,6 +17,7 @@ class LigneVente extends Model
         'idvente',
         'idproduit',
         'qte',
+        'newquantet',          
         'price_unitaire',      
         'contete_formateur',
         'contente_transfert',
@@ -74,5 +75,29 @@ class LigneVente extends Model
     public function scopeForProduct($query, $productId)
     {
         return $query->where('idproduit', $productId);
+    }
+
+    /**
+     * ✅ NEW: Get ordered quantity (with fallback to qte if newquantet is null)
+     */
+    public function getOrderedQuantityAttribute()
+    {
+        return $this->newquantet ?? $this->qte;
+    }
+
+    /**
+     * ✅ NEW: Get delivered quantity
+     */
+    public function getDeliveredQuantityAttribute()
+    {
+        return $this->qte;
+    }
+
+    /**
+     * ✅ NEW: Check if quantity has been modified
+     */
+    public function isQuantityModifiedAttribute()
+    {
+        return !is_null($this->newquantet) && $this->newquantet != $this->qte;
     }
 }

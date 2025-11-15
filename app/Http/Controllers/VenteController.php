@@ -576,14 +576,16 @@ public function store(Request $request)
     }
 
     // Insert sales details individually for audit trail
-    foreach ($TempVente as $item) {
-        LigneVente::create([
-            'id_user'   => $userId,
-            'idvente'   => $Vente->id,
-            'idproduit' => $item->idproduit,
-            'qte'       => $item->qte,
-        ]);
-    }
+   // Insert sales details individually for audit trail
+foreach ($TempVente as $item) {
+    LigneVente::create([
+        'id_user'      => $userId,
+        'idvente'      => $Vente->id,
+        'idproduit'    => $item->idproduit,
+        'qte'          => $item->qte,          
+        'newquantet'   => $item->qte,        
+    ]);
+}
 
     // Delete temporary sales records
     TempVente::where('id_user', $userId)
@@ -807,39 +809,35 @@ private function getStatusHistory($venteId)
     }
 
 
-    public function showventeByUpdate(Request $request)
-    {
-        //dd($request->all());
-        $idvente = $request->all();
-    
-        $id = $idvente['venteId'];
+public function showventeByUpdate(Request $request)
+{
+    $idvente = $request->all();
+    $id = $idvente['venteId'];
 
-        $ligne_vente = DB::table('ligne_vente as l')
-            ->join('ventes as v','v.id','=','l.idvente')
-            ->join('products as p','p.id','=','l.idproduit')
-            ->join('locals as loc','loc.id','=','p.id_local')
-            ->join('stock as s','s.id_product','=','l.idproduit')
-            ->select(
-                'l.qte',
-                'l.idproduit',
-                'loc.name as local',
-                'p.seuil',
-                's.quantite as qtestock',
-                'p.name as name_product',
-                'l.id',
-                'v.id as idvente',
-                DB::raw('IFNULL(l.newquantet, 0) as newquantet')
-            )
-            ->where('v.id', $id)
-            ->get();
+    $ligne_vente = DB::table('ligne_vente as l')
+        ->join('ventes as v','v.id','=','l.idvente')
+        ->join('products as p','p.id','=','l.idproduit')
+        ->join('locals as loc','loc.id','=','p.id_local')
+        ->join('stock as s','s.id_product','=','l.idproduit')
+        ->select(
+            'l.id',
+            'l.qte',
+            'l.idproduit',
+            'loc.name as local',
+            'p.seuil',
+            's.quantite as qtestock',
+            'p.name as name_product',
+            'v.id as idvente',
+            DB::raw('IFNULL(l.newquantet, l.qte) as newquantet')
+        )
+        ->where('v.id', $id)
+        ->get();
 
-        return response()->json([
-            'status'   => 200,
-            'data'     => $ligne_vente
-        ]);
-
-
-    }
+    return response()->json([
+        'status'   => 200,
+        'data'     => $ligne_vente
+    ]);
+}
 
     public function UpdateLigneVente(Request $request)
     {
@@ -2031,13 +2029,14 @@ public function getLigneVente($venteId)
         $products = DB::table('ligne_vente as l')
             ->join('products as p', 'l.idproduit', '=', 'p.id')
             ->join('stock as s', 's.id_product', '=', 'p.id')
-            ->join('locals as loc', 'loc.id', '=', 's.id_local')
+            ->join('locals as loc', 'loc.id', '=', 'p.id_local')  // ✅ FIXED: Join locals to products, not stock
             ->where('l.idvente', $venteId)
             ->select(
                 'l.id',
                 'l.idproduit',
                 'p.name as product_name',
                 'l.qte',
+                DB::raw('IFNULL(l.newquantet, l.qte) as ordered_quantity'),  // ✅ Add ordered quantity
                 's.quantite as stock_quantity',
                 'p.seuil',
                 'loc.name as local_name'
@@ -2056,6 +2055,163 @@ public function getLigneVente($venteId)
             'status' => 500,
             'message' => 'Une erreur est survenue',
             'products' => []
+        ], 500);
+    }
+}
+
+public function updateLigneVenteQuantity(Request $request)
+{
+    try {
+        // ========================================
+        // HANDLE MULTIPLE ITEMS UPDATE (New way)
+        // ========================================
+        if ($request->has('items')) {
+            $items = $request->items;
+            $updatedCount = 0;
+            $errors = [];
+            
+            foreach ($items as $item) {
+                // Validate each item
+                if (!isset($item['id_ligne_vente']) || !isset($item['qte_livree'])) {
+                    $errors[] = "Données invalides pour un élément";
+                    continue;
+                }
+                
+                $ligneVente = LigneVente::find($item['id_ligne_vente']);
+                
+                if (!$ligneVente) {
+                    $errors[] = "Ligne {$item['id_ligne_vente']} non trouvée";
+                    continue;
+                }
+                
+                // Get stock info
+                $stock = Stock::where('id_product', $ligneVente->idproduit)->first();
+                
+                if (!$stock) {
+                    $errors[] = "Stock non trouvé pour le produit";
+                    continue;
+                }
+                
+                // Validate stock availability
+                if ($item['qte_livree'] > $stock->quantite) {
+                    $product = DB::table('products')->where('id', $ligneVente->idproduit)->first();
+                    return response()->json([
+                        'status' => 400,
+                        'message' => 'Stock insuffisant',
+                        'details' => "Produit: {$product->name}, Stock disponible: {$stock->quantite}, Demandé: {$item['qte_livree']}"
+                    ], 400);
+                }
+                
+                // ✅ Save ordered quantity to newquantet (only if not already set)
+                if (is_null($ligneVente->newquantet)) {
+                    $ligneVente->newquantet = $ligneVente->qte;
+                }
+                
+                // ✅ Save delivered quantity to qte
+                $ligneVente->qte = $item['qte_livree'];
+                $ligneVente->save();
+                
+                $updatedCount++;
+            }
+            
+            if (!empty($errors)) {
+                return response()->json([
+                    'status' => 400,
+                    'message' => 'Certaines mises à jour ont échoué',
+                    'errors' => $errors
+                ], 400);
+            }
+            
+            return response()->json([
+                'status' => 200,
+                'message' => "$updatedCount quantité(s) mise(s) à jour avec succès"
+            ]);
+        }
+        
+        // ========================================
+        // HANDLE SINGLE ITEM UPDATE (Old way - for backwards compatibility)
+        // ========================================
+        if ($request->has('id_ligne_vente')) {
+            $validator = Validator::make($request->all(), [
+                'id_ligne_vente' => 'required|exists:ligne_vente,id',
+                'qte_livree' => 'required|numeric|min:0',
+            ], [
+                'id_ligne_vente.required' => 'L\'ID de la ligne est requis',
+                'id_ligne_vente.exists' => 'Ligne de vente introuvable',
+                'qte_livree.required' => 'La quantité livrée est requise',
+                'qte_livree.numeric' => 'La quantité doit être un nombre',
+                'qte_livree.min' => 'La quantité doit être positive',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'status' => 400,
+                    'message' => 'Erreur de validation',
+                    'errors' => $validator->errors()
+                ], 400);
+            }
+
+            $ligneVente = LigneVente::find($request->id_ligne_vente);
+            
+            if (!$ligneVente) {
+                return response()->json([
+                    'status' => 404,
+                    'message' => 'Ligne de vente non trouvée'
+                ], 404);
+            }
+
+            // Get stock info
+            $stock = Stock::where('id_product', $ligneVente->idproduit)->first();
+            $product = DB::table('products')->where('id', $ligneVente->idproduit)->first();
+            
+            if (!$stock) {
+                return response()->json([
+                    'status' => 400,
+                    'message' => 'Stock non trouvé pour ce produit'
+                ], 400);
+            }
+
+            // Validate stock availability
+            if ($request->qte_livree > $stock->quantite) {
+                return response()->json([
+                    'status' => 400,
+                    'message' => 'Stock insuffisant',
+                    'details' => "Stock disponible: {$stock->quantite}, Demandé: {$request->qte_livree}"
+                ], 400);
+            }
+
+            // ✅ Save ordered quantity to newquantet (only if not already set)
+            if (is_null($ligneVente->newquantet)) {
+                $ligneVente->newquantet = $ligneVente->qte;
+            }
+            
+            // ✅ Save delivered quantity to qte
+            $ligneVente->qte = $request->qte_livree;
+            $ligneVente->save();
+
+            return response()->json([
+                'status' => 200,
+                'message' => 'Quantité livrée mise à jour avec succès',
+                'data' => [
+                    'qte_commandee' => $ligneVente->newquantet,
+                    'qte_livree' => $ligneVente->qte
+                ]
+            ]);
+        }
+        
+        // If neither parameter is provided
+        return response()->json([
+            'status' => 400,
+            'message' => 'Données invalides. Veuillez fournir id_ligne_vente ou items'
+        ], 400);
+
+    } catch (\Exception $e) {
+        \Log::error('Error updating ligne vente quantity: ' . $e->getMessage());
+        
+        return response()->json([
+            'status' => 500,
+            'message' => 'Erreur serveur',
+            'error' => $e->getMessage()
         ], 500);
     }
 }

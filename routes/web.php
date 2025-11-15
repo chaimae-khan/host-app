@@ -173,6 +173,8 @@ Route::get('/consumption/export-monthly-breakdown-pdf', [ConsumptionController::
     Route::get('/vente/ligne-vente/{id}', [VenteController::class, 'getLigneVente'])->name('vente.ligne-vente');
     Route::get('showventeByUpdate',[VenteController::class,'showventeByUpdate']);
     Route::get('UpdateLigneVente',[VenteController::class,'UpdateLigneVente']);
+    Route::post('/vente/update-ligne-quantity', [VenteController::class, 'updateLigneVenteQuantity'])
+    ->name('vente.update.ligne.quantity');
     //profile 
     Route::get('/mon-compte', [CompteController::class, 'index'])->name('compte.index');
     Route::post('/updateProfile', [CompteController::class, 'update'])->name('compte.update');
