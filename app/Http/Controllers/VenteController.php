@@ -2215,4 +2215,5 @@ public function updateLigneVenteQuantity(Request $request)
         ], 500);
     }
 }
+
 }
