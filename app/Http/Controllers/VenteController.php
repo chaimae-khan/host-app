@@ -66,11 +66,20 @@ public function index(Request $request)
                 'v.date_usage',
                 'v.id_formateur'
             )
-            ->whereNull('v.deleted_at');
+            ->whereNull('v.deleted_at')
+            ->where('is_transfer','0');
         
         // If user is a formateur, show only their sales
         if (Auth::user()->hasRole('Formateur')) {
             $query->where('v.id_formateur', Auth::id());
+        }
+        if(Auth::user()->hasRole('Chargé d\'inventaire'))
+        {
+            $query->where('type_commande','Non Alimentaire');
+        }
+        if(Auth::user()->hasRole('Directeur des études'))
+        {
+            $query->where('type_commande','Alimentaire');
         }
 
         $Data_Vente = $query->orderBy('v.id', 'desc')->get();
@@ -1426,20 +1435,7 @@ public function ChangeStatusVente(Request $request)
 
    
 
-   /*  foreach ($extract_id_product as $item) {
-        // Get total available stock for this product
-        $stockTotal = DB::table('stock' )
-            
-            ->where('id_product', $item->idproduit)
-            ->sum('quantite');
-
-        if ($stockTotal < $item->qte_formateur) {
-            return response()->json([
-                'status'  => 400,
-                'message' => "Le stock du produit ID {$item->name} est insuffisant.",
-            ]);
-        }
-    } */
+ 
 
 
 
@@ -1449,6 +1445,7 @@ public function ChangeStatusVente(Request $request)
 
         // Retrieve the vente record
         $vente = Vente::find($data['id']);
+        
         
         if (!$vente) {
             return response()->json([
@@ -1462,6 +1459,13 @@ public function ChangeStatusVente(Request $request)
 
         if($data['status'] == 'Validation')
         {
+            if($vente->status =='Création')
+            {
+                return response()->json([
+                    'status'      => 950,
+                    'message'     => 'vous ne pouvez pas modifier ce statut avant livre'
+                ]);
+            }
             // Begin transaction
             DB::beginTransaction();
             
@@ -1620,6 +1624,13 @@ public function ChangeStatusVente(Request $request)
         }
         else if($data['status'] == 'Livraison')
         {
+            if($vente->status !='Réception')
+            {
+                return response()->json([
+                    'status'      => 950,
+                    'message'     => 'Vous ne pouvez pas livrer cette commande avant la validation par la Directrice.'
+                ]);
+            }
             $vente->status = 'Livraison';
             $result = $vente->save();
             

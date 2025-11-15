@@ -1216,6 +1216,10 @@ $('#BtnUpdateVente').on('click', function(e) {
                 {
                     new AWN().warning(response.message , {durations: {warning: 5000}});
                 }
+                else if(response.status == 950)
+                {
+                    new AWN().warning(response.message , {durations: {warning: 5000}});
+                }
                 else {
                     new AWN().warning(response.message || "Une erreur est survenue", {durations: {warning: 5000}});
                 }
@@ -2159,6 +2163,7 @@ $(document).on('click', '#BtnSaveAllQuantities', function(e) {
                 
                 // Close modal
                 $('#ModalViewCommand').modal('hide');
+                $btn.prop('disabled', false).html('<i class="fa-solid fa-save"></i> Sauvegarder');
                 
                 // Optional: Refresh main table
                 // $('.TableVente').DataTable().ajax.reload();
