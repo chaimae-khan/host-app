@@ -73,6 +73,12 @@ public function index(Request $request)
         if (Auth::user()->hasRole('Formateur')) {
             $query->where('v.id_formateur', Auth::id());
         }
+        
+        // ✅ NEW: If user is a Utilisateur, show only their sales
+        if (Auth::user()->hasRole('Utilisateur')) {
+            $query->where('v.id_formateur', Auth::id());
+        }
+        
         if(Auth::user()->hasRole('Chargé d\'inventaire'))
         {
             $query->where('type_commande','Non Alimentaire');
