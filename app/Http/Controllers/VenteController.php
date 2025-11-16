@@ -437,7 +437,6 @@ public function store(Request $request)
     {
         $venteArray = [];
         $errors = [];
-        $checked = [];
         
         foreach ($ventes as $ligne) 
         {
@@ -445,6 +444,7 @@ public function store(Request $request)
             $product = DB::table('products')->where('id', $ligne->idproduit)->first();
             $qte_stock_before = $stock ? $stock->quantite : 0;
             $qte_stock_after  = $qte_stock_before - $ligne->total_qte_vente;
+            
             $venteArray[] = 
             [
                 'id_product'        => $ligne->idproduit,
@@ -455,28 +455,26 @@ public function store(Request $request)
             ];
         }
         
-        foreach ($TempVente as $tmp) 
+     foreach ($TempVente as $tmp) 
+{
+    $venteItem = collect($venteArray)->firstWhere('id_product', $tmp->idproduit);
+    if ($venteItem) 
+    {
+        if ($venteItem['qte_stock_after'] < $tmp->qte) 
         {
-            $venteItem = collect($venteArray)->firstWhere('id_product', $tmp->idproduit);
-            if ($venteItem) 
-            {
-                if ($venteItem['qte_stock_after'] < $tmp->qte) 
-                {
-                    $errors[] =  "⚠️ Le produit {$venteItem['product_name']} a une quantité de {$venteItem['qte_stock_after']} déjà réservée par d'autres commandes, insuffisant pour la quantité demandée ({$tmp->qte}).";;
-                } 
-                else 
-                {
-                    $checked[] = [
-                        'id_product' => $tmp->idproduit,
-                        'qte_stock_after' => $venteItem['qte_stock_after'],
-                        'tmp_qte' => $tmp->qte
-                    ];
-                }
-            } 
-        }
+            // ✅ NEW MESSAGE (clear and correct)
+            $errors[] = "⚠️ Stock insuffisant pour \"{$venteItem['product_name']}\". Quantité disponible : {$venteItem['qte_stock_after']}, Quantité demandée : {$tmp->qte}. (D'autres commandes ont déjà réservé une partie du stock)";
+        } 
+    }
+}
         
         if (!empty($errors)) 
         {
+            \Log::info('Reservation check failed', [
+                'errors' => $errors,
+                'vente_array' => $venteArray
+            ]);
+            
             return response()->json([
                 'status' => 900,
                 'messages' => $errors

@@ -788,68 +788,76 @@ $('#BtnSaveVente').on('click', function(e) {
         url: StoreVente,
         data: requestData,
         dataType: "json",
-        success: function(response) {
-            // Mark save operation as complete and re-enable the button
-            ajaxInProgress.saveVente = false;
-            $('#BtnSaveVente').prop('disabled', false).text('Enregistrer');
-            
-            if(response.status == 200) {
-                new AWN().success(response.message, {durations: {success: 5000}});
-                
-                // Clear product search table
-                if ($.fn.DataTable.isDataTable('.TableProductVente')) {
-                    $('.TableProductVente').DataTable().clear().draw();
-                }
-                
-                // Clear temporary items table
-                if ($.fn.DataTable.isDataTable('.TableTmpVente')) {
-                    $('.TableTmpVente').DataTable().clear().draw();
-                }
-                
-                // Reset the total display
-                $('.TotalByFormateurAndUser').text("0.00 DH");
-                
-                // Clear all the fields including menu attributes
-                $('#eleves').val(0);
-                $('#personnel').val(0);
-                $('#invites').val(0);
-                $('#divers').val(0);
-                $('#entree').val('');
-                $('#plat_principal').val('');
-                $('#accompagnement').val('');
-                $('#dessert').val('');
-                // ADD THIS LINE - Clear date_usage field
-                $('#date_usage').val('');
-                
-                // Reset type_commande to default
-                $('#type_commande').val('Alimentaire');
-                
-                // Reset type_menu to default
-                $('#type_menu').val('Menu eleves');
-                
-                // Reset the form visibility based on default values
-                toggleQuantityFieldsAndMenu();
-                
-                // Reinitialize the main table
-                initializeTableVenteDataTable();
-                
-                // Hide the modal
-                $('#ModalAddVente').modal("hide");
-            } else if(response.status == 400) {
-                $('.validationVente').html("");
-                $('.validationVente').addClass('alert alert-danger');
-                $.each(response.errors, function(key, list_err) {
-                    $('.validationVente').append('<li>' + list_err + '</li>');
-                });
-            }
-            else if(response.status == 600)
-            {
-                new AWN().alert(response.message , {durations: {alert: 5000}});
-            }
-            else {
-                new AWN().alert(response.message || "Une erreur est survenue", {durations: {alert: 5000}});
-            }
-        },
+       success: function(response) {
+    // Mark save operation as complete and re-enable the button
+    ajaxInProgress.saveVente = false;
+    $('#BtnSaveVente').prop('disabled', false).text('Enregistrer');
+    
+    if(response.status == 200) {
+        new AWN().success(response.message, {durations: {success: 5000}});
+        
+        // Clear product search table
+        if ($.fn.DataTable.isDataTable('.TableProductVente')) {
+            $('.TableProductVente').DataTable().clear().draw();
+        }
+        
+        // Clear temporary items table
+        if ($.fn.DataTable.isDataTable('.TableTmpVente')) {
+            $('.TableTmpVente').DataTable().clear().draw();
+        }
+        
+        // Reset the total display
+        $('.TotalByFormateurAndUser').text("0.00 DH");
+        
+        // Clear all the fields including menu attributes
+        $('#eleves').val(0);
+        $('#personnel').val(0);
+        $('#invites').val(0);
+        $('#divers').val(0);
+        $('#entree').val('');
+        $('#plat_principal').val('');
+        $('#accompagnement').val('');
+        $('#dessert').val('');
+        $('#date_usage').val('');
+        
+        // Reset type_commande to default
+        $('#type_commande').val('Alimentaire');
+        
+        // Reset type_menu to default
+        $('#type_menu').val('Menu eleves');
+        
+        // Reset the form visibility based on default values
+        toggleQuantityFieldsAndMenu();
+        
+        // Reinitialize the main table
+        initializeTableVenteDataTable();
+        
+        // Hide the modal
+        $('#ModalAddVente').modal("hide");
+    } 
+    else if(response.status == 400) {
+        $('.validationVente').html("");
+        $('.validationVente').addClass('alert alert-danger');
+        $.each(response.errors, function(key, list_err) {
+            $('.validationVente').append('<li>' + list_err + '</li>');
+        });
+    }
+    // ✅ ADD THIS: Handle reservation errors (status 900)
+    else if(response.status == 900) {
+        // Display all reservation error messages
+        let notifier = new AWN();
+        if (Array.isArray(response.messages)) {
+            response.messages.forEach(function(msg) {
+                notifier.warning(msg, {durations: {warning: 7000}}); // Use warning instead of alert for better visibility
+            });
+        } else {
+            notifier.alert('Erreur de réservation', {durations: {alert: 5000}});
+        }
+    }
+    else {
+        new AWN().alert(response.message || "Une erreur est survenue", {durations: {alert: 5000}});
+    }
+},
         
         error: function(xhr, status, error) {
             // Mark save operation as complete and re-enable the button
