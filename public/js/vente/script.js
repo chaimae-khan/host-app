@@ -504,6 +504,8 @@ function sendAjaxRequest(name_product, category, filter_subcategorie, type_comma
 
 
 
+
+
 function initializeTableVenteDataTable() {
     try {
         if ($.fn.DataTable.isDataTable('.TableVente')) {
@@ -511,7 +513,7 @@ function initializeTableVenteDataTable() {
         }
         
         var TableVente = $('.TableVente').DataTable({
-            order : [[13 , 'desc']], // ✅ Updated: was 12, now 13 because we added numero_serie column
+            order : [[12 , 'desc']], // ✅ Changed from 13 to 12 since we removed a column
             processing: true,
             serverSide: true,
             ajax: {
@@ -530,22 +532,20 @@ function initializeTableVenteDataTable() {
                 }
             },
             columns: [
-                // ✅ COLUMN 0: Numero de Serie
+                // COLUMN 0: Numero de Serie
                 { 
                     data: 'numero_serie', 
                     name: 'numero_serie',
                     title: 'N° Série',
                     render: function(data, type, row) {
-                        // Display with prefix based on type
                         let prefix = row.type_commande === 'Alimentaire' ? 'A-' : 'NA-';
                         return prefix + data;
                     }
                 },
                 // COLUMN 1: Demandeur
                 { data: 'formateur_name', name: 'formateur_name' },
-                // COLUMN 2: Total
-                { data: 'total', name: 'total' },
-                // COLUMN 3: Statut
+                // ❌ REMOVED: Total column
+                // COLUMN 2: Statut
                 {
                     data : 'status',
                     name : 'status',
@@ -562,9 +562,9 @@ function initializeTableVenteDataTable() {
                         return data;
                     }
                 },
-                // COLUMN 4: Type Commande
+                // COLUMN 3: Type Commande
                 { data: 'type_commande', name: 'type_commande' },
-                // COLUMN 5: Type Menu
+                // COLUMN 4: Type Menu
                 { 
                     data: 'type_menu', 
                     name: 'type_menu',
@@ -572,15 +572,15 @@ function initializeTableVenteDataTable() {
                         return formatMenuName(data);
                     }
                 },
-                // COLUMN 6: Élèves
+                // COLUMN 5: Élèves
                 { data: 'eleves', name: 'eleves' },
-                // COLUMN 7: Personnel
+                // COLUMN 6: Personnel
                 { data: 'personnel', name: 'personnel' },
-                // COLUMN 8: Invités
+                // COLUMN 7: Invités
                 { data: 'invites', name: 'invites' },
-                // COLUMN 9: Divers
+                // COLUMN 8: Divers
                 { data: 'divers', name: 'divers' },
-                // COLUMN 10: Date d'utilisation
+                // COLUMN 9: Date d'utilisation
                 { 
                     data: 'date_usage', 
                     name: 'date_usage',
@@ -591,43 +591,15 @@ function initializeTableVenteDataTable() {
                         return '-';
                     }
                 },
-                // COLUMN 11: Créé par
+                // COLUMN 10: Créé par
                 { data: 'name', name: 'name' },
-                // COLUMN 12: Créé le
+                // COLUMN 11: Créé le
                 { data: 'created_at', name: 'created_at' },
-                // COLUMN 13: Action
+                // COLUMN 12: Action
                 { data: 'action', name: 'action', orderable: false, searchable: false }
             ],
-            language: {
-                "sInfo": "",
-                "sInfoEmpty": "Affichage de l'élément 0 à 0 sur 0 élément",
-                "sInfoFiltered": "(filtré à partir de _MAX_ éléments au total)",
-                "sLengthMenu": "Afficher _MENU_ éléments",
-                "sLoadingRecords": "Chargement...",
-                "sProcessing": "Traitement...",
-                "sSearch": "Rechercher :",
-                "sZeroRecords": "Aucun élément correspondant trouvé",
-                "oPaginate": {
-                    "sFirst": "Premier",
-                    "sLast": "Dernier",
-                    "sNext": "Suivant",
-                    "sPrevious": "Précédent"
-                }
-            },
-            drawCallback: function() {
-                ajaxInProgress = {
-                    deleteRowTmp: false,
-                    postInTmpVente: false,
-                    updateQteTmp: false,
-                    saveVente: false,
-                    updateVente: false,
-                    changeStatusVente: false,
-                    deleteVente: false,
-                    addProduct: false
-                };
-            }
+            // ... rest of the configuration
         });
-
     } catch (error) {
         console.error("Error initializing DataTable:", error);
     }

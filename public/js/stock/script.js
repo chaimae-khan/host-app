@@ -321,4 +321,117 @@ $(document).ready(function () {
     
     // Add custom styling to the export buttons
     $('.btn-export-all').addClass('btn-success');
+
+    // Initialize DataTable
+var tableExpiring = $('.TableExpiring').DataTable({
+    dom: 'Bfrtip',
+    buttons: [
+        {
+            extend: 'copyHtml5',
+            text: 'Copier',
+            exportOptions: {
+                columns: ':visible'
+            }
+        },
+        {
+            text: 'Exporter Excel',
+            className: 'btn-export-all',
+            action: function (e, dt, button, config) {
+                // Get visible columns
+                var visibleColumnsIndices = [];
+                dt.columns().every(function (index) {
+                    if (dt.column(index).visible()) {
+                        visibleColumnsIndices.push(index);
+                    }
+                });
+                
+                // Redirect to server-side export with visible columns as parameter
+                window.location.href = "{{ url('stock/expiring/export-excel') }}" + '?columns=' + visibleColumnsIndices.join(',');
+            }
+        },
+        {
+            text: 'Exporter PDF',
+            className: 'btn-export-all',
+            action: function (e, dt, button, config) {
+                // Get visible columns
+                var visibleColumnsIndices = [];
+                dt.columns().every(function (index) {
+                    if (dt.column(index).visible()) {
+                        visibleColumnsIndices.push(index);
+                    }
+                });
+                
+                // Redirect to server-side export with visible columns as parameter
+                window.location.href = "{{ url('stock/expiring/export-pdf') }}" + '?columns=' + visibleColumnsIndices.join(',');
+            }
+        },
+        {
+            extend: 'colvis',
+            text: 'Colonnes'
+        }
+    ],
+    processing: true,
+    serverSide: true,
+    ajax: {
+        url: expiringProductsUrl,
+        data: function(d) {
+            // Add filter parameters
+            d.filter_class = $('#filter_class').val();
+            d.filter_categorie = $('#filter_categorie').val();
+            d.filter_subcategorie = $('#filter_subcategorie').val();
+            d.filter_designation = $('#filter_designation').val();
+        },
+        error: function(xhr, error, thrown) {
+            console.log('DataTables error: ' + error + ' ' + thrown);
+        }
+    },
+    columns: [
+        { data: 'code_article', name: 'p.code_article' },
+        { data: 'name', name: 'p.name' },
+        { data: 'unite_name', name: 'u.name' },
+        { data: 'categorie', name: 'c.name' },
+        { data: 'famille', name: 'sc.name' },
+        { data: 'emplacement', name: 'p.emplacement' },
+        { data: 'quantite', name: 's.quantite' },
+        { data: 'date_expiration', name: 'p.date_expiration' },
+        { 
+            data: 'expiry_status', 
+            name: 'expiry_status', 
+            orderable: false, 
+            searchable: false 
+        },
+        { 
+            data: 'photo_display', 
+            name: 'photo_display', 
+            orderable: false, 
+            searchable: false 
+        },
+        { data: 'created_at', name: 'p.created_at' }
+    ],
+    language: {
+        "sInfo": "",
+        "sInfoEmpty": "Affichage de l'élément 0 à 0 sur 0 élément",
+        "sInfoFiltered": "(filtré à partir de _MAX_ éléments au total)",
+        "sLengthMenu": "Afficher _MENU_ éléments",
+        "sLoadingRecords": "Chargement...",
+        "sProcessing": "Traitement...",
+        "sSearch": "Rechercher :",
+        "sZeroRecords": "Aucun élément correspondant trouvé",
+        "oPaginate": {
+            "sFirst": "Premier",
+            "sLast": "Dernier",
+            "sNext": "Suivant",
+            "sPrevious": "Précédent"
+        }
+    },
+    createdRow: function(row, data, dataIndex) {
+        if (data.days_until_expiry < 0) {
+            $(row).addClass('expired-row');
+        } else if (data.days_until_expiry <= 3) {
+            $(row).addClass('expiring-soon-row');
+        } else {
+            $(row).addClass('expiring-warning-row');
+        }
+    }
+});
 });

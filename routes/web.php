@@ -357,8 +357,8 @@ Route::post('/exportPlatsPdf', [PlatsController::class, 'exportPdf'])->name('pla
     Route::post('/exportCompositionExcel', [PlatCompositionController::class, 'exportExcel'])->name('plat-composition.export.excel');
     Route::post('/exportCompositionPdf', [PlatCompositionController::class, 'exportPdf'])->name('plat-composition.export.pdf');
     Route::post('/exportCompositionDetailedPdf', [PlatCompositionController::class, 'exportDetailedPdf'])->name('plat-composition.export.detailed-pdf');
-    Route::post('/importCompositionExcel', [PlatCompositionController::class, 'importExcel'])->name('importCompositionExcel');
-    Route::get('/downloadImportTemplate', [PlatCompositionController::class, 'downloadImportTemplate'])->name('downloadImportTemplate');
+    Route::post('/importCompositionExcel', [PlatCompositionController::class, 'importExcel']);
+    Route::get('/downloadImportTemplate', [PlatCompositionController::class, 'downloadImportTemplate']);
 
 
 
@@ -372,5 +372,9 @@ Route::post('/exportPlatsPdf', [PlatsController::class, 'exportPdf'])->name('pla
     Route::get('GetCategooryAndProduct',[InventoryController::class,'GetCategooryAndProduct']);
     Route::get('GetFamilleAndProduct'              ,[InventoryController::class,'GetFamilleAndProduct']);
     Route::get('GetProductByCategoryAndFamille' ,[InventoryController::class,'GetProductByCategoryAndFamille']);
+    Route::get('stock/expiring/export-excel', [StockController::class, 'exportExpiringExcel'])->name('stock.expiring.export.excel');
+    Route::get('stock/expiring/export-pdf', [StockController::class, 'exportExpiringPdf'])->name('stock.expiring.export.pdf');
+    Route::get('stock/low-stock/export-excel', [StockController::class, 'exportLowStockExcel'])->name('stock.low-stock.export.excel');
+    Route::get('stock/low-stock/export-pdf', [StockController::class, 'exportLowStockPdf'])->name('stock.low-stock.export.pdf');
 });
 

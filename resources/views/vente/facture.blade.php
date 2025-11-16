@@ -113,7 +113,7 @@
         $totalItems = count($Data_Vente);
         $totalPages = ceil($itemsPerPage > 0 ? $totalItems / $itemsPerPage : 1);
         
-        // ✅ UPDATED: Create command number with French month
+        // ✅ Create command number with French month
         $year = date('Y', strtotime($bonVente->created_at));
         $prefix = ($bonVente->type_commande === 'Alimentaire') ? 'A' : 'NA';
         $commandNumber = "{$prefix}-{$bonVente->numero_serie}/{$bonVente->type_commande}/{$month}/{$year}";
@@ -146,7 +146,7 @@
             {{-- COMMAND INFO - ONLY ON FIRST PAGE --}}
             @if($page === 0)
                 <div class="command-info">
-                    {{-- ✅ UPDATED: Display formatted command number with month --}}
+                    {{-- ✅ Display formatted command number with month --}}
                     <div><strong>N° Bon de Commande :</strong> {{ $commandNumber }}</div>
                     <div><strong>N° de Série :</strong> {{ $bonVente->numero_serie }}</div>
                     <div><strong>Journée du :</strong> {{ $bonVente->date_usage ? \Carbon\Carbon::parse($bonVente->date_usage)->format('d/m/Y') : 'Non spécifié' }}</div>
@@ -196,8 +196,19 @@
                             @for ($i = $startIndex; $i < $endIndex; $i++)
                                 <tr>
                                     <td style="text-align: center">{{ $Data_Vente[$i]->name }}</td>
-                                    <td style="text-align: center">{{ $Data_Vente[$i]->qte }}</td>
-                                    <td style="text-align: center">{{ $Data_Vente[$i]->qte }}</td>
+                                    
+                                    {{-- ✅ Quantité Commandée - Always show the original ordered quantity --}}
+                                    <td style="text-align: center">{{ $Data_Vente[$i]->qte_commandee }}</td>
+                                    
+                                    {{-- ✅ Quantité Livrée - Show only if status is Livraison OR quantity was modified --}}
+                                    <td style="text-align: center">
+                                        @if($bonVente->status == 'Livraison' || $Data_Vente[$i]->quantity_modified)
+                                            {{ $Data_Vente[$i]->qte }}
+                                        @else
+                                            &nbsp;
+                                        @endif
+                                    </td>
+                                    
                                     <td style="text-align: center">{{ number_format($Data_Vente[$i]->avg_price ?? $Data_Vente[$i]->price_achat, 2, '.', '') }} DH</td>
                                     <td style="text-align: center"></td>
                                 </tr>
@@ -216,7 +227,7 @@
                         </tbody>
                     </table>
 
-                    {{-- ✅ UPDATED SIGNATURE TABLE - ON EVERY PAGE --}}
+                    {{-- ✅ SIGNATURE TABLE - ON EVERY PAGE --}}
                     <table id="tableDetail" style="margin-top: 30px; width: 100%; border-collapse: collapse;">
                         <thead>
                             <tr>

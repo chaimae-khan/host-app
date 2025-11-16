@@ -131,7 +131,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                         <tr>
                                          <th scope="col">N° Série</th>
                                         <th scope="col">Demandeur</th>
-                                        <th scope="col">Total</th>
+                                        <!-- <th scope="col">Total</th> -->
                                         <th scope="col">Statut</th>
                                         <th scope="col">Type Commande</th>
                                         <th scope="col">Type Menu</th>
@@ -586,78 +586,80 @@ document.addEventListener('DOMContentLoaded', function () {
     
     <!-- Modal Modifier une Vente -->
     @can('Commande-modifier')
-    <div class="modal fade" id="ModalEditVente" tabindex="-1" aria-labelledby="ModalEditVenteLabel" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="ModalEditVenteLabel">Modifier le statut de la commande</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="validationEditVente"></div>
-                    <div class="mb-3">
-                        <label for="StatusVente" class="form-label">Statut</label>
-                        <select class="form-select" id="StatusVente" name="status">
-                            <option value="0" selected>Veuillez sélectionner le statut</option>
-                            
-                            @if (Auth::user()->getRoleNames()->contains('Magasinier'))
-                                <option value="Livraison">Livraison</option>
-                            @endif
+<div class="modal fade" id="ModalEditVente" tabindex="-1" aria-labelledby="ModalEditVenteLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="ModalEditVenteLabel">Modifier le statut de la commande</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="validationEditVente"></div>
+                <div class="mb-3">
+                    <label for="StatusVente" class="form-label">Statut</label>
+                    <select class="form-select" id="StatusVente" name="status">
+                        <option value="0" selected>Veuillez sélectionner le statut</option>
+                        
+                        @if (Auth::user()->getRoleNames()->contains('Magasinier'))
+                            <option value="Livraison">Livraison</option>
+                        @endif
+                        
                         @if(auth()->user()->hasRole('Directeur des études'))
                             <option value="Visa Directeur">Visa Directeur des études</option>
+                            <option value="Annuler">Annuler</option>
+                            <option value="Refus">Refus</option>
                         @endif
+                        
                         @if(auth()->user()->hasRole('Chargé d\'inventaire'))
                             <option value="Visa Chargé">Visa Chargé d'inventaire</option>
+                            <option value="Refus">Refus</option>
                         @endif
+                        
                         @if(auth()->user()->hasRole('Économe'))
                             <option value="Visa Économe">Visa Économe</option>
+                            <option value="Visé">Visé</option>
+                            <option value="Refus">Refus</option>
+                            <option value="Annuler">Annuler</option>
                         @endif
-                            
-                            @if (Auth::user()->getRoleNames()->contains('Administrateur'))
-                                <option value="Refus">Refus</option>
-                                <option value="Validation">Réception</option>
-                                <option value="Visé">Visé</option>
-                                <option value="Réception">Validation</option>
-                                 <option value="Livraison">Livraison</option>
-                                 <option value="Annuler">Annuler</option>
-                                 
-                            @endif
-                            @if (Auth::user()->getRoleNames()->contains('Économe'))
+                        
+                        @if (Auth::user()->getRoleNames()->contains('Administrateur'))
+                            <option value="Refus">Refus</option>
+                            <option value="Validation">Réception</option>
                             <option value="Visé">Visé</option>
                             <option value="Réception">Validation</option>
-                            @endif    
-                             @if (Auth::user()->getRoleNames()->contains('Formateur'))
+                            <option value="Livraison">Livraison</option>
+                            <option value="Annuler">Annuler</option>
+                        @endif
+                        
+                        @if (Auth::user()->getRoleNames()->contains('Directeur'))
                             <option value="Visé">Visé</option>
-                            <option value="Validation">Réception</option>
-                            @endif    
-                             @if (Auth::user()->getRoleNames()->contains('Directeur'))
-                            <option value="Visé">Visé</option>
-                             <option value="Refus">Refus</option>
-                            <option value="Validation">Validation</option>
-                            @endif  
-                            @if (Auth::user()->getRoleNames()->contains('chargé'))
-                       
                             <option value="Refus">Refus</option>
                             <option value="Validation">Validation</option>
-                            @endif  
-                            
-                            
-
-                            <!-- <option value="Réception">Réception</option> -->
-                        </select>
-                    </div>
-                    <div class="form-group" id="motif_refus_container" style="display: none;">
-                   <label for="motif_refus">Motif de refus <span class="text-danger">*</span></label>
+                        @endif
+                        
+                        @if (Auth::user()->getRoleNames()->contains('chargé'))
+                            <option value="Refus">Refus</option>
+                            <option value="Validation">Validation</option>
+                        @endif
+                        
+                        {{-- ✅ For all other users (except Magasinier, Économe, Directeur des études, Chargé d'inventaire) --}}
+                        @if (!auth()->user()->hasAnyRole(['Magasinier', 'Économe', 'Directeur des études', 'Chargé d\'inventaire']))
+                            <option value="Validation">Réception</option>
+                        @endif
+                    </select>
+                </div>
+                <div class="form-group" id="motif_refus_container" style="display: none;">
+                    <label for="motif_refus">Motif de refus <span class="text-danger">*</span></label>
                     <textarea class="form-control" id="motif_refus" rows="3" placeholder="Veuillez indiquer le motif de refus"></textarea>
-                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
-                    <button type="button" class="btn btn-primary" id="BtnUpdateVente">Mettre à jour</button>
-                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                <button type="button" class="btn btn-primary" id="BtnUpdateVente">Mettre à jour</button>
             </div>
         </div>
     </div>
+</div>
     @endcan
 
 <!-- Modal View Command Details - SINGLE VERSION -->

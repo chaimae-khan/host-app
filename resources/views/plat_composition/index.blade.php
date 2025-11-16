@@ -21,6 +21,8 @@
     var ExportCompositionExcel = "{{url('exportCompositionExcel')}}";
     var ExportCompositionPdf = "{{url('exportCompositionPdf')}}";
     var ExportCompositionDetailedPdf = "{{url('exportCompositionDetailedPdf')}}"; 
+    var ImportCompositionExcel = "{{url('importCompositionExcel')}}";
+    var DownloadImportTemplate = "{{url('downloadImportTemplate')}}";
 </script>
 
 <style>
@@ -55,6 +57,9 @@
                                 @can('Plats-ajoute')
                                 <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#ModalAddPlatComposition">
                                     <i class="fa-solid fa-plus"></i> Composer un plat
+                                </button>
+                                <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#ModalImportComposition">
+                                    <i class="fa-solid fa-file-import"></i> Importer des compositions
                                 </button>
                                 @endcan
                                 
@@ -336,5 +341,93 @@
         </div>
         @endcan
     </div>
+    <div class="modal fade" id="ModalImportComposition" tabindex="-1" aria-labelledby="ModalImportCompositionLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="ModalImportCompositionLabel">Importer des compositions de plats</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <ul class="validationImportComposition"></ul>
+                    <form action="{{ url('importCompositionExcel') }}" id="FormImportComposition" enctype="multipart/form-data">
+                        @csrf
+                        
+                        <!-- Fichier -->
+                        <div class="row">
+                            <div class="col-md-12">
+                                <div class="form-group">
+                                    <label for="import_composition_file" class="form-label">Fichier Excel (XLSX, XLS, CSV)</label>
+                                    <input type="file" 
+                                           name="file" 
+                                           id="import_composition_file" 
+                                           class="form-control @error('file') is-invalid @enderror" 
+                                           accept=".xlsx,.xls,.csv">
+                                    <div class="form-text">Aucun fichier sélectionné</div>
+                                    @error('file')
+                                        <span class="text-danger">{{ $message }}</span>
+                                    @enderror
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Instructions -->
+                        <div class="row mt-3">
+                            <div class="col-md-12">
+                                <div class="alert alert-info">
+                                    <h6><i class="fa-solid fa-circle-info"></i> Format du fichier Excel :</h6>
+                               <!-- Instructions -->
+                        <div class="row mt-3">
+                            <div class="col-md-12">
+                                <div class="alert alert-info">
+                                    <h6><i class="fa-solid fa-circle-info"></i> Format du fichier Excel :</h6>
+                                    <ul class="mb-2">
+                                        <li><strong>Nom du plat :</strong> Le nom doit correspondre exactement à un plat existant</li>
+                                        <li><strong>Ingrédients :</strong> Le nom du produit doit exister dans la base de données</li>
+                                        <li><strong>Quantité :</strong> Valeur numérique positive (ex: 100, 250.5)</li>
+                                        <li><strong>Unité :</strong> L'unité doit exister (ex: g, kg, L, ml)</li>
+                                        <li><strong>Nombre de couvert :</strong> Nombre entier ≥ 10</li>
+                                    </ul>
+                                    <small><i class="fa-solid fa-lightbulb text-warning"></i> <strong>Note:</strong> Les doublons seront automatiquement mis à jour et les lignes invalides seront ignorées.</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                    <div class="mt-2">
+                                        <small><i class="fa-solid fa-lightbulb text-warning"></i> <strong>Note:</strong> Les doublons seront automatiquement mis à jour et les lignes invalides seront ignorées.</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Download Template Button -->
+                        <!-- <div class="row mt-2">
+                            <div class="col-md-12">
+                                <a href="{{ url('downloadImportTemplate') }}" class="btn btn-sm btn-outline-primary w-100">
+                                    <i class="fa-solid fa-download"></i> Télécharger le modèle Excel
+                                </a>
+                            </div>
+                        </div> -->
+                        
+                        <!-- Result Display Area -->
+                        <div class="row mt-3">
+                            <div class="col-md-12">
+                                <div id="import-composition-result"></div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fa-solid fa-times"></i> Fermer
+                </button>
+                <button type="button" class="btn btn-success" id="BtnImportComposition">
+                    <i class="fa-solid fa-file-import"></i> Importer
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 </div>
 @endsection

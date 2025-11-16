@@ -713,4 +713,527 @@ public function lowStockProducts(Request $request)
     
     return view('stock.low_stock', compact('class'));
 }
+/**
+ * Export expiring products to Excel with selected columns
+ */
+public function exportExpiringExcel(Request $request)
+{
+    // Parse columns from request
+    $selectedColumnIndices = [];
+    if ($request->has('columns')) {
+        $selectedColumnIndices = explode(',', $request->input('columns'));
+    } else {
+        // Default to all columns if none specified
+        $selectedColumnIndices = range(0, 10);
+    }
+    
+    // Define columns for expiring products
+    $columnsMap = [
+        0 => ['field' => 'code_article', 'title' => 'Code article', 'data' => 'code_article'],
+        1 => ['field' => 'name', 'title' => 'Nom du Produit', 'data' => 'name'],
+        2 => ['field' => 'unite_name', 'title' => 'Unité', 'data' => 'unite_name'],
+        3 => ['field' => 'categorie', 'title' => 'Catégorie', 'data' => 'categorie'],
+        4 => ['field' => 'famille', 'title' => 'Famille', 'data' => 'famille'],
+        5 => ['field' => 'emplacement', 'title' => 'Emplacement', 'data' => 'emplacement'],
+        6 => ['field' => 'quantite', 'title' => 'Quantité', 'data' => 'quantite'],
+        7 => ['field' => 'date_expiration', 'title' => "Date d'expiration", 'data' => 'date_expiration'],
+        8 => ['field' => 'expiry_status', 'title' => 'Statut', 'data' => 'expiry_status'],
+        9 => ['field' => 'photo_display', 'title' => 'Photo', 'data' => 'photo_display'],
+        10 => ['field' => 'created_at', 'title' => 'Date de réception', 'data' => 'created_at']
+    ];
+    
+    // Get column information for selected columns
+    $columnTitles = [];
+    $columnData = [];
+    
+    foreach ($selectedColumnIndices as $index) {
+        if (isset($columnsMap[intval($index)])) {
+            $column = $columnsMap[intval($index)];
+            $columnTitles[] = $column['title'];
+            $columnData[] = $column['data'];
+        }
+    }
+    
+    // Get all expiring products data
+    $expiringData = DB::table('products as p')
+                ->leftJoin('categories as c', 'p.id_categorie', '=', 'c.id')
+                ->leftJoin('sub_categories as sc', 'p.id_subcategorie', '=', 'sc.id')
+                ->leftJoin('stock as s', 'p.id', '=', 's.id_product')
+                ->leftJoin('unite as u', 'p.id_unite', '=', 'u.id')
+                ->whereNull('p.deleted_at')
+                ->whereNotNull('p.date_expiration')
+                ->where('p.date_expiration', '<=', DB::raw('DATE_ADD(CURDATE(), INTERVAL 7 DAY)'))
+                ->select(
+                    'p.id',
+                    'p.code_article',
+                    'p.name',
+                    'u.name as unite_name',
+                    'c.name as categorie',
+                    'sc.name as famille',
+                    'p.emplacement',
+                    's.quantite',
+                    'p.date_expiration',
+                    'p.photo',
+                    'p.created_at',
+                    DB::raw('DATEDIFF(p.date_expiration, CURDATE()) as days_until_expiry')
+                )
+                ->orderBy('p.date_expiration', 'asc')
+                ->get();
+    
+    // Create new Spreadsheet object
+    $spreadsheet = new Spreadsheet();
+    $sheet = $spreadsheet->getActiveSheet();
+    
+    // Set header row with selected columns
+    $colIndex = 'A';
+    foreach ($columnTitles as $title) {
+        $sheet->setCellValue($colIndex . '1', $title);
+        $colIndex++;
+    }
+    
+    // Style header row
+    $headerStyle = [
+        'font' => ['bold' => true],
+        'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
+        'fill' => [
+            'fillType' => Fill::FILL_SOLID,
+            'startColor' => ['rgb' => 'EEEEEE'],
+        ],
+    ];
+    
+    $sheet->getStyle('A1:' . chr(64 + count($columnTitles)) . '1')->applyFromArray($headerStyle);
+    
+    // Add data rows
+    $row = 2;
+    foreach ($expiringData as $product) {
+        $colIndex = 'A';
+        
+        foreach ($columnData as $field) {
+            $value = '';
+            
+            if ($field === 'expiry_status') {
+                if ($product->days_until_expiry < 0) {
+                    $value = 'Expiré';
+                } elseif ($product->days_until_expiry == 0) {
+                    $value = "Expire aujourd'hui";
+                } elseif ($product->days_until_expiry <= 3) {
+                    $value = 'Expire dans ' . $product->days_until_expiry . ' jour(s)';
+                } else {
+                    $value = 'Expire dans ' . $product->days_until_expiry . ' jour(s)';
+                }
+            } elseif ($field === 'photo_display') {
+                $value = $product->photo ? 'Oui' : 'Non';
+            } elseif ($field === 'date_expiration') {
+                $value = $product->date_expiration ? \Carbon\Carbon::parse($product->date_expiration)->format('d/m/Y') : '';
+            } elseif ($field === 'created_at') {
+                $value = $product->created_at ? \Carbon\Carbon::parse($product->created_at)->format('d/m/Y H:i') : '';
+            } else {
+                $value = $product->{$field} ?? '';
+            }
+            
+            $sheet->setCellValue($colIndex . $row, $value);
+            $colIndex++;
+        }
+        
+        // Style expired/expiring rows
+        if ($product->days_until_expiry < 0) {
+            $expiredStyle = ['font' => ['color' => ['rgb' => '000000']]];
+            $sheet->getStyle('A' . $row . ':' . chr(64 + count($columnTitles)) . $row)->applyFromArray($expiredStyle);
+        } elseif ($product->days_until_expiry <= 3) {
+            $criticalStyle = ['font' => ['color' => ['rgb' => 'FF0000']]];
+            $sheet->getStyle('A' . $row . ':' . chr(64 + count($columnTitles)) . $row)->applyFromArray($criticalStyle);
+        }
+        
+        // Center align all data cells
+        $sheet->getStyle('A' . $row . ':' . chr(64 + count($columnTitles)) . $row)->getAlignment()->setHorizontal(
+            Alignment::HORIZONTAL_CENTER
+        );
+        
+        $row++;
+    }
+    
+    // Auto size columns
+    foreach (range('A', chr(64 + count($columnTitles))) as $column) {
+        $sheet->getColumnDimension($column)->setAutoSize(true);
+    }
+    
+    // Create writer
+    $writer = new Xlsx($spreadsheet);
+    
+    // Set headers for download
+    $fileName = 'GESTOCK TOUARGA - Produits en Expiration - ' . date('d-m-Y') . '.xlsx';
+    header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    header('Content-Disposition: attachment; filename="' . $fileName . '"');
+    header('Cache-Control: max-age=0');
+    
+    // Save file to output
+    $writer->save('php://output');
+    exit;
+}
+
+/**
+ * Export expiring products to PDF with selected columns
+ */
+public function exportExpiringPdf(Request $request)
+{
+    // Parse columns from request
+    $selectedColumnIndices = [];
+    if ($request->has('columns')) {
+        $selectedColumnIndices = explode(',', $request->input('columns'));
+    } else {
+        // Default to all columns if none specified
+        $selectedColumnIndices = range(0, 10);
+    }
+    
+    // Define columns for expiring products
+    $columnsMap = [
+        0 => ['field' => 'code_article', 'title' => 'Code article', 'data' => 'code_article'],
+        1 => ['field' => 'name', 'title' => 'Nom du Produit', 'data' => 'name'],
+        2 => ['field' => 'unite_name', 'title' => 'Unité', 'data' => 'unite_name'],
+        3 => ['field' => 'categorie', 'title' => 'Catégorie', 'data' => 'categorie'],
+        4 => ['field' => 'famille', 'title' => 'Famille', 'data' => 'famille'],
+        5 => ['field' => 'emplacement', 'title' => 'Emplacement', 'data' => 'emplacement'],
+        6 => ['field' => 'quantite', 'title' => 'Quantité', 'data' => 'quantite'],
+        7 => ['field' => 'date_expiration', 'title' => "Date d'expiration", 'data' => 'date_expiration'],
+        8 => ['field' => 'expiry_status', 'title' => 'Statut', 'data' => 'expiry_status'],
+        9 => ['field' => 'photo_display', 'title' => 'Photo', 'data' => 'photo_display'],
+        10 => ['field' => 'created_at', 'title' => 'Date de réception', 'data' => 'created_at']
+    ];
+    
+    // Get column information for selected columns
+    $columnTitles = [];
+    $columnData = [];
+    
+    foreach ($selectedColumnIndices as $index) {
+        if (isset($columnsMap[intval($index)])) {
+            $column = $columnsMap[intval($index)];
+            $columnTitles[] = $column['title'];
+            $columnData[] = $column['data'];
+        }
+    }
+    
+    // Get all expiring products data
+    $expiringData = DB::table('products as p')
+                ->leftJoin('categories as c', 'p.id_categorie', '=', 'c.id')
+                ->leftJoin('sub_categories as sc', 'p.id_subcategorie', '=', 'sc.id')
+                ->leftJoin('stock as s', 'p.id', '=', 's.id_product')
+                ->leftJoin('unite as u', 'p.id_unite', '=', 'u.id')
+                ->whereNull('p.deleted_at')
+                ->whereNotNull('p.date_expiration')
+                ->where('p.date_expiration', '<=', DB::raw('DATE_ADD(CURDATE(), INTERVAL 7 DAY)'))
+                ->select(
+                    'p.id',
+                    'p.code_article',
+                    'p.name',
+                    'u.name as unite_name',
+                    'c.name as categorie',
+                    'sc.name as famille',
+                    'p.emplacement',
+                    's.quantite',
+                    'p.date_expiration',
+                    'p.photo',
+                    'p.created_at',
+                    DB::raw('DATEDIFF(p.date_expiration, CURDATE()) as days_until_expiry')
+                )
+                ->orderBy('p.date_expiration', 'asc')
+                ->get();
+    
+    // Transform data for view
+    $products = [];
+    foreach ($expiringData as $product) {
+        $productItem = [
+            'days_until_expiry' => $product->days_until_expiry
+        ];
+        
+        // Add only selected fields
+        foreach ($columnData as $field) {
+            if ($field === 'expiry_status') {
+                if ($product->days_until_expiry < 0) {
+                    $productItem[$field] = 'Expiré';
+                } elseif ($product->days_until_expiry == 0) {
+                    $productItem[$field] = "Expire aujourd'hui";
+                } elseif ($product->days_until_expiry <= 3) {
+                    $productItem[$field] = 'Expire dans ' . $product->days_until_expiry . ' jour(s)';
+                } else {
+                    $productItem[$field] = 'Expire dans ' . $product->days_until_expiry . ' jour(s)';
+                }
+            } elseif ($field === 'photo_display') {
+                $productItem[$field] = $product->photo ? 'Oui' : 'Non';
+            } elseif ($field === 'date_expiration') {
+                $productItem[$field] = $product->date_expiration ? \Carbon\Carbon::parse($product->date_expiration)->format('d/m/Y') : '';
+            } elseif ($field === 'created_at') {
+                $productItem[$field] = $product->created_at ? \Carbon\Carbon::parse($product->created_at)->format('d/m/Y H:i') : '';
+            } else {
+                $productItem[$field] = $product->{$field} ?? '';
+            }
+        }
+        
+        $products[] = $productItem;
+    }
+    
+    // Generate PDF
+    $pdf = PDF::loadView('stock.expiring_pdf_export', [
+        'products' => $products,
+        'columns' => $columnTitles,
+        'columnData' => $columnData,
+        'date' => date('d/m/Y')
+    ]);
+    
+    // Make PDF landscape and A4
+    $pdf->setPaper('a4', 'landscape');
+    
+    // Download PDF
+    return $pdf->download('GESTOCK TOUARGA - Produits en Expiration - ' . date('d-m-Y') . '.pdf');
+}
+/**
+ * Export low stock products to Excel with selected columns
+ */
+public function exportLowStockExcel(Request $request)
+{
+    // Parse columns from request
+    $selectedColumnIndices = [];
+    if ($request->has('columns')) {
+        $selectedColumnIndices = explode(',', $request->input('columns'));
+    } else {
+        // Default to all columns if none specified
+        $selectedColumnIndices = range(0, 6);
+    }
+    
+    // Define columns for low stock products
+    $columnsMap = [
+        0 => ['field' => 'name', 'title' => 'Nom du Produit', 'data' => 'name'],
+        1 => ['field' => 'unite_name', 'title' => 'Unité', 'data' => 'unite_name'],
+        2 => ['field' => 'categorie', 'title' => 'Catégorie', 'data' => 'categorie'],
+        3 => ['field' => 'famille', 'title' => 'Famille', 'data' => 'famille'],
+        4 => ['field' => 'emplacement', 'title' => 'Emplacement', 'data' => 'emplacement'],
+        5 => ['field' => 'quantite', 'title' => 'Stock', 'data' => 'quantite'],
+        6 => ['field' => 'stock_status', 'title' => 'Statut', 'data' => 'stock_status']
+    ];
+    
+    // Get column information for selected columns
+    $columnTitles = [];
+    $columnData = [];
+    
+    foreach ($selectedColumnIndices as $index) {
+        if (isset($columnsMap[intval($index)])) {
+            $column = $columnsMap[intval($index)];
+            $columnTitles[] = $column['title'];
+            $columnData[] = $column['data'];
+        }
+    }
+    
+    // Get all low stock products data
+    $lowStockData = DB::table('stock as s')
+                ->join('products as p', 'p.id', 's.id_product')
+                ->leftJoin('categories as c', 'p.id_categorie', '=', 'c.id')
+                ->leftJoin('sub_categories as sc', 'p.id_subcategorie', '=', 'sc.id')
+                ->leftJoin('unite as u', 'p.id_unite', '=', 'u.id')
+                ->whereNull('s.deleted_at')
+                ->whereNull('p.deleted_at')
+                ->select(
+                    DB::raw('MIN(s.id) as id'),
+                    'p.name',
+                    'u.name as unite_name',
+                    'c.name as categorie',
+                    'sc.name as famille',
+                    DB::raw('MIN(p.emplacement) as emplacement'),
+                    DB::raw('SUM(s.quantite) as quantite'),
+                    DB::raw('MAX(p.seuil) as seuil')
+                )
+                ->groupBy(
+                    'p.name',
+                    'u.name',
+                    'c.name',
+                    'sc.name'
+                )
+                ->havingRaw('SUM(s.quantite) <= MAX(p.seuil)')
+                ->get();
+    
+    // Create new Spreadsheet object
+    $spreadsheet = new Spreadsheet();
+    $sheet = $spreadsheet->getActiveSheet();
+    
+    // Set header row with selected columns
+    $colIndex = 'A';
+    foreach ($columnTitles as $title) {
+        $sheet->setCellValue($colIndex . '1', $title);
+        $colIndex++;
+    }
+    
+    // Style header row
+    $headerStyle = [
+        'font' => ['bold' => true],
+        'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
+        'fill' => [
+            'fillType' => Fill::FILL_SOLID,
+            'startColor' => ['rgb' => 'EEEEEE'],
+        ],
+    ];
+    
+    $sheet->getStyle('A1:' . chr(64 + count($columnTitles)) . '1')->applyFromArray($headerStyle);
+    
+    // Add data rows
+    $row = 2;
+    foreach ($lowStockData as $product) {
+        $colIndex = 'A';
+        
+        foreach ($columnData as $field) {
+            $value = '';
+            
+            if ($field === 'stock_status') {
+                if ($product->quantite == 0) {
+                    $value = 'Stock Épuisé';
+                } elseif ($product->quantite < $product->seuil) {
+                    $value = 'Stock Critique';
+                } else {
+                    $value = 'Au Seuil';
+                }
+            } else {
+                $value = $product->{$field} ?? '';
+            }
+            
+            $sheet->setCellValue($colIndex . $row, $value);
+            $colIndex++;
+        }
+        
+        // Style rows based on stock level
+        if ($product->quantite == 0) {
+            $outOfStockStyle = ['font' => ['color' => ['rgb' => '000000']]];
+            $sheet->getStyle('A' . $row . ':' . chr(64 + count($columnTitles)) . $row)->applyFromArray($outOfStockStyle);
+        } elseif ($product->quantite <= $product->seuil) {
+            $lowStockStyle = ['font' => ['color' => ['rgb' => 'FF0000']]];
+            $sheet->getStyle('A' . $row . ':' . chr(64 + count($columnTitles)) . $row)->applyFromArray($lowStockStyle);
+        }
+        
+        // Center align all data cells
+        $sheet->getStyle('A' . $row . ':' . chr(64 + count($columnTitles)) . $row)->getAlignment()->setHorizontal(
+            Alignment::HORIZONTAL_CENTER
+        );
+        
+        $row++;
+    }
+    
+    // Auto size columns
+    foreach (range('A', chr(64 + count($columnTitles))) as $column) {
+        $sheet->getColumnDimension($column)->setAutoSize(true);
+    }
+    
+    // Create writer
+    $writer = new Xlsx($spreadsheet);
+    
+    // Set headers for download
+    $fileName = 'GESTOCK TOUARGA - Produits en Stock Faible - ' . date('d-m-Y') . '.xlsx';
+    header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    header('Content-Disposition: attachment; filename="' . $fileName . '"');
+    header('Cache-Control: max-age=0');
+    
+    // Save file to output
+    $writer->save('php://output');
+    exit;
+}
+
+/**
+ * Export low stock products to PDF with selected columns
+ */
+public function exportLowStockPdf(Request $request)
+{
+    // Parse columns from request
+    $selectedColumnIndices = [];
+    if ($request->has('columns')) {
+        $selectedColumnIndices = explode(',', $request->input('columns'));
+    } else {
+        // Default to all columns if none specified
+        $selectedColumnIndices = range(0, 6);
+    }
+    
+    // Define columns for low stock products
+    $columnsMap = [
+        0 => ['field' => 'name', 'title' => 'Nom du Produit', 'data' => 'name'],
+        1 => ['field' => 'unite_name', 'title' => 'Unité', 'data' => 'unite_name'],
+        2 => ['field' => 'categorie', 'title' => 'Catégorie', 'data' => 'categorie'],
+        3 => ['field' => 'famille', 'title' => 'Famille', 'data' => 'famille'],
+        4 => ['field' => 'emplacement', 'title' => 'Emplacement', 'data' => 'emplacement'],
+        5 => ['field' => 'quantite', 'title' => 'Stock', 'data' => 'quantite'],
+        6 => ['field' => 'stock_status', 'title' => 'Statut', 'data' => 'stock_status']
+    ];
+    
+    // Get column information for selected columns
+    $columnTitles = [];
+    $columnData = [];
+    
+    foreach ($selectedColumnIndices as $index) {
+        if (isset($columnsMap[intval($index)])) {
+            $column = $columnsMap[intval($index)];
+            $columnTitles[] = $column['title'];
+            $columnData[] = $column['data'];
+        }
+    }
+    
+    // Get all low stock products data
+    $lowStockData = DB::table('stock as s')
+                ->join('products as p', 'p.id', 's.id_product')
+                ->leftJoin('categories as c', 'p.id_categorie', '=', 'c.id')
+                ->leftJoin('sub_categories as sc', 'p.id_subcategorie', '=', 'sc.id')
+                ->leftJoin('unite as u', 'p.id_unite', '=', 'u.id')
+                ->whereNull('s.deleted_at')
+                ->whereNull('p.deleted_at')
+                ->select(
+                    DB::raw('MIN(s.id) as id'),
+                    'p.name',
+                    'u.name as unite_name',
+                    'c.name as categorie',
+                    'sc.name as famille',
+                    DB::raw('MIN(p.emplacement) as emplacement'),
+                    DB::raw('SUM(s.quantite) as quantite'),
+                    DB::raw('MAX(p.seuil) as seuil')
+                )
+                ->groupBy(
+                    'p.name',
+                    'u.name',
+                    'c.name',
+                    'sc.name'
+                )
+                ->havingRaw('SUM(s.quantite) <= MAX(p.seuil)')
+                ->get();
+    
+    // Transform data for view
+    $products = [];
+    foreach ($lowStockData as $product) {
+        $productItem = [
+            'quantite' => $product->quantite,
+            'seuil' => $product->seuil
+        ];
+        
+        // Add only selected fields
+        foreach ($columnData as $field) {
+            if ($field === 'stock_status') {
+                if ($product->quantite == 0) {
+                    $productItem[$field] = 'Stock Épuisé';
+                } elseif ($product->quantite < $product->seuil) {
+                    $productItem[$field] = 'Stock Critique';
+                } else {
+                    $productItem[$field] = 'Au Seuil';
+                }
+            } else {
+                $productItem[$field] = $product->{$field} ?? '';
+            }
+        }
+        
+        $products[] = $productItem;
+    }
+    
+    // Generate PDF
+    $pdf = PDF::loadView('stock.low_stock_pdf_export', [
+        'products' => $products,
+        'columns' => $columnTitles,
+        'columnData' => $columnData,
+        'date' => date('d/m/Y')
+    ]);
+    
+    // Make PDF landscape and A4
+    $pdf->setPaper('a4', 'landscape');
+    
+    // Download PDF
+    return $pdf->download('GESTOCK TOUARGA - Produits en Stock Faible - ' . date('d-m-Y') . '.pdf');
+}
 }

@@ -515,8 +515,7 @@ public function store(Request $request)
         $dessert = $convertEmptyToNull($request->dessert);
     }
 
-    // ✅ Get next numero_serie for this type_commande
-    // Using IFNULL(MAX(numero_serie), 0) + 1
+    // Get next numero_serie for this type_commande
     $nextNumeroSerie = DB::table('ventes')
         ->where('type_commande', $request->type_commande)
         ->selectRaw('IFNULL(MAX(numero_serie), 0) + 1 as next_numero')
@@ -557,25 +556,65 @@ public function store(Request $request)
         'status'      => 'Création'  
     ]);
 
-    // Notify Admin & Directeur
-    $notifyUsers = User::whereHas('roles', function($query) {
-        $query->whereIn('name', ['Administrateur', 'Directeur']);
-    })->get();
-    
-    // Create hashids for secure URL
+    // ✅ UPDATED NOTIFICATION LOGIC
     $hashids = new Hashids();
     $encodedId = $hashids->encode($Vente->id);
     
-    // Get the current user for notification
     $currentUser = User::find(Auth::id());
     $userName = $currentUser->prenom . ' ' . $currentUser->nom;
     
-    // ✅ Create formatted command number for notification
+    // Create formatted command number for notification
     $year = date('Y');
     $prefix = ($request->type_commande === 'Alimentaire') ? 'A' : 'NA';
     $formattedCommandNumber = "{$prefix}-{$nextNumeroSerie}/{$request->type_commande}/{$year}";
     
-    // Notify with formatted command number
+    // ✅ Always notify Économe
+    $economeUsers = User::whereHas('roles', function($query) {
+        $query->where('name', 'Économe');
+    })->get();
+    
+    foreach ($economeUsers as $econome) {
+        $econome->notify(new \App\Notifications\SystemNotification([
+            'message' => 'Nouvelle commande ' . $formattedCommandNumber . ' créée par ' . $userName,
+            'status' => 'Création',
+            'view_url' => url('ShowBonVente/' . $encodedId)
+        ]));
+    }
+    
+    // ✅ Notify based on command type
+    if ($request->type_commande === 'Alimentaire') {
+        // Notify Directeur des études for Alimentaire
+        $directeurUsers = User::whereHas('roles', function($query) {
+            $query->where('name', 'Directeur des études');
+        })->get();
+        
+        foreach ($directeurUsers as $directeur) {
+            $directeur->notify(new \App\Notifications\SystemNotification([
+                'message' => 'Nouvelle commande ' . $formattedCommandNumber . ' créée par ' . $userName,
+                'status' => 'Création',
+                'view_url' => url('ShowBonVente/' . $encodedId)
+            ]));
+        }
+    } else {
+        // Notify Chargé d'inventaire for Non Alimentaire
+        $chargeUsers = User::whereHas('roles', function($query) {
+            $query->where('name', 'Chargé d\'inventaire');
+        })->get();
+        
+        foreach ($chargeUsers as $charge) {
+            $charge->notify(new \App\Notifications\SystemNotification([
+                'message' => 'Nouvelle commande ' . $formattedCommandNumber . ' créée par ' . $userName,
+                'status' => 'Création',
+                'view_url' => url('ShowBonVente/' . $encodedId)
+            ]));
+        }
+    }
+    
+    // ✅ Always notify Administrateur and Directeur (existing code kept for compatibility)
+    $notifyUsers = User::whereHas('roles', function($query) {
+        $query->whereIn('name', ['Administrateur', 'Directeur']);
+    })->get();
+    
     foreach ($notifyUsers as $user) {
         $user->notify(new \App\Notifications\SystemNotification([
             'message' => 'Nouvelle commande ' . $formattedCommandNumber . ' créée par ' . $userName,
@@ -585,16 +624,15 @@ public function store(Request $request)
     }
 
     // Insert sales details individually for audit trail
-   // Insert sales details individually for audit trail
-foreach ($TempVente as $item) {
-    LigneVente::create([
-        'id_user'      => $userId,
-        'idvente'      => $Vente->id,
-        'idproduit'    => $item->idproduit,
-        'qte'          => $item->qte,          
-        'newquantet'   => $item->qte,        
-    ]);
-}
+    foreach ($TempVente as $item) {
+        LigneVente::create([
+            'id_user'      => $userId,
+            'idvente'      => $Vente->id,
+            'idproduit'    => $item->idproduit,
+            'qte'          => $item->qte,          
+            'newquantet'   => $item->qte,        
+        ]);
+    }
 
     // Delete temporary sales records
     TempVente::where('id_user', $userId)
@@ -995,7 +1033,7 @@ public function FactureVente($id)
     
     $bonVente = Vente::findOrFail($id);
     
-    // ✅ ADD THIS: Calculate French month from created_at
+    // ✅ Calculate French month from created_at
     $frenchMonths = [
         1 => 'janvier', 2 => 'février', 3 => 'mars', 4 => 'avril',
         5 => 'mai', 6 => 'juin', 7 => 'juillet', 8 => 'août',
@@ -1003,7 +1041,7 @@ public function FactureVente($id)
     ];
     $month = $frenchMonths[date('n', strtotime($bonVente->created_at))];
     
-    // ✅ CONVERT PLAT IDs TO NAMES (same as ShowBonVente)
+    // ✅ CONVERT PLAT IDs TO NAMES
     if ($bonVente->entree) {
         $entreeIds = explode(',', $bonVente->entree);
         $entreeNames = DB::table('plats')->whereIn('id', $entreeIds)->pluck('name')->toArray();
@@ -1028,7 +1066,6 @@ public function FactureVente($id)
         $bonVente->dessert_names = null;
     }
     
-    // Rest of existing code...
     $Formateur = DB::table('users as f')
         ->join('ventes as v', 'v.id_formateur', '=', 'f.id')
         ->select('f.*')
@@ -1053,20 +1090,34 @@ public function FactureVente($id)
     $livraison = $getHistorique_sig->firstWhere('status', 'Livraison');
     $reception = $getHistorique_sig->firstWhere('status', 'Réception');
     
+    // ✅ UPDATED: Get ligne_vente with quantity comparison
     $Data_Vente = DB::table('ventes as v')
         ->join('ligne_vente as l', 'v.id', '=', 'l.idvente')
         ->join('products as p', 'l.idproduit', '=', 'p.id')
         ->select(
-            'p.price_achat', 
-            'l.qte', 
-            DB::raw('p.price_achat * l.qte as total'), 
+            'p.price_achat',
+            'l.qte',                                           // Quantité Livrée
+            'l.newquantet',                                    // Quantité Commandée
+            DB::raw('IFNULL(l.newquantet, l.qte) as qte_commandee'), // Fallback
+            DB::raw('p.price_achat * IFNULL(l.newquantet, l.qte) as total'), 
             'p.name', 
             'v.created_at', 
             'v.type_menu', 
-            'v.type_commande'
+            'v.type_commande',
+            'v.status'
         )
         ->where('v.id', $id)
         ->get();
+
+    // ✅ Add flag to check if quantity was modified by magasinier
+    $Data_Vente = $Data_Vente->map(function($item) {
+        // Quantity is considered modified if newquantet exists and is different from qte
+        $item->quantity_modified = !is_null($item->newquantet) && $item->newquantet != $item->qte;
+        if (!is_null($item->newquantet)) {
+            $item->avg_price = $item->price_achat;
+        }
+        return $item;
+    });
 
     $imagePath = public_path('images/logo_top.png');
     $imageData = base64_encode(file_get_contents($imagePath));
@@ -1080,7 +1131,7 @@ public function FactureVente($id)
         'imageData',
         'imageData_bottom',
         'getHistorique_sig',
-        'month'  // ✅ ADD THIS to pass the month to the blade
+        'month'
     ))->render();
 
     $pdf = Pdf::loadHTML($html)->output();
@@ -1094,7 +1145,6 @@ public function FactureVente($id)
         $headers
     );
 }
-
 
     public function edit(Request $request, $id)
     {
@@ -1217,12 +1267,36 @@ public function update(Request $request)
         ]);
     }
     
-    // 🔔 Notification logic after updating status
+    // ✅ UPDATED NOTIFICATION LOGIC
     $hashids = new \Hashids\Hashids();
     $encodedId = $hashids->encode($vente->id);
     $currentUser = \App\Models\User::find(\Auth::id());
     $currentUserName = $currentUser->prenom . ' ' . $currentUser->nom;
     $creatorUser = \App\Models\User::find($vente->id_user);
+
+    // ✅ Helper function to notify Magasinier
+    $notifyMagasinier = function($message, $status) use ($encodedId) {
+        $magasinierUsers = \App\Models\User::whereHas('roles', function($query) {
+            $query->where('name', 'Magasinier');
+        })->get();
+        
+        foreach ($magasinierUsers as $magasinier) {
+            $magasinier->notify(new \App\Notifications\SystemNotification([
+                'message' => $message,
+                'status' => $status,
+                'view_url' => url('ShowBonVente/' . $encodedId),
+            ]));
+        }
+    };
+
+    // ✅ Always notify the creator of the command about status changes
+    if ($creatorUser && $oldStatus !== $request->status) {
+        $creatorUser->notify(new \App\Notifications\SystemNotification([
+            'message' => 'Votre commande #' . $vente->id . ' a changé de statut: ' . $request->status,
+            'status' => $request->status,
+            'view_url' => url('ShowBonVente/' . $encodedId),
+        ]));
+    }
 
     if ($creatorUser) {
         switch ($request->status) {
@@ -1239,6 +1313,9 @@ public function update(Request $request)
                         'view_url' => url('ShowBonVente/' . $encodedId),
                     ]));
                 }
+                
+                // ✅ Notify Magasinier
+                $notifyMagasinier('Commande #' . $vente->id . ' visée par le Directeur des études', 'Visa Directeur');
                 break;
 
             case 'Visa Économe':
@@ -1254,6 +1331,9 @@ public function update(Request $request)
                         'view_url' => url('ShowBonVente/' . $encodedId),
                     ]));
                 }
+                
+                // ✅ Notify Magasinier
+                $notifyMagasinier('Commande #' . $vente->id . ' visée par l\'Économe', 'Visa Économe');
                 break;
 
             case 'Visa Chargé':
@@ -1269,50 +1349,31 @@ public function update(Request $request)
                         'view_url' => url('ShowBonVente/' . $encodedId),
                     ]));
                 }
+                
+                // ✅ Notify Magasinier
+                $notifyMagasinier('Commande #' . $vente->id . ' visée par le Chargé d\'inventaire', 'Visa Chargé');
                 break;
 
             case 'Refus':
-                $creatorUser->notify(new \App\Notifications\SystemNotification([
-                    'message' => 'Votre commande #' . $vente->id . ' a été refusée par ' . $currentUserName,
-                    'status'  => 'Refus',
-                    'view_url' => url('ShowBonVente/' . $encodedId),
-                ]));
+                // Creator already notified above
                 break;
 
             case 'Livraison':
-                $creatorUser->notify(new \App\Notifications\SystemNotification([
-                    'message' => 'Votre commande #' . $vente->id . ' a été livrée',
-                    'status'  => 'Livraison',
-                    'view_url' => url('ShowBonVente/' . $encodedId),
-                ]));
+                // Creator already notified above
                 break;
 
             case 'Visé':
-                $creatorUser->notify(new \App\Notifications\SystemNotification([
-                    'message' => 'Votre commande #' . $vente->id . ' a été visée par l\'économe',
-                    'status'  => 'Visé',
-                    'view_url' => url('ShowBonVente/' . $encodedId),
-                ]));
+                // Creator already notified above
                 break;
 
             case 'Réception':
-                $creatorUser->notify(new \App\Notifications\SystemNotification([
-                    'message' => 'Votre commande #' . $vente->id . ' a été approuvée par ' . $currentUserName,
-                    'view_url' => url('ShowBonVente/' . $encodedId),
-                ]));
-
                 // Notify all Magasiniers
-                $magasinierUsers = \App\Models\User::whereHas('roles', function($query) {
-                    $query->where('name', 'Magasinier');
-                })->get();
-
-                foreach ($magasinierUsers as $magasinier) {
-                    $magasinier->notify(new \App\Notifications\SystemNotification([
-                        'message' => 'Nouvelle commande #' . $vente->id . ' prête pour la livraison',
-                        'status'  => 'Réception',
-                        'view_url' => url('ShowBonVente/' . $encodedId),
-                    ]));
-                }
+                $notifyMagasinier('Nouvelle commande #' . $vente->id . ' prête pour la livraison', 'Réception');
+                break;
+                
+            case 'Validation':
+                // ✅ Notify Magasinier when command is validated
+                $notifyMagasinier('Commande #' . $vente->id . ' a été validée', 'Validation');
                 break;
         }
     }

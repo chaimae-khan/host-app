@@ -8,6 +8,8 @@
     var getSubcategories_url = "{{ url('stock/subcategories') }}";
     var GetCategorieByClass = "{{ url('stock/categories-by-class') }}";
     var searchProductNames_url = "{{ url('stock/search-product-names') }}";
+    var expiringExportExcelUrl = "{{ url('stock/expiring/export-excel') }}";
+    var expiringExportPdfUrl = "{{ url('stock/expiring/export-pdf') }}";
 </script>
 
 <div class="content-page">
@@ -124,6 +126,18 @@
 
 .TableExpiring tr.expiring-warning-row {
     background-color: rgba(var(--bs-warning-rgb), 0.15) !important;
+}
+
+/* Add custom styling to the export buttons */
+.btn-export-all {
+    background-color: #28a745 !important;
+    color: white !important;
+    border-color: #28a745 !important;
+}
+
+.btn-export-all:hover {
+    background-color: #218838 !important;
+    border-color: #1e7e34 !important;
 }
 </style>
 
@@ -333,18 +347,40 @@ $(document).ready(function () {
                 }
             },
             {
-                extend: 'excelHtml5',
-                text: 'Excel',
-                exportOptions: {
-                    columns: ':visible'
+                text: 'Exporter Excel',
+                className: 'btn-export-all',
+                action: function (e, dt, button, config) {
+                    // Get visible columns
+                    var visibleColumnsIndices = [];
+                    dt.columns().every(function (index) {
+                        if (dt.column(index).visible()) {
+                            visibleColumnsIndices.push(index);
+                        }
+                    });
+                    
+                    // Redirect to server-side export with visible columns as parameter
+                    window.location.href = expiringExportExcelUrl + '?columns=' + visibleColumnsIndices.join(',');
                 }
             },
             {
-                extend: 'pdfHtml5',
-                text: 'PDF',
-                exportOptions: {
-                    columns: ':visible'
+                text: 'Exporter PDF',
+                className: 'btn-export-all',
+                action: function (e, dt, button, config) {
+                    // Get visible columns
+                    var visibleColumnsIndices = [];
+                    dt.columns().every(function (index) {
+                        if (dt.column(index).visible()) {
+                            visibleColumnsIndices.push(index);
+                        }
+                    });
+                    
+                    // Redirect to server-side export with visible columns as parameter
+                    window.location.href = expiringExportPdfUrl + '?columns=' + visibleColumnsIndices.join(',');
                 }
+            },
+            {
+                extend: 'colvis',
+                text: 'Colonnes'
             }
         ],
         processing: true,

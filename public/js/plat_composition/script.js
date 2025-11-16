@@ -1110,6 +1110,125 @@ $(document).on('click', '#BtnConfirmImport', function(e) {
     });
 });
 
+
+// Import Composition Handler
+$(document).on('click', '#BtnImportComposition', function(e) {
+    e.preventDefault();
+    
+    let formData = new FormData($('#FormImportComposition')[0]);
+    formData.append('_token', csrf_token);
+
+    // Check if file is selected
+    if ($('#import_composition_file').val() == '') {
+        new AWN().warning('Veuillez sélectionner un fichier.', {durations: {warning: 5000}});
+        return;
+    }
+
+    $('#BtnImportComposition').prop('disabled', true).html(
+        '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Importation...'
+    );
+
+    $.ajax({
+        type: "POST",
+        url: ImportCompositionExcel,
+        data: formData,
+        processData: false,
+        contentType: false,
+        dataType: "json",
+        success: function (response) {
+            $('#BtnImportComposition').prop('disabled', false).html('<i class="fa-solid fa-file-import me-2"></i>Importer');
+            
+            if(response.status == 200) {
+                // Build success message with details
+                let message = response.message;
+                
+                // Show warnings if any
+                if (response.warnings && response.warnings.length > 0) {
+                    let warningHtml = '<div class="alert alert-warning mt-3"><strong>Avertissements:</strong><ul>';
+                    response.warnings.forEach(function(warning) {
+                        warningHtml += '<li>' + warning + '</li>';
+                    });
+                    warningHtml += '</ul></div>';
+                    $('#import-composition-result').html(warningHtml);
+                }
+                
+                // Show errors if any
+                if (response.errors && response.errors.length > 0) {
+                    let errorHtml = '<div class="alert alert-danger mt-3"><strong>Erreurs:</strong><ul>';
+                    response.errors.forEach(function(error) {
+                        errorHtml += '<li>' + error + '</li>';
+                    });
+                    errorHtml += '</ul></div>';
+                    $('#import-composition-result').append(errorHtml);
+                }
+                
+                new AWN().success(message, {durations: {success: 5000}});
+                
+                // Refresh table if any records were imported
+                if (response.imported > 0) {
+                    initializeTablePlatComposition();
+                }
+                
+                // Auto-close modal after 3 seconds if successful
+                setTimeout(function() {
+                    $('#ModalImportComposition').modal('hide');
+                }, 3000);
+                
+            } else if(response.status == 400) {
+                $('.validationImportComposition').html("");
+                $('.validationImportComposition').addClass('alert alert-danger');
+                $.each(response.errors, function(key, list_err) {
+                    $('.validationImportComposition').append('<li>' + list_err + '</li>');
+                });
+                
+                setTimeout(() => {
+                    $('.validationImportComposition').fadeOut('slow', function() {
+                        $(this).html("").removeClass('alert alert-danger').show();
+                    });
+                }, 5000);
+            } else if (response.status == 500) {
+                new AWN().alert(response.message, { durations: { alert: 5000 } });
+            }
+        },
+        error: function(xhr, status, error) {
+            $('#BtnImportComposition').prop('disabled', false).html('<i class="fa-solid fa-file-import me-2"></i>Importer');
+            
+            if (xhr.status === 403) {
+                new AWN().warning(xhr.responseJSON.message, {durations: {warning: 5000}});
+            } else {
+                // Try to parse the error response
+                try {
+                    var errorResponse = JSON.parse(xhr.responseText);
+                    if (errorResponse && errorResponse.message) {
+                        new AWN().alert(errorResponse.message, { durations: { alert: 5000 } });
+                    } else {
+                        new AWN().alert("Une erreur est survenue lors de l'importation.", { durations: { alert: 5000 } });
+                    }
+                } catch (e) {
+                    new AWN().alert("Une erreur est survenue lors de l'importation.", { durations: { alert: 5000 } });
+                }
+            }
+        }
+    });
+});
+
+// Reset modal when closed
+$('#ModalImportComposition').on('hidden.bs.modal', function() {
+    $('#import_composition_file').val('');
+    $('#import-composition-result').html('');
+    $('#BtnImportComposition').prop('disabled', false).html('<i class="fa-solid fa-file-import me-2"></i>Importer');
+    $('.validationImportComposition').html("").removeClass('alert alert-danger');
+});
+
+// File input change - show filename
+$('#import_composition_file').on('change', function() {
+    const fileName = $(this).val().split('\\').pop();
+    if (fileName) {
+        $(this).next('.form-text').html('<i class="fa-solid fa-file-excel text-success"></i> ' + fileName);
+    } else {
+        $(this).next('.form-text').html('Aucun fichier sélectionné');
+    }
+});
 // Reset modal when closed
 $('#ModalImportComposition').on('hidden.bs.modal', function() {
     $('#import_file').val('');

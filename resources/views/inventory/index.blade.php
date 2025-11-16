@@ -303,9 +303,9 @@
                             <div class="row mb-3">
                                 <div class="col-md-3">
                                     <div class="form-group">
-                                        <label for="" class="form-label">Class</label>
+                                        <label for="" class="form-label">Classe</label>
                                         <select name="" id="dropdownclass" class="form-select">
-                                            <option value="0">Sélectionner un class</option>
+                                            <option value="0">Sélectionner une classe</option>
                                             @foreach ($Class as $item)
                                                 <option value="{{ $item->class }}">{{ $item->class }}</option>
                                             @endforeach
@@ -785,12 +785,12 @@ $('#export-cardex-excel-btn').on('click', function() {
 
 
 $('#dropdownclass').on('change', function (e) {
-    e.preventDefault(); // optional, useful if inside a form
+    e.preventDefault();
 
     let selectedClass = $(this).val();
 
     if (selectedClass == 0 || selectedClass === "") {
-        alert("Please select a class");
+        alert("Veuillez sélectionner une classe");
         return false;
     }
 
@@ -804,7 +804,7 @@ $('#dropdownclass').on('change', function (e) {
             {
                 let $dropdowncategory = $('#dropdowncategory');
                 $dropdowncategory.empty();
-                $dropdowncategory.append('<option value="0">Please select category</option>');
+                $dropdowncategory.append('<option value="0">Veuillez sélectionner une catégorie</option>');
 
                 $.each(response.Categorys, function (index, value) {
                     $dropdowncategory.append(
@@ -824,7 +824,7 @@ $('#dropdownclass').on('change', function (e) {
             }
         },
         error: function (xhr, status, error) {
-            console.error("AJAX Error:", error);
+            console.error("Erreur AJAX:", error);
         }
     });
 });
@@ -834,13 +834,10 @@ $('#dropdownclass').on('change', function (e) {
 $('#dropdowncategory').on('change', function (e) {
     e.preventDefault(); 
 
-   
-    let selectedCategory= $(this).val(); 
-
-    
+    let selectedCategory = $(this).val(); 
 
     if (selectedCategory == 0 || selectedCategory === "") {
-        alert("Please select a categories");
+        alert("Veuillez sélectionner une catégorie");
         return false;
     }
 
@@ -849,7 +846,6 @@ $('#dropdowncategory').on('change', function (e) {
         url: GetFamilleAndProduct,
         data: 
         { 
-           
             category : selectedCategory
         },
         dataType: "json",
@@ -858,7 +854,7 @@ $('#dropdowncategory').on('change', function (e) {
             {
                 let $dropdownFamille = $('#dropdownFamille');
                 $dropdownFamille.empty();
-                $dropdownFamille.append('<option value="0">Please select famille</option>');
+                $dropdownFamille.append('<option value="0">Veuillez sélectionner une famille</option>');
 
                 $.each(response.Famille, function (index, value) {
                     $dropdownFamille.append(
@@ -878,7 +874,7 @@ $('#dropdowncategory').on('change', function (e) {
             }
         },
         error: function (xhr, status, error) {
-            console.error("AJAX Error:", error);
+            console.error("Erreur AJAX:", error);
         }
     });
 });
@@ -891,16 +887,16 @@ $('#dropdownFamille').on('change',function(e)
     let dropdownFamille = $(this).val();
 
     if (category == 0 || category === "") {
-        alert("Please select a categories");
+        alert("Veuillez sélectionner une catégorie");
         return false;
     }
 
     if (dropdownFamille == 0 || dropdownFamille === "") {
-        alert("Please select a famille");
+        alert("Veuillez sélectionner une famille");
         return false;
     }
     $.ajax({ 
-        type: "get",
+        type: "GET",
         url: GetProductByCategoryAndFamille,
         data:
         {
@@ -922,6 +918,9 @@ $('#dropdownFamille').on('change',function(e)
                     );
                 });
             }    
+        },
+        error: function (xhr, status, error) {
+            console.error("Erreur AJAX:", error);
         }
     });
 });
