@@ -1,8 +1,24 @@
+@php
+    header('Content-Type: text/html; charset=UTF-8');
+    
+    // Determine designation based on nature
+    if ($perte->nature === 'stock' && $productDetails) {
+        $designation = $productDetails->name;
+    } elseif ($perte->nature === 'produit fini' && $platDetails) {
+        $designation = $platDetails->name;
+    } else {
+        $designation = $perte->designation ?? 'Non spécifié';
+    }
+    
+    // Get current date for footer
+    $currentDate = date('d/m/Y');
+    $currentDateTime = date('d/m/Y H:i:s');
+@endphp
 <!DOCTYPE html>
-<html>
+<html lang="fr">
 <head>
     <title>Fiche de Déclaration de Perte</title>
-    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
         * {
@@ -17,7 +33,7 @@
         
         .invoice-container {
             position: relative;
-            border: 1px solid;
+            border: none;
             padding: 20px;
             background-color: #ffffff; 
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); 
@@ -82,36 +98,22 @@
     </style>
 </head>
 <body>
-    @php
-        // Build reference number
-        $year = date('Y', strtotime($perte->created_at));
-        $prefix = ($perte->classe === 'Alimentaire') ? 'A' : 'NA';
-        $referenceNumber = "{$prefix}-{$perte->reference}/{$perte->classe}/{$month}/{$year}";
-        
-        // Determine designation based on nature
-        if ($perte->nature === 'stock' && $productDetails) {
-            $designation = $productDetails->name;
-            $unite = $productDetails->unite_name ?? '-';
-            $prix_unitaire = $productDetails->price_achat ?? 0;
-        } elseif ($perte->nature === 'produit fini' && $platDetails) {
-            $designation = $platDetails->name;
-            $unite = 'Plat(s)';
-            // Calculate prix unitaire from composition
-            $prix_unitaire = $compositionDetails->sum('cout_unitaire');
-        } else {
-            $designation = $perte->designation ?? 'Non spécifié';
-            $unite = '-';
-            $prix_unitaire = 0;
-        }
-        
-        // Get quantity lost
-        $qte_perdue = ($perte->nature === 'stock') 
-            ? ($perte->quantite ?? 0) 
-            : ($perte->nombre_plats ?? 0);
-        
-        // Calculate total cost
-        $cout_total = $prix_unitaire * $qte_perdue;
-    @endphp
+   @php
+    // Determine designation based on nature
+    if ($perte->nature === 'stock' && $productDetails) {
+        $designation = $productDetails->name;
+    } elseif ($perte->nature === 'produit fini' && $platDetails) {
+        $designation = $platDetails->name;
+    } else {
+        $designation = $perte->designation ?? 'Non spécifié';
+    }
+    
+    // Get current date for footer
+    $currentDate = date('d/m/Y');
+    $currentDateTime = date('d/m/Y H:i:s');
+    
+    // ✅ $showNInv is now passed from the controller - no need to redefine it here
+@endphp
 
     <div class="invoice-container">
         {{-- TOP IMAGE --}}
@@ -125,16 +127,18 @@
         
         {{-- PERTE INFO --}}
         <div class="perte-info">
-            <div><strong>Réf :</strong> {{ $perte->reference }}</div>
-            <div><strong>Réf :</strong> {{ $referenceNumber }} 
+            <div><strong>Réf :</strong> {{ $perte->reference }} 
                 @if($perte->nature === 'produit fini')
                     <span class="highlight-yellow">(Pour alimentaire produit fini)</span>
                 @elseif($perte->classe === 'Alimentaire')
                     <span class="highlight-yellow">(Pour alimentaire matière première)</span>
                 @endif
             </div>
+            @if($perte->nature === 'produit fini' && $platDetails)
+                <div><strong>Nom du plat :</strong> {{ $platDetails->name }} ({{ $perte->nombre_plats }} plat(s))</div>
+            @endif
             <div><strong>Date de perte :</strong> {{ $perte->date_perte ? \Carbon\Carbon::parse($perte->date_perte)->format('d/m/Y') : 'Non spécifié' }}</div>
-            <div><strong>Date de saisie :</strong> Automatique</div>
+            <div><strong>Date de saisie :</strong> {{ \Carbon\Carbon::parse($perte->created_at)->format('d/m/Y H:i:s') }}</div>
         </div>
         
         <div>
@@ -143,7 +147,10 @@
                 <table id="tableDetail" style="margin-top: 10px">
                     <thead>
                         <tr>
-                            <th style="text-align: center">Désignation</th>
+                            <th style="text-align: center">Designation</th>
+                            @if($showNInv)
+                                <th style="text-align: center">N° Inv</th>
+                            @endif
                             <th style="text-align: center">Qté Av perte</th>
                             <th style="text-align: center">Qté perdue</th>
                             <th style="text-align: center">Unité</th>
@@ -153,28 +160,94 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <tr>
-                            <td style="text-align: center">{{ $designation }}</td>
-                            <td style="text-align: center">{{ $qte_avant_perte ?? '-' }}</td>
-                            <td style="text-align: center">{{ $qte_perdue }}</td>
-                            <td style="text-align: center">{{ $unite }}</td>
-                            <td style="text-align: center">{{ number_format($prix_unitaire, 2, '.', '') }}</td>
-                            <td style="text-align: center">{{ number_format($cout_total, 2, '.', '') }}</td>
-                            <td style="text-align: center">{{ $qte_apres_perte ?? '-' }}</td>
-                        </tr>
-                        
-                        {{-- Empty rows to match the form --}}
-                        @for ($i = 0; $i < 2; $i++)
+                        @if($perte->nature === 'stock')
+                            {{-- STOCK LOSS - Single Row --}}
                             <tr>
-                                <td style="text-align: center">&nbsp;</td>
-                                <td style="text-align: center">&nbsp;</td>
-                                <td style="text-align: center">&nbsp;</td>
-                                <td style="text-align: center">&nbsp;</td>
-                                <td style="text-align: center">&nbsp;</td>
-                                <td style="text-align: center">&nbsp;</td>
-                                <td style="text-align: center">&nbsp;</td>
+                                <td style="text-align: center">{{ $designation }}</td>
+                                @if($showNInv)
+                                    <td style="text-align: center">{{ $perte->n_inv ?? '-' }}</td>
+                                @endif
+                                <td style="text-align: center">{{ number_format($qte_avant_perte ?? 0, 2, '.', '') }}</td>
+                                <td style="text-align: center">{{ number_format($perte->quantite ?? 0, 2, '.', '') }}</td>
+                                <td style="text-align: center">{{ $productDetails->unite_name ?? '-' }}</td>
+                                <td style="text-align: center">{{ number_format($productDetails->price_achat ?? 0, 2, '.', '') }}</td>
+                                <td style="text-align: center">{{ number_format($perte->cout_total ?? 0, 2, '.', '') }}</td>
+                                <td style="text-align: center">
+                                    @if($perte->status === 'Visa Magasinier')
+                                        {{ number_format($qte_apres_perte ?? 0, 2, '.', '') }}
+                                    @else
+                                        -
+                                    @endif
+                                </td>
                             </tr>
-                        @endfor
+                            
+                            {{-- Empty rows --}}
+                            @for ($i = 0; $i < 2; $i++)
+                                <tr>
+                                    <td style="text-align: center">&nbsp;</td>
+                                    @if($showNInv)
+                                        <td style="text-align: center">&nbsp;</td>
+                                    @endif
+                                    <td style="text-align: center">&nbsp;</td>
+                                    <td style="text-align: center">&nbsp;</td>
+                                    <td style="text-align: center">&nbsp;</td>
+                                    <td style="text-align: center">&nbsp;</td>
+                                    <td style="text-align: center">&nbsp;</td>
+                                    <td style="text-align: center">&nbsp;</td>
+                                </tr>
+                            @endfor
+                            
+                        @elseif($perte->nature === 'produit fini')
+                            {{-- PRODUIT FINI - Show each product in composition --}}
+                            @if($compositionDetails && count($compositionDetails) > 0)
+                                @foreach($compositionDetails as $item)
+                                    <tr>
+                                        <td style="text-align: center">{{ $item->name }}</td>
+                                        <td style="text-align: center">{{ number_format($item->qte_avant_perte, 2, '.', '') }}</td>
+                                        <td style="text-align: center">{{ number_format($item->qte * $perte->nombre_plats, 2, '.', '') }}</td>
+                                        <td style="text-align: center">{{ $item->unite_name ?? '-' }}</td>
+                                        <td style="text-align: center">{{ number_format($item->price_achat ?? 0, 2, '.', '') }}</td>
+                                        <td style="text-align: center">{{ number_format($item->cout_unitaire * $perte->nombre_plats, 2, '.', '') }}</td>
+                                        <td style="text-align: center">
+                                            @if($perte->status === 'Visa Magasinier')
+                                                {{ number_format($item->qte_apres_perte, 2, '.', '') }}
+                                            @else
+                                                -
+                                            @endif
+                                        </td>
+                                    </tr>
+                                @endforeach
+                                
+                                {{-- Add empty rows if needed to reach 3 rows minimum --}}
+                                @for ($i = count($compositionDetails); $i < 3; $i++)
+                                    <tr>
+                                        <td style="text-align: center">&nbsp;</td>
+                                        <td style="text-align: center">&nbsp;</td>
+                                        <td style="text-align: center">&nbsp;</td>
+                                        <td style="text-align: center">&nbsp;</td>
+                                        <td style="text-align: center">&nbsp;</td>
+                                        <td style="text-align: center">&nbsp;</td>
+                                        <td style="text-align: center">&nbsp;</td>
+                                    </tr>
+                                @endfor
+                            @else
+                                {{-- No composition found --}}
+                                <tr>
+                                    <td colspan="7" style="text-align: center">Aucune composition disponible</td>
+                                </tr>
+                                @for ($i = 0; $i < 2; $i++)
+                                    <tr>
+                                        <td style="text-align: center">&nbsp;</td>
+                                        <td style="text-align: center">&nbsp;</td>
+                                        <td style="text-align: center">&nbsp;</td>
+                                        <td style="text-align: center">&nbsp;</td>
+                                        <td style="text-align: center">&nbsp;</td>
+                                        <td style="text-align: center">&nbsp;</td>
+                                        <td style="text-align: center">&nbsp;</td>
+                                    </tr>
+                                @endfor
+                            @endif
+                        @endif
                     </tbody>
                 </table>
 
@@ -193,7 +266,7 @@
                             @if($perte->classe === 'Alimentaire' || $perte->nature === 'produit fini')
                                 <th style="text-align: center; padding: 10px;">Visa DDE</th>
                             @else
-                                <th style="text-align: center; padding: 10px;">Visa Chargé</th>
+                                <th style="text-align: center; padding: 10px;">Visa Chargé d'inventaire</th>
                             @endif
                             
                             <th style="text-align: center; padding: 10px;">Visa Économe</th>
@@ -205,19 +278,23 @@
                         <tr>
                             @php
                                 $creation = $getHistorique_sig->firstWhere('status', 'Création');
+                                $enAttente = $getHistorique_sig->firstWhere('status', 'En attente');
                                 $visaDirecteur = $getHistorique_sig->firstWhere('status', 'Visa Directeur');
                                 $visaCharge = $getHistorique_sig->firstWhere('status', 'Visa Chargé');
                                 $visaEconome = $getHistorique_sig->firstWhere('status', 'Visa Économe');
                                 $validation = $getHistorique_sig->firstWhere('status', 'Validé');
                                 $visaMagasinier = $getHistorique_sig->firstWhere('status', 'Visa Magasinier');
+                                
+                                // Use creation or en attente for constateur
+                                $constateur = $creation ?? $enAttente;
                             @endphp
                             
-                            {{-- Constateur (Création) --}}
+                            {{-- Constateur (Creation/En attente) --}}
                             <td style="text-align: center; height: 100px; vertical-align: top; padding: 10px;">
-                                @if($creation)
-                                    <img src="data:image/png;base64,{{ $creation->signature }}" alt="" style="max-height: 50px; max-width: 100px;">
-                                    <br>{{ $creation->name }}
-                                    <br>{{ \Carbon\Carbon::parse($creation->created_at)->format('Y-m-d H:i:s') }}
+                                @if($constateur)
+                                    <img src="data:image/png;base64,{{ $constateur->signature }}" alt="" style="max-height: 50px; max-width: 100px;">
+                                    <br>{{ $constateur->name }}
+                                    <br>{{ \Carbon\Carbon::parse($constateur->created_at)->format('Y-m-d H:i:s') }}
                                 @endif
                             </td>
                             
@@ -270,7 +347,7 @@
 
                 {{-- Footer note --}}
                 <div style="margin-top: 10px; font-size: 10px; color: red;">
-                    Édité le {{ date('d/m/Y') }} (Automatique)- Éditeur : {{ auth()->user()->prenom }} {{ auth()->user()->nom }} - Gestock Touarga (sur tous les documents)
+                    Édité le {{ $currentDate }} - Éditeur : {{ auth()->user()->prenom }} {{ auth()->user()->nom }} - Gestock Touarga
                 </div>
             </div>
         </div>

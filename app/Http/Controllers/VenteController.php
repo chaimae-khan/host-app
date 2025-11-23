@@ -1037,13 +1037,8 @@ public function FactureVente($id)
     
     $bonVente = Vente::findOrFail($id);
     
-    // ✅ Calculate French month from created_at
-    $frenchMonths = [
-        1 => 'janvier', 2 => 'février', 3 => 'mars', 4 => 'avril',
-        5 => 'mai', 6 => 'juin', 7 => 'juillet', 8 => 'août',
-        9 => 'septembre', 10 => 'octobre', 11 => 'novembre', 12 => 'décembre'
-    ];
-    $month = $frenchMonths[date('n', strtotime($bonVente->created_at))];
+    // ✅ Calculate numeric month from created_at
+    $month = date('m', strtotime($bonVente->created_at)); // Returns 01-12
     
     // ✅ CONVERT PLAT IDs TO NAMES
     if ($bonVente->entree) {

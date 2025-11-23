@@ -85,17 +85,19 @@
                             <!-- Pertes Table -->
                             <div class="table-responsive">
                                 <table class="table datatable TablePertes">
-                                   <thead class="thead-light">
-                                            <tr>
-                                                <th>Nature de la perte</th>
-                                                <th>Désignation</th>
-                                                <th>Coût Total</th>
-                                                <th>Date de perte</th>
-                                                <th>Statut</th>
-                                                <th>Déclaré par</th>
-                                                <th>Actions</th>
-                                            </tr>
-                                        </thead>
+                                    <thead class="thead-light">
+                                        <tr>
+                                            <th>Référence</th>
+                                            <th>Nature de la perte</th>
+                                            <th>Désignation</th>
+                                            <th>Coût Total</th>
+                                            <th>Date de perte</th>
+                                            <th>Statut</th>
+                                            <th>Déclaré par</th>
+                                            <th>Actions</th>
+
+                                        </tr>
+                                    </thead>
                                     <tbody>
                                         <!-- Data will be loaded by DataTables -->
                                     </tbody>
@@ -120,224 +122,247 @@
                             <ul class="validationAddPerte"></ul>
 
                             <!-- Add Perte Form -->
-                         <form id="FormAddPerte">
-    <div class="row">
-        <!-- Left Column -->
-        <div class="col-md-6">
-            <!-- Nature de la perte - MOVED TO TOP -->
-            <div class="row mb-3">
-                <div class="col-md-6">
-                    <div class="form-group">
-                        <label>Nature de la perte <span class="text-danger">*</span></label>
-                        <select name="nature" class="form-control" id="natureDropDown" required>
-                            <option value="">Sélectionner la nature</option>
-                            <option value="stock">Stock</option>
-                            <option value="produit fini">Produit fini</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="form-group">
-                        <label>Date de la perte <span class="text-danger">*</span></label>
-                        <input type="date" name="date_perte" id="date_perte" class="form-control" required max="{{ date('Y-m-d') }}">
-                    </div>
-                </div>
-            </div>
+                            <form id="FormAddPerte">
+                                <div class="row">
+                                    <!-- Left Column -->
+                                    <div class="col-md-6">
+                                        <!-- Nature de la perte -->
+                                        <div class="row mb-3">
+                                            <div class="col-md-6">
+                                                <div class="form-group">
+                                                    <label>Nature de la perte <span class="text-danger">*</span></label>
+                                                    <select name="nature" class="form-control" id="natureDropDown" required>
+                                                        <option value="">Sélectionner la nature</option>
+                                                        <option value="stock">Stock</option>
+                                                        <option value="produit fini">Produit fini</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="form-group">
+                                                    <label>Date de la perte <span class="text-danger">*</span></label>
+                                                    <input type="date" name="date_perte" id="date_perte" class="form-control" required max="{{ date('Y-m-d') }}">
+                                                </div>
+                                            </div>
+                                        </div>
 
-            <!-- Classe, Catégorie et Famille - CONDITIONAL -->
-            <div id="classeCategorieSection" class="row mb-3" style="display: none;">
-                <div class="col-md-4">
-                    <div class="form-group">
-                        <label>Classe <span class="text-danger">*</span></label>
-                        <select name="classe" id="Class_Categorie_Perte" class="form-control">
-                            <option value="">Sélectionner une classe</option>
-                            @foreach($class as $item)
-                            <option value="{{ $item->classe }}">{{ $item->classe }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="form-group">
-                        <label>Catégorie <span class="text-danger">*</span></label>
-                        <select name="id_category" id="Categorie_Class_Perte" class="form-control">
-                            <option value="">Sélectionner une catégorie</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="form-group">
-                        <label>Famille <span class="text-danger">*</span></label>
-                        <select name="id_subcategorie" id="id_subcategorie_perte" class="form-control">
-                            <option value="">Sélectionner une famille</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
+                                        <!-- Classe, Catégorie et Famille - CONDITIONAL -->
+                                        <div id="classeCategorieSection" class="row mb-3" style="display: none;">
+                                            <div class="col-md-4">
+                                                <div class="form-group">
+                                                    <label>Classe <span class="text-danger">*</span></label>
+                                                    <select name="classe" id="Class_Categorie_Perte" class="form-control">
+                                                        <option value="">Sélectionner une classe</option>
+                                                        @foreach($class as $item)
+                                                        <option value="{{ $item->classe }}">{{ $item->classe }}</option>
+                                                        @endforeach
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="form-group">
+                                                    <label>Catégorie <span class="text-danger">*</span></label>
+                                                    <select name="id_category" id="Categorie_Class_Perte" class="form-control">
+                                                        <option value="">Sélectionner une catégorie</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="form-group">
+                                                    <label>Famille <span class="text-danger">*</span></label>
+                                                    <select name="id_subcategorie" id="id_subcategorie_perte" class="form-control">
+                                                        <option value="">Sélectionner une famille</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        </div>
 
-            <!-- Stock Section -->
-            <div id="stockSection" style="display: none;">
-                <div class="card border-primary mb-3">
-                    <div class="card-header bg-primary text-white">
-                        <i class="fa-solid fa-boxes-stacked"></i> Perte de Stock
-                    </div>
-                    <div class="card-body">
-                        <div class="row mb-3">
-                            <div class="col-md-8">
-                                <div class="form-group">
-                                    <label>Produit <span class="text-danger">*</span></label>
-                                    <select name="id_product" id="id_product_perte" class="form-control">
-                                        <option value="">Sélectionner un produit</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="form-group">
-                                    <label>Unité</label>
-                                    <input type="text" id="unite_display_perte" class="form-control" readonly disabled>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="row mb-3">
-                            <div class="col-md-12">
-                                <div class="form-group">
-                                    <label>Quantité perdue <span class="text-danger">*</span></label>
-                                    <input type="number" step="0.01" name="quantite" id="quantite_stock" class="form-control" min="0.01">
-                                </div>
-                            </div>
-                        </div>
-                        <!-- Cost Display for Stock -->
-                        <div id="stockCostSection" style="display: none;">
-                            <div class="total-cost-display">
-                                <h6><i class="fa-solid fa-calculator"></i> Calcul du Coût</h6>
-                                <div class="cost-detail">
-                                    <span>Prix unitaire:</span>
-                                    <strong><span id="stock_prix_unitaire">0.00</span> DH</strong>
-                                </div>
-                                <div class="cost-detail">
-                                    <span>Quantité perdue:</span>
-                                    <strong><span id="stock_quantite_display">0</span></strong>
-                                </div>
-                                <hr>
-                                <div class="cost-detail">
-                                    <span class="fs-5"><strong>Coût Total:</strong></span>
-                                    <span class="fs-4 text-danger"><strong><span id="stock_cout_total">0.00</span> DH</strong></span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+                                        <!-- Stock Section -->
+                                        <div id="stockSection" style="display: none;">
+                                            <div class="card border-primary mb-3">
+                                                <div class="card-header bg-primary text-white">
+                                                    <i class="fa-solid fa-boxes-stacked"></i> Perte de Stock
+                                                </div>
+                                                <div class="card-body">
+                                                    <div class="row mb-3">
+                                                        <div class="col-md-8">
+                                                            <div class="form-group">
+                                                                <label>Produit <span class="text-danger">*</span></label>
+                                                                <select name="id_product" id="id_product_perte" class="form-control">
+                                                                    <option value="">Sélectionner un produit</option>
+                                                                </select>
+                                                            </div>
+                                                        </div>
+                                                        <div class="col-md-4">
+                                                            <div class="form-group">
+                                                                <label>Unité</label>
+                                                                <input type="text" id="unite_display_perte" class="form-control" readonly disabled>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    <!-- N° Inv field - only for Non alimentaire -->
+                                                    <div class="row mb-3" id="nInvSection" style="display: none;">
+                                                        <div class="col-md-12">
+                                                            <div class="form-group">
+                                                                <label>N° Inv <span class="text-danger">*</span></label>
+                                                                <input type="text" name="n_inv" id="n_inv" class="form-control" placeholder="Numéro d'inventaire">
+                                                                <small class="form-text text-muted">Requis pour les produits non alimentaires</small>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    <div class="row mb-3">
+                                                        <div class="col-md-12">
+                                                            <div class="form-group">
+                                                                <label>Quantité perdue <span class="text-danger">*</span></label>
+                                                                <input type="number" step="0.01" name="quantite" id="quantite_stock" class="form-control" min="0.01">
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    <!-- Cost Display for Stock -->
+                                                    <div id="stockCostSection" style="display: none;">
+                                                        <div class="total-cost-display">
+                                                            <h6><i class="fa-solid fa-calculator"></i> Calcul du Coût</h6>
+                                                            <div class="cost-detail">
+                                                                <span>Prix unitaire:</span>
+                                                                <strong><span id="stock_prix_unitaire">0.00</span> DH</strong>
+                                                            </div>
+                                                            <div class="cost-detail">
+                                                                <span>Quantité perdue:</span>
+                                                                <strong><span id="stock_quantite_display">0</span></strong>
+                                                            </div>
+                                                            <hr>
+                                                            <div class="cost-detail">
+                                                                <span class="fs-5"><strong>Coût Total:</strong></span>
+                                                                <span class="fs-4 text-danger"><strong><span id="stock_cout_total">0.00</span> DH</strong></span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
 
-            <!-- Produit Fini Section -->
-            <div id="produitFiniSection" style="display: none;">
-                <div class="card border-success mb-3">
-                    <div class="card-header bg-success text-white">
-                        <i class="fa-solid fa-utensils"></i> Perte de Produit Fini
-                    </div>
-                    <div class="card-body">
-                        <div class="row mb-3">
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label>Type de produit fini <span class="text-danger">*</span></label>
-                                    <select name="produit_fini_type" id="produit_fini_type" class="form-select">
-                                        <option value="">Sélectionner un type</option>
-                                        <option value="Entrée">Entrée</option>
-                                        <option value="Suite">Plat Principal</option>
-                                        <option value="Dessert">Dessert</option>
-                                        <option value="Accompagnement">Accompagnement</option>
-                                        <option value="Autres">Autres</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label>Nom du plat <span class="text-danger">*</span></label>
-                                    <select name="id_plat" id="id_plat" class="form-select">
-                                        <option value="">Sélectionner un plat</option>
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="row">
-                            <div class="col-md-12">
-                                <div class="form-group">
-                                    <label>Nombre de plats perdus <span class="text-danger">*</span></label>
-                                    <input type="number" name="nombre_plats" id="nombre_plats" class="form-control" min="1" value="1">
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+                                        <!-- Produit Fini Section -->
+                                        <div id="produitFiniSection" style="display: none;">
+                                            <div class="card border-success mb-3">
+                                                <div class="card-header bg-success text-white">
+                                                    <i class="fa-solid fa-utensils"></i> Perte de Produit Fini
+                                                </div>
+                                                <div class="card-body">
+                                                    <div class="row mb-3">
+                                                        <div class="col-md-6">
+                                                            <div class="form-group">
+                                                                <label>Type de produit fini <span class="text-danger">*</span></label>
+                                                                <select name="produit_fini_type" id="produit_fini_type" class="form-select">
+                                                                    <option value="">Sélectionner un type</option>
+                                                                    <option value="Entrée">Entrée</option>
+                                                                    <option value="Suite">Plat Principal</option>
+                                                                    <option value="Dessert">Dessert</option>
+                                                                    <option value="Accompagnement">Accompagnement</option>
+                                                                    <option value="Autres">Autres</option>
+                                                                </select>
+                                                            </div>
+                                                        </div>
+                                                        <div class="col-md-6">
+                                                            <div class="form-group">
+                                                                <label>Nom du plat <span class="text-danger">*</span></label>
+                                                                <select name="id_plat" id="id_plat" class="form-select">
+                                                                    <option value="">Sélectionner un plat</option>
+                                                                </select>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="row">
+                                                        <div class="col-md-12">
+                                                            <div class="form-group">
+                                                                <label>Nombre de plats perdus <span class="text-danger">*</span></label>
+                                                                <input type="number" name="nombre_plats" id="nombre_plats" class="form-control" min="1" value="1">
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
 
-            <!-- Cause -->
-            <div class="row mb-3">
-                <div class="col-md-12">
-                    <div class="form-group">
-                        <label>Cause / Raison <span class="text-danger">*</span></label>
-                        <textarea name="cause" class="form-control" rows="3" required placeholder="Décrivez la raison de la perte..."></textarea>
-                    </div>
-                </div>
-            </div>
-        </div>
+                                        <!-- Cause -->
+                                        <div class="row mb-3">
+                                            <div class="col-md-12">
+                                                <div class="form-group">
+                                                    <label>Cause / Raison <span class="text-danger">*</span></label>
+                                                    <textarea name="cause" class="form-control" rows="2" required placeholder="Décrivez la raison de la perte..."></textarea>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Circonstances de la perte -->
+                                        <div class="row mb-3">
+                                            <div class="col-md-12">
+                                                <div class="form-group">
+                                                    <label>Circonstances de la perte</label>
+                                                    <textarea name="circonstances" class="form-control" rows="2" placeholder="Décrivez les circonstances de la perte (optionnel)..."></textarea>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
 
-        <!-- Right Column - Composition & Cost (for Produit Fini only) -->
-        <div class="col-md-6">
-            <div id="compositionSection" style="display: none;">
-                <div class="card border-info">
-                    <div class="card-header bg-info text-white">
-                        <i class="fa-solid fa-list-check"></i> Composition du Plat
-                    </div>
-                    <div class="card-body">
-                        <div class="alert alert-info">
-                            <i class="fa-solid fa-info-circle"></i> 
-                            <strong>Plat sélectionné:</strong> <span id="selected_plat_name">-</span>
-                        </div>
-                        
-                        <div class="table-responsive">
-                            <table class="table table-sm composition-table">
-                                <thead>
-                                    <tr>
-                                        <th>Produit</th>
-                                        <th>Qté/plat</th>
-                                        <th>Unité</th>
-                                        <th>Prix Unit.</th>
-                                        <th>Coût</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="composition_body">
-                                    <tr>
-                                        <td colspan="5" class="text-center text-muted">
-                                            <i class="fa-solid fa-hourglass-half"></i> Sélectionnez un plat pour voir sa composition
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
+                                    <!-- Right Column - Composition & Cost (for Produit Fini only) -->
+                                    <div class="col-md-6">
+                                        <div id="compositionSection" style="display: none;">
+                                            <div class="card border-info">
+                                                <div class="card-header bg-info text-white">
+                                                    <i class="fa-solid fa-list-check"></i> Composition du Plat
+                                                </div>
+                                                <div class="card-body">
+                                                    <div class="alert alert-info">
+                                                        <i class="fa-solid fa-info-circle"></i> 
+                                                        <strong>Plat sélectionné:</strong> <span id="selected_plat_name">-</span>
+                                                    </div>
+                                                    
+                                                    <div class="table-responsive">
+                                                        <table class="table table-sm composition-table">
+                                                            <thead>
+                                                                <tr>
+                                                                    <th>Produit</th>
+                                                                    <th>Qté/plat</th>
+                                                                    <th>Unité</th>
+                                                                    <th>Prix Unit.</th>
+                                                                    <th>Coût</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody id="composition_body">
+                                                                <tr>
+                                                                    <td colspan="5" class="text-center text-muted">
+                                                                        <i class="fa-solid fa-hourglass-half"></i> Sélectionnez un plat pour voir sa composition
+                                                                    </td>
+                                                                </tr>
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
 
-                        <div class="total-cost-display">
-                            <h6><i class="fa-solid fa-calculator"></i> Calcul du Coût Total</h6>
-                            <div class="cost-detail">
-                                <span>Coût par plat:</span>
-                                <strong><span id="cout_unitaire">0.00</span> DH</strong>
-                            </div>
-                            <div class="cost-detail">
-                                <span>Nombre de plats perdus:</span>
-                                <strong><span id="display_nombre_plats">1</span></strong>
-                            </div>
-                            <hr>
-                            <div class="cost-detail">
-                                <span class="fs-5"><strong>Coût Total de la Perte:</strong></span>
-                                <span class="fs-4 text-danger"><strong><span id="cout_total">0.00</span> DH</strong></span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</form>
+                                                    <div class="total-cost-display">
+                                                        <h6><i class="fa-solid fa-calculator"></i> Calcul du Coût Total</h6>
+                                                        <div class="cost-detail">
+                                                            <span>Coût par plat:</span>
+                                                            <strong><span id="cout_unitaire">0.00</span> DH</strong>
+                                                        </div>
+                                                        <div class="cost-detail">
+                                                            <span>Nombre de plats perdus:</span>
+                                                            <strong><span id="display_nombre_plats">1</span></strong>
+                                                        </div>
+                                                        <hr>
+                                                        <div class="cost-detail">
+                                                            <span class="fs-5"><strong>Coût Total de la Perte:</strong></span>
+                                                            <span class="fs-4 text-danger"><strong><span id="cout_total">0.00</span> DH</strong></span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </form>
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
@@ -348,8 +373,7 @@
             </div>
             @endcan
 
-            <!-- Modal Edit Status Perte (Validate/Refuse) -->
-            @can('Pertes-valider')
+            <!-- Modal Edit Status Perte -->
             <div class="modal fade" id="editPerteModal" tabindex="-1" aria-labelledby="editPerteModalLabel" aria-hidden="true">
                 <div class="modal-dialog">
                     <div class="modal-content">
@@ -360,20 +384,60 @@
                         <form id="editPerteForm">
                             <div class="modal-body">
                                 <input type="hidden" id="edit_perte_id" name="id">
+                                <input type="hidden" id="edit_perte_nature" name="perte_nature">
+                                <input type="hidden" id="edit_perte_classe" name="perte_classe">
                                 
                                 <div class="mb-3">
                                     <label for="edit_perte_status" class="form-label">Statut <span class="text-danger">*</span></label>
                                     <select class="form-select" id="edit_perte_status" name="status" required>
                                         <option value="">-- Sélectionner un statut --</option>
-                                        <option value="En attente">En attente</option>
-                                        <option value="Validé">Validé</option>
-                                        <option value="Refusé">Refusé</option>
-                                        <option value="Annuler">Annuler</option>
+                                        
+                                        {{-- Directeur des études - can only give Visa Directeur --}}
+                                        @if(auth()->user()->hasRole('Directeur des études'))
+                                            <option value="Visa Directeur">Visa Directeur</option>
+                                            <option value="Refusé">Refusé</option>
+                                            <option value="Annuler">Annuler</option>
+                                        @endif
+                                        
+                                        {{-- Magasinier (Économe) - can give Visa Économe and Visa Magasinier --}}
+                                        @if(auth()->user()->hasRole('Économe'))
+                                            <option value="Visa Économe">Visa Économe</option>
+                                            <option value="Refusé">Refusé</option>
+                                            <option value="Annuler">Annuler</option>
+                                        @endif
+                                         @if(auth()->user()->hasRole('Magasinier'))
+                                         
+                                            <option value="Visa Magasinier">Visa Magasinier</option>
+                                            <option value="Refusé">Refusé</option>
+                                            <option value="Annuler">Annuler</option>
+                                        @endif
+                                        
+                                        {{-- Chargé d'inventaire - can only give Visa Chargé --}}
+                                        @if(auth()->user()->hasRole('Chargé d\'inventaire'))
+                                            <option value="Visa Chargé">Visa Chargé</option>
+                                            <option value="Refusé">Refusé</option>
+                                            <option value="Annuler">Annuler</option>
+                                        @endif
+                                        
+                                        
+                                         @if(auth()->user()->hasRole('Administrateur'))
+                                            <option value="Validé">Validé</option>
+                                            <option value="Refusé">Refusé</option>
+                                            <option value="Annuler">Annuler</option>
+                                        @endif
                                     </select>
                                     <span id="edit_perte_status_error" class="text-danger"></span>
                                 </div>
 
-                                <!-- Refusal Reason Field (Hidden by default) -->
+                                <!-- Info about current workflow -->
+                                <div class="alert alert-info" id="workflow_info" style="display: none;">
+                                    <small>
+                                        <i class="fa-solid fa-info-circle"></i> 
+                                        <strong>Workflow:</strong> <span id="workflow_text"></span>
+                                    </small>
+                                </div>
+
+                                <!-- Refusal Reason Field -->
                                 <div class="mb-3" id="perte_refusal_reason_group" style="display: none;">
                                     <label for="edit_perte_refusal_reason" class="form-label">Motif de refus <span class="text-danger">*</span></label>
                                     <textarea class="form-control" id="edit_perte_refusal_reason" name="refusal_reason" rows="3" 
@@ -389,7 +453,6 @@
                     </div>
                 </div>
             </div>
-            @endcan
 
         </div>
     </div>

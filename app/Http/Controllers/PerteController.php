@@ -14,119 +14,188 @@ use Yajra\DataTables\Facades\DataTables;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Hashids\Hashids;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class PerteController extends Controller
 {
-  /**
- * Display a listing of pertes
- */
+    /**
+     * Display a listing of pertes
+     */
 public function index(Request $request)
 {
-    // Check for required data
-    $countCategories = Category::count();
-    $countSubCategories = SubCategory::count();
-    $countProducts = Product::count();
-    
-    if ($countCategories == 0) {
-        return view('Error.index')
-            ->withErrors('Tu n\'as pas de catégories');
-    }
-    
-    if ($countSubCategories == 0) {
-        return view('Error.index')
-            ->withErrors('Tu n\'as pas de famille');
-    }
-    
-    if ($countProducts == 0) {
-        return view('Error.index')
-            ->withErrors('Tu n\'as pas de produits');
-    }
-    
     if ($request->ajax()) {
-        $query = DB::table('pertes as pt')
-            ->leftJoin('products as p', 'pt.id_product', '=', 'p.id')
-            ->leftJoin('categories as c', 'pt.id_category', '=', 'c.id')
-            ->leftJoin('sub_categories as sc', 'pt.id_subcategorie', '=', 'sc.id')
-            ->leftJoin('unite as u', 'pt.id_unite', '=', 'u.id')
+        $user = Auth::user();
+        
+        $pertes = DB::table('pertes as pt')
             ->leftJoin('users as us', 'pt.id_user', '=', 'us.id')
-            ->whereNull('pt.deleted_at');
+            ->leftJoin('products as p', 'pt.id_product', '=', 'p.id')
+            ->leftJoin('plats as pl', 'pt.id_plat', '=', 'pl.id')
+            ->whereNull('pt.deleted_at');  // ✅ Filter out soft-deleted pertes
         
-        // Apply filters if provided
-        if ($request->filled('filter_status')) {
-            $query->where('pt.status', $request->filter_status);
+        // ✅ Role-based filtering
+        if ($user->hasRole('Chargé d\'inventaire')) {
+            // Show only pertes with reference starting with PSNAL (non-alimentaire stock)
+            $pertes->where('pt.reference', 'LIKE', 'PSNAL%');
+        } elseif ($user->hasRole('Directeur des études')) {
+            // Show only pertes with nature = 'produit fini'
+            $pertes->where('pt.nature', 'produit fini');
         }
         
-        if ($request->filled('filter_categorie')) {
-            $query->where('pt.id_category', $request->filter_categorie);
-        }
-        
-        if ($request->filled('filter_subcategorie')) {
-            $query->where('pt.id_subcategorie', $request->filter_subcategorie);
-        }
-        
-      $pertes = $query->select(
-            'pt.id',
-            'pt.nature',          
-            'pt.designation',
-            'pt.quantite',
-            'pt.nombre_plats',     
-            'pt.cout_total',       
-            'pt.date_perte',
-            'pt.cause',
-            'pt.status',
-            'pt.refusal_reason',
-            DB::raw("CONCAT(us.prenom, ' ', us.nom) as username"),
-            'pt.created_at'
-)
-        ->orderBy('pt.id', 'desc');
+        $pertes = $pertes->select(
+                'pt.id',
+                'pt.reference',
+                'pt.nature',
+                'pt.classe',
+                'pt.quantite',
+                'pt.nombre_plats',
+                'pt.cout_total',
+                'pt.date_perte',
+                'pt.status',
+                'pt.cause',
+                'pt.circonstances',
+                'pt.created_at',
+                DB::raw('CONCAT(us.prenom, " ", us.nom) as username'),
+                DB::raw('COALESCE(p.name, pl.name, pt.designation) as designation')
+            )
+            ->orderBy('pt.created_at', 'desc');
 
         return DataTables::of($pertes)
-            ->addIndexColumn()
-            ->addColumn('status_badge', function ($row) {
-                $badges = [
-                    'En attente' => '<span class="badge bg-warning text-dark"><i class="fa-solid fa-clock"></i> En attente</span>',
-                    'Validé' => '<span class="badge bg-success"><i class="fa-solid fa-check"></i> Validé</span>',
-                    'Refusé' => '<span class="badge bg-danger"><i class="fa-solid fa-times"></i> Refusé</span>',
+            ->addColumn('status_badge', function ($perte) {
+                $statusColors = [
+                    'Création' => 'secondary',
+                    'Visa Directeur' => 'info',
+                    'Visa Chargé' => 'info',
+                    'Visa Économe' => 'primary',
+                    'Validé' => 'success',
+                    'Visa Magasinier' => 'warning',
+                    'Refusé' => 'danger',
+                    'Annuler' => 'dark'
                 ];
-                return $badges[$row->status] ?? $row->status;
+                
+                $color = $statusColors[$perte->status] ?? 'secondary';
+                return '<span class="badge bg-' . $color . '">' . $perte->status . '</span>';
             })
-            ->addColumn('action', function ($row) {
-                $btn = '';
+            ->addColumn('action', function ($perte) {
+                $hashids = new \Hashids\Hashids();
+                $encodedId = $hashids->encode($perte->id);
                 
-                // Show details button - redirects to detail page
-                $btn .= '<a href="'.route('pertes.show', $row->id).'" class="btn btn-sm bg-info-subtle me-1" title="Voir les détails">
-                        <i class="fa-solid fa-eye text-info"></i></a>';
+                $actions = '';
                 
-                // Show edit status button only for admin and if status is "En attente"
-                if (auth()->user()->can('Pertes-valider') && $row->status == 'En attente') {
-                    $btn .= '<a href="#" class="btn btn-sm bg-primary-subtle me-1 edit-perte-btn" data-id="'.$row->id.'" title="Modifier le statut">
-                            <i class="fa-solid fa-pen-to-square text-primary"></i></a>';
+                // Detail/Eye Button - Show details page
+                if (auth()->user()->can('Pertes-voir')) {
+                    $actions .= '<a href="' . route('pertes.show', $perte->id) . '" 
+                                   class="btn btn-sm bg-info-subtle me-1" 
+                                   title="Voir les détails">
+                                    <i class="fa-solid fa-eye text-info"></i>
+                                </a>';
                 }
                 
-                // Show delete button for authorized users (not if status is "Validé")
-                if (auth()->user()->can('Pertes-supprimer') && $row->status !== 'Validé') {
-                    $btn .= '<a href="#" class="btn btn-sm bg-danger-subtle deletePerte" data-id="'.$row->id.'" title="Supprimer">
-                            <i class="fa-solid fa-trash text-danger"></i></a>';
-                }
-
-                if ( $row->status == 'Validé') {
-                   $btn .= '<a href="#" class="btn btn-sm bg-primary-subtle me-1 edit-perte-btn" data-id="'.$row->id.'" title="Modifier le statut">
-                            <i class="fa-solid fa-pen-to-square text-primary"></i></a>';
-                        return $btn;
+                // PDF Button - Download PDF
+                if (auth()->user()->can('Pertes-voir')) {
+                    $actions .= '<a href="' . route('facture.perte', $encodedId) . '" 
+                                   class="btn btn-sm btn-warning me-1" 
+                                   target="_blank"
+                                   title="Télécharger PDF">
+                                    <i class="fa-solid fa-file-pdf"></i>
+                                </a>';
                 }
                 
-                return $btn;
+                // Edit Button
+                if (auth()->user()->can('Pertes-modifier')) {
+                    $actions .= '<button class="btn btn-sm btn-primary me-1 edit-perte-btn" 
+                                         data-id="' . $perte->id . '"
+                                         title="Modifier">
+                                    <i class="fa-solid fa-edit"></i>
+                                </button>';
+                }
+                
+                // Delete Button
+                if (auth()->user()->can('Pertes-supprimer')) {
+                    $actions .= '<button class="btn btn-sm btn-danger deletePerte" 
+                                         data-id="' . $perte->id . '"
+                                         title="Supprimer">
+                                    <i class="fa-solid fa-trash"></i>
+                                </button>';
+                }
+                
+                return $actions ?: '<span class="text-muted">Aucune action</span>';
             })
             ->rawColumns(['status_badge', 'action'])
             ->make(true);
     }
+
+    // Get classes for the filter dropdown
+    $class = DB::table('categories')
+        ->select('classe')
+        ->distinct()
+        ->orderBy('classe')
+        ->get();
+
+    return view('pertes.index', compact('class'));
+}
+
+    /**
+     * Check if user can edit a perte based on role and current status
+     */
+private function canUserEditPerte($perte)
+{
+    $user = auth()->user();
+    $status = $perte->status;
+    $nature = $perte->nature;
+    $classe = $perte->classe;
+    $classeUpper = strtoupper(trim($classe ?? ''));
     
-    // Get required data for dropdowns
-    $categories = Category::all();
-    $subcategories = SubCategory::all();
-    $class = DB::select("SELECT DISTINCT(classe) as classe FROM categories");
+    // Helper to check if alimentaire (contains ALIMENTAIRE but not NON)
+    $isAlimentaire = (stripos($classeUpper, 'ALIMENTAIRE') !== false && stripos($classeUpper, 'NON') === false);
+    $isNonAlimentaire = ($classeUpper === 'NON ALIMENTAIRE');
     
-    return view('pertes.index', compact('categories', 'subcategories', 'class'));
+    // Administrator can edit any perte (except Visa Magasinier which is final)
+    if ($user->hasRole('Administrateur') && $status !== 'Visa Magasinier') {
+        return true;
+    }
+    
+    // Directeur des études - can approve from "En attente" to "Visa Directeur"
+    if ($user->hasRole('Directeur des études') && $status == 'En attente') {
+        // Only for produit fini or alimentaire stock
+        if ($nature == 'produit fini' || ($nature == 'stock' && $isAlimentaire)) {
+            return true;
+        }
+    }
+    
+    // Chargé d'inventaire - can approve from "En attente" to "Visa Chargé" 
+    // Only for non-alimentaire stock
+    if ($user->hasRole('Chargé d\'inventaire') && 
+        $status == 'En attente' && 
+        $nature == 'stock' && 
+        $isNonAlimentaire) {
+        return true;
+    }
+    
+    // Magasinier (Économe) - can approve from previous visa to "Visa Économe"
+    if ($user->hasRole('Magasinier')) {
+        // From Visa Directeur to Visa Économe (for produit fini and alimentaire)
+        if ($status == 'Visa Directeur') {
+            return true;
+        }
+        
+        // From Visa Chargé to Visa Économe (for non-alimentaire)
+        if ($status == 'Visa Chargé') {
+            return true;
+        }
+        
+        // From Validé to Visa Magasinier (final step for all)
+        if ($status == 'Validé') {
+            return true;
+        }
+    }
+    
+    // Users with Pertes-valider permission - can validate from "Visa Économe" to "Validé"
+    if ($user->can('Pertes-valider') && $status == 'Visa Économe') {
+        return true;
+    }
+    
+    return false;
 }
 
     /**
@@ -178,152 +247,229 @@ public function index(Request $request)
         }
     }
 
- 
-public function store(Request $request)
+    /**
+     * Generate reference for perte
+     */
+   private function generateReference($nature, $classe)
 {
-    if (!auth()->user()->can('Pertes-ajouter')) {
-        return response()->json([
-            'status' => 403,
-            'message' => 'Vous n\'avez pas la permission d\'ajouter des pertes'
-        ], 403);
+    $currentMonth = date('m');
+    $currentYear = date('Y');
+    $monthYear = $currentMonth . $currentYear;
+    
+    // ✅ Normalize classe for comparison
+    $classeUpper = strtoupper(trim($classe ?? ''));
+    
+    // Determine prefix based on nature and classe
+    if ($nature === 'produit fini') {
+        $prefix = 'PSAL';
+        $suffix = '/PF';
+        $classeKey = 'Alimentaire';
+    } else if ($nature === 'stock' && $classeUpper === 'DENREES ALIMENTAIRES') {
+        $prefix = 'PSAL';
+        $suffix = '/MP';
+        $classeKey = 'Alimentaire';
+    } else if ($nature === 'stock' && $classeUpper === 'NON ALIMENTAIRE') {
+        $prefix = 'PSNAL';  // ✅ Correct prefix for Non alimentaire
+        $suffix = '';
+        $classeKey = 'Non alimentaire';
+    } else {
+        $prefix = 'PS';
+        $suffix = '';
+        $classeKey = $classe ?? 'default';
     }
     
-    $rules = [];
-    if($request->nature === 'produit fini')
-    {
-        $rules['produit_fini_type'] = 'required|in:Entrée,Suite,Dessert,Accompagnement,Autres';
-        $rules['id_plat'] = 'required|exists:plats,id';
-        $rules['nombre_plats'] = 'required|integer|min:1';
-        $rules['cause'] = 'required|string';
-        $rules['nature'] = 'required|string|in:stock,produit fini';
-        $rules['date_perte'] = 'required|date';
-    }
-    else
-    {
-        $rules['id_product'] = 'required|exists:products,id';
-        $rules['quantite'] = 'required|numeric|min:0.01';
-        $rules['classe'] = 'required|string|max:255';
-        $rules['id_category'] = 'required|exists:categories,id';
-        $rules['id_subcategorie'] = 'required|exists:sub_categories,id';
-        $rules['nature'] = 'required|string|in:stock,produit fini';
-        $rules['date_perte'] = 'required|date';
-        $rules['cause'] = 'required|string';
-    }
-    
-    $validator = Validator::make($request->all(), $rules, [
-        'required' => 'Le champ :attribute est requis.',
-        'numeric' => 'Le champ :attribute doit être un nombre.',
-        'exists' => 'La valeur sélectionnée pour :attribute est invalide.',
-        'date' => 'Le champ :attribute doit être une date valide.',
-        'min' => 'Le champ :attribute doit être au moins :min.',
-        'in' => 'La valeur sélectionnée est invalide.',
-    ]);
-    
-    if ($validator->fails()) {
-        return response()->json([
-            'status' => 400,
-            'errors' => $validator->messages(),
-        ], 400);
-    }
-
-    try {
-        DB::beginTransaction();
-        
-        $perteData = [
-            'nature' => $request->nature,
-            'date_perte' => $request->date_perte,
-            'cause' => $request->cause,
-            'status' => 'En attente',
-            'id_user' => Auth::id(),
-        ];
-
-        if ($request->nature === 'stock') {
-            // Stock loss
-            $product = Product::with(['unite'])->find($request->id_product);
-            
-            if (!$product) {
-                DB::rollBack();
-                return response()->json([
-                    'status' => 404,
-                    'message' => 'Produit non trouvé',
-                ], 404);
+    // Get next numero_serie for this type and month
+    $nextNumeroSerie = DB::table('pertes')
+        ->where(function($query) use ($nature, $classeKey) {
+            if ($nature === 'produit fini') {
+                $query->where('nature', 'produit fini');
+            } else {
+                $query->where('nature', 'stock')
+                      ->where('classe', $classeKey);
             }
-            
-            // Calculate cost for stock
-            $coutTotal = $product->price_achat * $request->quantite;
-            
-            $perteData['id_category'] = $request->id_category;
-            $perteData['id_subcategorie'] = $request->id_subcategorie;
-            $perteData['classe'] = $request->classe;
-            $perteData['id_product'] = $product->id;
-            $perteData['id_unite'] = $product->id_unite;
-            $perteData['designation'] = $product->name;
-            $perteData['quantite'] = $request->quantite;
-            $perteData['cout_total'] = $coutTotal;
-            $perteData['produit_fini_type'] = null;
-            $perteData['id_plat'] = null;
-            $perteData['nombre_plats'] = null;
-            
-        } else if ($request->nature === 'produit fini') {
-            // Produit fini loss
-            $plat = DB::table('plats')->where('id', $request->id_plat)->first();
-            
-            if (!$plat) {
-                DB::rollBack();
-                return response()->json([
-                    'status' => 404,
-                    'message' => 'Plat non trouvé',
-                ], 404);
-            }
-            
-            // Calculate total cost
-            $composition = DB::table('ligne_plat as lp')
-                ->join('products as p', 'p.id', '=', 'lp.idproduit')
-                ->where('lp.id_plat', $request->id_plat)
-                ->whereNull('lp.deleted_at')
-                ->select(DB::raw('SUM(lp.qte * p.price_achat) as cout_unitaire'))
-                ->first();
-            
-            $coutUnitaire = $composition->cout_unitaire ?? 0;
-            $coutTotal = $coutUnitaire * $request->nombre_plats;
-            
-            // Get plat's category info from plats table or set to null
-            $perteData['id_category'] = null;
-            $perteData['id_subcategorie'] = null;
-            $perteData['classe'] = null;
-            $perteData['id_product'] = null;
-            $perteData['id_plat'] = $plat->id;
-            $perteData['id_unite'] = null;
-            $perteData['designation'] = $plat->name;
-            $perteData['quantite'] = 0;
-            $perteData['produit_fini_type'] = $request->produit_fini_type;
-            $perteData['nombre_plats'] = $request->nombre_plats;
-            $perteData['cout_total'] = $coutTotal;
+        })
+        ->whereRaw('MONTH(date_perte) = ?', [$currentMonth])
+        ->whereRaw('YEAR(date_perte) = ?', [$currentYear])
+        ->selectRaw('IFNULL(MAX(numero_serie), 0) + 1 as next_numero')
+        ->value('next_numero');
+    
+    $numeroFormatted = str_pad($nextNumeroSerie, 3, '0', STR_PAD_LEFT);
+    
+    $reference = $prefix . $numeroFormatted . '-' . $monthYear . $suffix;
+    
+    return [
+        'reference' => $reference,
+        'numero_serie' => $nextNumeroSerie
+    ];
+}
+
+    /**
+     * Store a newly created perte
+     */
+    public function store(Request $request)
+    {
+        if (!auth()->user()->can('Pertes-ajouter')) {
+            return response()->json([
+                'status' => 403,
+                'message' => 'Vous n\'avez pas la permission d\'ajouter des pertes'
+            ], 403);
         }
         
-        $perte = Perte::create($perteData);
+        $rules = [];
+        if($request->nature === 'produit fini')
+        {
+            $rules['produit_fini_type'] = 'required|in:Entrée,Suite,Dessert,Accompagnement,Autres';
+            $rules['id_plat'] = 'required|exists:plats,id';
+            $rules['nombre_plats'] = 'required|integer|min:1';
+            $rules['cause'] = 'required|string';
+            $rules['circonstances'] = 'nullable|string';
+            $rules['nature'] = 'required|string|in:stock,produit fini';
+            $rules['date_perte'] = 'required|date';
+        }
+        else
+        {
+            $rules['id_product'] = 'required|exists:products,id';
+            $rules['quantite'] = 'required|numeric|min:0.01';
+            $rules['classe'] = 'required|string|max:255';
+            $rules['id_category'] = 'required|exists:categories,id';
+            $rules['id_subcategorie'] = 'required|exists:sub_categories,id';
+            $rules['nature'] = 'required|string|in:stock,produit fini';
+            $rules['date_perte'] = 'required|date';
+            $rules['cause'] = 'required|string';
+            $rules['circonstances'] = 'nullable|string';
+            
+            // N° Inv is required only for Non alimentaire stock
+            if ($request->classe === 'Non alimentaire') {
+                $rules['n_inv'] = 'required|string';
+            }
+        }
         
-        DB::commit();
-        
-        return response()->json([
-            'status' => 200,
-            'message' => 'Perte déclarée avec succès',
+        $validator = Validator::make($request->all(), $rules, [
+            'required' => 'Le champ :attribute est requis.',
+            'numeric' => 'Le champ :attribute doit être un nombre.',
+            'exists' => 'La valeur sélectionnée pour :attribute est invalide.',
+            'date' => 'Le champ :attribute doit être une date valide.',
+            'min' => 'Le champ :attribute doit être au moins :min.',
+            'in' => 'La valeur sélectionnée est invalide.',
         ]);
         
-    } catch (\Exception $e) {
-        DB::rollBack();
-        
-        Log::error('Error creating perte: ' . $e->getMessage(), [
-            'request' => $request->all(),
-            'trace' => $e->getTraceAsString()
-        ]);
-        
-        return response()->json([
-            'status' => 500,
-            'message' => 'Une erreur est survenue. Veuillez réessayer.',
-        ], 500);
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 400,
+                'errors' => $validator->messages(),
+            ], 400);
+        }
+
+        try {
+            DB::beginTransaction();
+            
+            $perteData = [
+                'nature' => $request->nature,
+                'date_perte' => $request->date_perte,
+                'cause' => $request->cause,
+                'circonstances' => $request->circonstances,
+                'status' => 'En attente',
+                'id_user' => Auth::id(),
+            ];
+
+            if ($request->nature === 'stock') {
+                // Stock loss
+                $product = Product::with(['unite'])->find($request->id_product);
+                
+                if (!$product) {
+                    DB::rollBack();
+                    return response()->json([
+                        'status' => 404,
+                        'message' => 'Produit non trouvé',
+                    ], 404);
+                }
+                
+                // Calculate cost for stock
+                $coutTotal = $product->price_achat * $request->quantite;
+                
+                // Generate reference
+                $refData = $this->generateReference($request->nature, $request->classe);
+                
+                $perteData['reference'] = $refData['reference'];
+                $perteData['numero_serie'] = $refData['numero_serie'];
+                $perteData['id_category'] = $request->id_category;
+                $perteData['id_subcategorie'] = $request->id_subcategorie;
+                $perteData['classe'] = $request->classe;
+                $perteData['id_product'] = $product->id;
+                $perteData['id_unite'] = $product->id_unite;
+                $perteData['designation'] = $product->name;
+                $perteData['quantite'] = $request->quantite;
+                $perteData['cout_total'] = $coutTotal;
+                $perteData['produit_fini_type'] = null;
+                $perteData['id_plat'] = null;
+                $perteData['nombre_plats'] = null;
+                $perteData['n_inv'] = $request->n_inv;
+                
+            } else if ($request->nature === 'produit fini') {
+                // Produit fini loss
+                $plat = DB::table('plats')->where('id', $request->id_plat)->first();
+                
+                if (!$plat) {
+                    DB::rollBack();
+                    return response()->json([
+                        'status' => 404,
+                        'message' => 'Plat non trouvé',
+                    ], 404);
+                }
+                
+                // Calculate total cost
+                $composition = DB::table('ligne_plat as lp')
+                    ->join('products as p', 'p.id', '=', 'lp.idproduit')
+                    ->where('lp.id_plat', $request->id_plat)
+                    ->whereNull('lp.deleted_at')
+                    ->select(DB::raw('SUM(lp.qte * p.price_achat) as cout_unitaire'))
+                    ->first();
+                
+                $coutUnitaire = $composition->cout_unitaire ?? 0;
+                $coutTotal = $coutUnitaire * $request->nombre_plats;
+                
+                // Generate reference for produit fini (always alimentaire)
+                $refData = $this->generateReference($request->nature, 'Alimentaire');
+                
+                $perteData['reference'] = $refData['reference'];
+                $perteData['numero_serie'] = $refData['numero_serie'];
+                $perteData['id_category'] = null;
+                $perteData['id_subcategorie'] = null;
+                $perteData['classe'] = null;
+                $perteData['id_product'] = null;
+                $perteData['id_plat'] = $plat->id;
+                $perteData['id_unite'] = null;
+                $perteData['designation'] = $plat->name;
+                $perteData['quantite'] = 0;
+                $perteData['produit_fini_type'] = $request->produit_fini_type;
+                $perteData['nombre_plats'] = $request->nombre_plats;
+                $perteData['cout_total'] = $coutTotal;
+                $perteData['n_inv'] = null;
+            }
+            
+            $perte = Perte::create($perteData);
+            
+            DB::commit();
+            
+            return response()->json([
+                'status' => 200,
+                'message' => 'Perte déclarée avec succès avec la référence: ' . $perteData['reference'],
+            ]);
+            
+        } catch (\Exception $e) {
+            DB::rollBack();
+            
+            Log::error('Error creating perte: ' . $e->getMessage(), [
+                'request' => $request->all(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'status' => 500,
+                'message' => 'Une erreur est survenue. Veuillez réessayer.',
+            ], 500);
+        }
     }
-}
 
     /**
      * Show the perte details
@@ -347,14 +493,6 @@ public function store(Request $request)
      */
     public function edit($id)
     {
-        // Check if user has permission to view pertes
-        if (!auth()->user()->can('Pertes-valider')) {
-            return response()->json([
-                'status' => 403,
-                'message' => 'Vous n\'avez pas la permission de voir cette perte'
-            ], 403);
-        }
-
         try {
             $perte = Perte::with(['product', 'category', 'subcategory', 'unite', 'user'])
                 ->findOrFail($id);
@@ -372,19 +510,10 @@ public function store(Request $request)
     }
 
     /**
-     * Validate or refuse a perte
+     * Change status of a perte (visa workflow and validation)
      */
-    
-public function changeStatus(Request $request)
+  public function changeStatus(Request $request)
 {
-    // Check if user has permission to validate pertes
-    if (!auth()->user()->can('Pertes-valider')) {
-        return response()->json([
-            'status' => 403,
-            'message' => 'Vous n\'avez pas la permission de valider/refuser des pertes'
-        ], 403);
-    }
-
     try {
         $data = $request->all();
         Log::info('changeStatus called with data:', $data);
@@ -399,13 +528,63 @@ public function changeStatus(Request $request)
         }
 
         $oldStatus = $perte->status;
+        $newStatus = $data['status'];
+        $user = auth()->user();
+
+        // Optional: Debug logging (remove after testing)
+        Log::info('Permission check details:', [
+            'user_id' => $user->id,
+            'user_roles' => $user->roles->pluck('name')->toArray(),
+            'perte_id' => $perte->id,
+            'perte_nature' => $perte->nature,
+            'perte_classe_raw' => $perte->classe,
+            'perte_classe_upper' => strtoupper(trim($perte->classe ?? '')),
+            'old_status' => $oldStatus,
+            'new_status' => $newStatus,
+        ]);
 
         // Handle "Annuler" status
-        if ($data['status'] == 'Annuler') {
-            DB::beginTransaction();
-            
-            try {
-                // Restore quantities to stock based on nature
+        if ($newStatus == 'Annuler') {
+            return $this->handleAnnulerStatus($perte, $oldStatus);
+        }
+
+        // Handle "Refusé" status
+        if ($newStatus == 'Refusé') {
+            return $this->handleRefuseStatus($perte, $data);
+        }
+
+        // Handle visa workflow statuses
+        if (in_array($newStatus, ['Visa Directeur', 'Visa Économe', 'Visa Chargé', 'Validé', 'Visa Magasinier'])) {
+            return $this->handleVisaWorkflow($perte, $oldStatus, $newStatus, $user);
+        }
+        
+        return response()->json([
+            'status' => 400,
+            'message' => 'Statut invalide'
+        ], 400);
+        
+    } catch (\Exception $e) {
+        Log::error('Error in changeStatus: ' . $e->getMessage(), [
+            'trace' => $e->getTraceAsString()
+        ]);
+        
+        return response()->json([
+            'status' => 500,
+            'message' => 'Une erreur est survenue: ' . $e->getMessage()
+        ]);
+    }
+}
+
+    /**
+     * Handle Annuler status
+     */
+    private function handleAnnulerStatus($perte, $oldStatus)
+    {
+        DB::beginTransaction();
+        
+        try {
+            // Only restore stock if it was previously validated (Visa Magasinier)
+            if ($oldStatus === 'Visa Magasinier') {
                 if ($perte->nature === 'stock' && $perte->id_product) {
                     DB::table('stock')
                         ->where('id_product', $perte->id_product)
@@ -414,7 +593,6 @@ public function changeStatus(Request $request)
                             'updated_at' => now()
                         ]);
                 } else if ($perte->nature === 'produit fini' && $perte->id_plat) {
-                    // Restore stock for each ingredient in the plat
                     $composition = DB::table('ligne_plat')
                         ->where('id_plat', $perte->id_plat)
                         ->whereNull('deleted_at')
@@ -431,167 +609,269 @@ public function changeStatus(Request $request)
                             ]);
                     }
                 }
-                
-                // Update perte status
-                $perte->status = 'Annuler';
-                $perte->save();
-                
-                DB::commit();
-                
-                return response()->json([
-                    'status' => 200,
-                    'message' => 'Perte annulée avec succès'
-                ]);
-                
-            } catch (\Exception $e) {
-                DB::rollBack();
-                Log::error('Error canceling perte: ' . $e->getMessage());
-                
-                return response()->json([
-                    'status' => 500,
-                    'message' => 'Erreur lors de l\'annulation: ' . $e->getMessage()
-                ]);
-            }
-        }
-
-        if ($data['status'] == 'Validé') {
-            DB::beginTransaction();
-            
-            try {
-                if ($perte->nature === 'stock') {
-                    // For stock losses: Reduce stock quantity
-                    $stock = Stock::where('id_product', $perte->id_product)->first();
-                    
-                    if (!$stock) {
-                        throw new \Exception('Stock non trouvé pour ce produit');
-                    }
-                    
-                    if ($stock->quantite < $perte->quantite) {
-                        throw new \Exception('Quantité en stock insuffisante. Stock disponible: ' . $stock->quantite);
-                    }
-                    
-                    $stock->quantite -= $perte->quantite;
-                    $stock->save();
-                    
-                    Log::info('Stock reduced', [
-                        'product_id' => $perte->id_product,
-                        'quantity_reduced' => $perte->quantite,
-                        'new_stock' => $stock->quantite
-                    ]);
-                    
-                } else if ($perte->nature === 'produit fini') {
-                    // For produit fini: Reduce stock for each ingredient in the plat
-                    $composition = DB::table('ligne_plat')
-                        ->where('id_plat', $perte->id_plat)
-                        ->whereNull('deleted_at')
-                        ->get();
-                    
-                    if ($composition->isEmpty()) {
-                        throw new \Exception('Aucune composition trouvée pour ce plat');
-                    }
-                    
-                    // First, check if all ingredients have enough stock
-                    foreach ($composition as $ligne) {
-                        $stock = Stock::where('id_product', $ligne->idproduit)->first();
-                        
-                        if (!$stock) {
-                            $product = DB::table('products')->where('id', $ligne->idproduit)->first();
-                            throw new \Exception('Stock non trouvé pour le produit: ' . ($product ? $product->name : 'ID '.$ligne->idproduit));
-                        }
-                        
-                        $quantiteNecessaire = $ligne->qte * $perte->nombre_plats;
-                        
-                        if ($stock->quantite < $quantiteNecessaire) {
-                            $product = DB::table('products')->where('id', $ligne->idproduit)->first();
-                            throw new \Exception('Quantité insuffisante pour: ' . ($product ? $product->name : 'ID '.$ligne->idproduit) . ' (Disponible: ' . $stock->quantite . ', Nécessaire: ' . $quantiteNecessaire . ')');
-                        }
-                    }
-                    
-                    // Then, reduce stock for each ingredient
-                    foreach ($composition as $ligne) {
-                        $stock = Stock::where('id_product', $ligne->idproduit)->first();
-                        $quantiteNecessaire = $ligne->qte * $perte->nombre_plats;
-                        
-                        $stock->quantite -= $quantiteNecessaire;
-                        $stock->save();
-                        
-                        Log::info('Stock reduced for product in plat', [
-                            'product_id' => $ligne->idproduit,
-                            'quantity_reduced' => $quantiteNecessaire,
-                            'new_stock' => $stock->quantite
-                        ]);
-                    }
-                }
-                
-                // Update perte status
-                $perte->status = 'Validé';
-                $perte->refusal_reason = null;
-                $perte->save();
-                
-                DB::commit();
-                
-                Log::info('Perte validated successfully', ['perte_id' => $perte->id]);
-                
-                return response()->json([
-                    'status' => 200,
-                    'message' => 'Perte validée avec succès. Stock mis à jour.'
-                ]);
-                
-            } catch (\Exception $e) {
-                DB::rollBack();
-                Log::error('Error in validation process: ' . $e->getMessage());
-                
-                return response()->json([
-                    'status' => 500,
-                    'message' => 'Erreur lors de la validation: ' . $e->getMessage()
-                ]);
-            }
-        }
-        else if ($data['status'] == 'Refusé') {
-            // Validate refusal reason is provided
-            if (empty($data['refusal_reason'])) {
-                return response()->json([
-                    'status' => 400,
-                    'message' => 'Le motif de refus est requis'
-                ], 400);
             }
             
-            $perte->status = 'Refusé';
-            $perte->refusal_reason = $data['refusal_reason'];
+            $perte->status = 'Annuler';
             $perte->save();
             
-            Log::info('Perte refused with reason: "' . $data['refusal_reason'] . '" for perte ID: ' . $perte->id);
+            DB::commit();
             
             return response()->json([
                 'status' => 200,
-                'message' => 'Perte refusée avec succès'
+                'message' => 'Perte annulée avec succès'
+            ]);
+            
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error canceling perte: ' . $e->getMessage());
+            
+            return response()->json([
+                'status' => 500,
+                'message' => 'Erreur lors de l\'annulation: ' . $e->getMessage()
             ]);
         }
-        else {
+    }
+
+    /**
+     * Handle Refuse status
+     */
+    private function handleRefuseStatus($perte, $data)
+    {
+        if (empty($data['refusal_reason'])) {
             return response()->json([
                 'status' => 400,
-                'message' => 'Statut invalide'
+                'message' => 'Le motif de refus est requis'
             ], 400);
         }
         
-    } catch (\Exception $e) {
-        Log::error('Error in changeStatus: ' . $e->getMessage(), [
-            'trace' => $e->getTraceAsString()
-        ]);
+        $perte->status = 'Refusé';
+        $perte->refusal_reason = $data['refusal_reason'];
+        $perte->save();
+        
+        Log::info('Perte refused with reason: "' . $data['refusal_reason'] . '" for perte ID: ' . $perte->id);
         
         return response()->json([
-            'status' => 500,
-            'message' => 'Une erreur est survenue: ' . $e->getMessage()
+            'status' => 200,
+            'message' => 'Perte refusée avec succès'
         ]);
     }
+
+    /**
+     * Handle visa workflow
+     */
+    private function handleVisaWorkflow($perte, $oldStatus, $newStatus, $user)
+    {
+        // Verify user has permission for this transition
+        $canChangeStatus = $this->canUserChangeToStatus($perte, $oldStatus, $newStatus, $user);
+        
+        if (!$canChangeStatus) {
+            return response()->json([
+                'status' => 403,
+                'message' => 'Vous n\'avez pas la permission pour cette action ou la transition de statut n\'est pas valide'
+            ], 403);
+        }
+        
+        // If moving to "Visa Magasinier", reduce stock
+        if ($newStatus === 'Visa Magasinier') {
+            return $this->validateAndReduceStock($perte);
+        } else {
+            // Just update status without modifying stock
+            $perte->status = $newStatus;
+            $perte->refusal_reason = null;
+            $perte->save();
+            
+            Log::info('Perte status updated', [
+                'perte_id' => $perte->id,
+                'old_status' => $oldStatus,
+                'new_status' => $newStatus
+            ]);
+            
+            return response()->json([
+                'status' => 200,
+                'message' => 'Statut mis à jour avec succès'
+            ]);
+        }
+    }
+
+    /**
+     * Check if user can change to a specific status
+     */
+
+private function canUserChangeToStatus($perte, $oldStatus, $newStatus, $user)
+{
+    $nature = $perte->nature;
+    $classe = $perte->classe;
+    $classeUpper = strtoupper(trim($classe ?? ''));
+    
+    // Helper to check if alimentaire (contains ALIMENTAIRE but not NON)
+    $isAlimentaire = (stripos($classeUpper, 'ALIMENTAIRE') !== false && stripos($classeUpper, 'NON') === false);
+    $isNonAlimentaire = ($classeUpper === 'NON ALIMENTAIRE');
+    
+    // Administrator can change to any valid status (except back to En attente)
+    if ($user->hasRole('Administrateur')) {
+        $validStatuses = ['Visa Directeur', 'Visa Économe', 'Visa Chargé', 'Validé', 'Visa Magasinier', 'Refusé', 'Annuler'];
+        return in_array($newStatus, $validStatuses);
+    }
+    
+    // Directeur des études: En attente → Visa Directeur
+    // (for produit fini or alimentaire stock only)
+    if ($user->hasRole('Directeur des études') && 
+        $oldStatus === 'En attente' && 
+        $newStatus === 'Visa Directeur') {
+        if ($nature === 'produit fini' || ($nature === 'stock' && $isAlimentaire)) {
+            return true;
+        }
+    }
+    
+    // Chargé d'inventaire: En attente → Visa Chargé 
+    // (for non-alimentaire stock only)
+    if ($user->hasRole('Chargé d\'inventaire') && 
+        $oldStatus === 'En attente' && 
+        $newStatus === 'Visa Chargé' &&
+        $nature === 'stock' &&
+        $isNonAlimentaire) {
+        return true;
+    }
+    
+    // Économe role - can give Visa Économe
+    if ($user->hasRole('Économe') && 
+        in_array($oldStatus, ['Visa Directeur', 'Visa Chargé']) && 
+        $newStatus === 'Visa Économe') {
+        return true;
+    }
+    
+    // Magasinier role - can give Visa Économe AND Visa Magasinier
+    if ($user->hasRole('Magasinier')) {
+        // Can give Visa Économe (from Visa Directeur or Visa Chargé)
+        if (in_array($oldStatus, ['Visa Directeur', 'Visa Chargé']) && 
+            $newStatus === 'Visa Économe') {
+            return true;
+        }
+        
+        // Can give Visa Magasinier (from Validé)
+        if ($oldStatus === 'Validé' && $newStatus === 'Visa Magasinier') {
+            return true;
+        }
+    }
+    
+    // Users with Pertes-valider: Visa Économe → Validé
+    if ($user->can('Pertes-valider') && 
+        $oldStatus === 'Visa Économe' && 
+        $newStatus === 'Validé') {
+        return true;
+    }
+    
+    // Allow Refusé and Annuler for authorized users
+    if (in_array($newStatus, ['Refusé', 'Annuler'])) {
+        if ($user->hasRole(['Directeur des études', 'Chargé d\'inventaire', 'Économe', 'Magasinier', 'Administrateur'])) {
+            return true;
+        }
+    }
+    
+    return false;
 }
+
+    /**
+     * Validate and reduce stock
+     */
+    private function validateAndReduceStock($perte)
+    {
+        DB::beginTransaction();
+        
+        try {
+            if ($perte->nature === 'stock') {
+                $stock = Stock::where('id_product', $perte->id_product)->first();
+                
+                if (!$stock) {
+                    throw new \Exception('Stock non trouvé pour ce produit');
+                }
+                
+                if ($stock->quantite < $perte->quantite) {
+                    throw new \Exception('Quantité en stock insuffisante. Stock disponible: ' . $stock->quantite);
+                }
+                
+                $stock->quantite -= $perte->quantite;
+                $stock->save();
+                
+                Log::info('Stock reduced', [
+                    'product_id' => $perte->id_product,
+                    'quantity_reduced' => $perte->quantite,
+                    'new_stock' => $stock->quantite
+                ]);
+                
+            } else if ($perte->nature === 'produit fini') {
+                $composition = DB::table('ligne_plat')
+                    ->where('id_plat', $perte->id_plat)
+                    ->whereNull('deleted_at')
+                    ->get();
+                
+                if ($composition->isEmpty()) {
+                    throw new \Exception('Aucune composition trouvée pour ce plat');
+                }
+                
+                // First, check if all ingredients have enough stock
+                foreach ($composition as $ligne) {
+                    $stock = Stock::where('id_product', $ligne->idproduit)->first();
+                    
+                    if (!$stock) {
+                        $product = DB::table('products')->where('id', $ligne->idproduit)->first();
+                        throw new \Exception('Stock non trouvé pour le produit: ' . ($product ? $product->name : 'ID '.$ligne->idproduit));
+                    }
+                    
+                    $quantiteNecessaire = $ligne->qte * $perte->nombre_plats;
+                    
+                    if ($stock->quantite < $quantiteNecessaire) {
+                        $product = DB::table('products')->where('id', $ligne->idproduit)->first();
+                        throw new \Exception('Quantité insuffisante pour: ' . ($product ? $product->name : 'ID '.$ligne->idproduit) . ' (Disponible: ' . $stock->quantite . ', Nécessaire: ' . $quantiteNecessaire . ')');
+                    }
+                }
+                
+                // Then, reduce stock for each ingredient
+                foreach ($composition as $ligne) {
+                    $stock = Stock::where('id_product', $ligne->idproduit)->first();
+                    $quantiteNecessaire = $ligne->qte * $perte->nombre_plats;
+                    
+                    $stock->quantite -= $quantiteNecessaire;
+                    $stock->save();
+                    
+                    Log::info('Stock reduced for product in plat', [
+                        'product_id' => $ligne->idproduit,
+                        'quantity_reduced' => $quantiteNecessaire,
+                        'new_stock' => $stock->quantite
+                    ]);
+                }
+            }
+            
+            // Update perte status
+            $perte->status = 'Visa Magasinier';
+            $perte->refusal_reason = null;
+            $perte->save();
+            
+            DB::commit();
+            
+            Log::info('Perte validated with Visa Magasinier', ['perte_id' => $perte->id]);
+            
+            return response()->json([
+                'status' => 200,
+                'message' => 'Visa Magasinier accordé avec succès. Stock mis à jour.'
+            ]);
+            
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error in validation process: ' . $e->getMessage());
+            
+            return response()->json([
+                'status' => 500,
+                'message' => 'Erreur lors de la validation: ' . $e->getMessage()
+            ]);
+        }
+    }
 
     /**
      * Delete a perte
      */
     public function destroy(Request $request)
     {
-        // Check if user has permission to delete pertes
         if (!auth()->user()->can('Pertes-supprimer')) {
             return response()->json([
                 'status' => 403,
@@ -611,15 +891,14 @@ public function changeStatus(Request $request)
                 ], 404);
             }
             
-            // Check if perte can be deleted (only if status is not "Validé")
-            if ($perte->status === 'Validé') {
+            // Check if perte can be deleted
+            if ($perte->status === 'Visa Magasinier') {
                 return response()->json([
                     'status' => 400,
-                    'message' => 'Impossible de supprimer une perte validée'
+                    'message' => 'Impossible de supprimer une perte avec visa magasinier (stock déjà réduit)'
                 ], 400);
             }
             
-            // Delete the perte
             $perte->delete();
             
             DB::commit();
@@ -641,106 +920,302 @@ public function changeStatus(Request $request)
             ], 500);
         }
     }
+
+    /**
+     * Get plats by type
+     */
     public function getPlatsByType($type)
-{
-    try {
-        $plats = DB::table('plats')
-            ->where('type', $type)
-            ->whereNull('deleted_at')
-            ->select('id', 'name')
-            ->orderBy('name', 'asc')
-            ->get();
-        
-        return response()->json([
-            'status' => 200,
-            'plats' => $plats
-        ]);
-    } catch (\Exception $e) {
-        Log::error('Error fetching plats by type', [
-            'type' => $type,
-            'error' => $e->getMessage()
-        ]);
-        
-        return response()->json([
-            'status' => 500,
-            'message' => 'Erreur lors de la récupération des plats',
-            'plats' => []
-        ], 500);
+    {
+        try {
+            $plats = DB::table('plats')
+                ->where('type', $type)
+                ->whereNull('deleted_at')
+                ->select('id', 'name')
+                ->orderBy('name', 'asc')
+                ->get();
+            
+            return response()->json([
+                'status' => 200,
+                'plats' => $plats
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error fetching plats by type', [
+                'type' => $type,
+                'error' => $e->getMessage()
+            ]);
+            
+            return response()->json([
+                'status' => 500,
+                'message' => 'Erreur lors de la récupération des plats',
+                'plats' => []
+            ], 500);
+        }
     }
-}
-public function getPlatComposition($platId)
-{
-    try {
-        $plat = DB::table('plats')->where('id', $platId)->first();
-        
-        if (!$plat) {
+
+    /**
+     * Get plat composition
+     */
+    public function getPlatComposition($platId)
+    {
+        try {
+            $plat = DB::table('plats')->where('id', $platId)->first();
+            
+            if (!$plat) {
+                return response()->json([
+                    'status' => 404,
+                    'message' => 'Plat non trouvé'
+                ], 404);
+            }
+            
+            $composition = DB::table('ligne_plat as lp')
+                ->join('products as p', 'p.id', '=', 'lp.idproduit')
+                ->join('unite as u', 'u.id', '=', 'p.id_unite')
+                ->where('lp.id_plat', $platId)
+                ->whereNull('lp.deleted_at')
+                ->select(
+                    'p.id',
+                    'p.name',
+                    'lp.qte as quantite_requise',
+                    'u.name as unite',
+                    'p.price_achat',
+                    DB::raw('lp.qte * p.price_achat as cout_unitaire')
+                )
+                ->get();
+            
+            $coutTotal = $composition->sum('cout_unitaire');
+            
+            return response()->json([
+                'status' => 200,
+                'plat' => [
+                    'id' => $plat->id,
+                    'name' => $plat->name,
+                    'type' => $plat->type
+                ],
+                'composition' => $composition,
+                'cout_total_unitaire' => number_format($coutTotal, 2, '.', '')
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Error fetching plat composition', [
+                'plat_id' => $platId,
+                'error' => $e->getMessage()
+            ]);
+            
+            return response()->json([
+                'status' => 500,
+                'message' => 'Erreur lors de la récupération de la composition',
+            ], 500);
+        }
+    }
+
+    /**
+     * Get product price
+     */
+    public function getProductPrice($productId)
+    {
+        try {
+            $product = Product::findOrFail($productId);
+            
+            return response()->json([
+                'status' => 200,
+                'price' => $product->price_achat
+            ]);
+            
+        } catch (\Exception $e) {
             return response()->json([
                 'status' => 404,
-                'message' => 'Plat non trouvé'
+                'message' => 'Produit non trouvé',
+                'price' => null
             ], 404);
         }
-        
-        // Get composition from ligne_plat
-        $composition = DB::table('ligne_plat as lp')
-            ->join('products as p', 'p.id', '=', 'lp.idproduit')
-            ->join('unite as u', 'u.id', '=', 'p.id_unite')
-            ->where('lp.id_plat', $platId)
-            ->whereNull('lp.deleted_at')
-            ->select(
-                'p.id',
-                'p.name',
-                'lp.qte as quantite_requise',
-                'u.name as unite',
-                'p.price_achat',
-                DB::raw('lp.qte * p.price_achat as cout_unitaire')
-            )
-            ->get();
-        
-        // Calculate total cost for ONE plat
-        $coutTotal = $composition->sum('cout_unitaire');
-        
-        return response()->json([
-            'status' => 200,
-            'plat' => [
-                'id' => $plat->id,
-                'name' => $plat->name,
-                'type' => $plat->type
-            ],
-            'composition' => $composition,
-            'cout_total_unitaire' => number_format($coutTotal, 2, '.', '')
-        ]);
-        
-    } catch (\Exception $e) {
-        Log::error('Error fetching plat composition', [
-            'plat_id' => $platId,
-            'error' => $e->getMessage()
-        ]);
-        
-        return response()->json([
-            'status' => 500,
-            'message' => 'Erreur lors de la récupération de la composition',
-        ], 500);
     }
-}
-/**
- * Get product price by ID
- */
-public function getProductPrice($productId)
+public function FacturePerte($id)
 {
-    try {
-        $product = Product::findOrFail($productId);
-        
-        return response()->json([
-            'status' => 200,
-            'price' => $product->price_achat
-        ]);
-        
-    } catch (\Exception $e) {
-        return response()->json([
-            'status' => 404,
-            'message' => 'Produit non trouvé',
-            'price' => null
-        ], 404);
+    if (!auth()->user()->can('Pertes-voir')) {
+        abort(403, 'Vous n\'avez pas la permission de voir cette facture');
     }
+    
+    $hashids = new Hashids();
+    $decoded = $hashids->decode($id);
+
+    if (empty($decoded)) {
+        abort(404);
+    }
+
+    $id = $decoded[0];
+    
+    $perte = DB::table('pertes')->where('id', $id)->first();
+    
+    if (!$perte) {
+        abort(404);
+    }
+    
+    // ✅ FIX: Show N° Inv column if reference starts with PSNAL
+    $showNInv = (strpos($perte->reference, 'PSNAL') === 0);
+    
+    // Get user who declared the perte (creator)
+    $declarant = DB::table('users')->where('id', $perte->id_user)->first();
+    
+    // Get product details if it's a stock loss
+    $productDetails = null;
+    $qte_avant_perte = null;
+    $qte_apres_perte = null;
+    
+    if ($perte->nature === 'stock' && $perte->id_product) {
+        // Get product info
+        $productDetails = DB::table('products as p')
+            ->leftJoin('unite as u', 'p.id_unite', '=', 'u.id')
+            ->where('p.id', $perte->id_product)
+            ->select('p.name', 'u.name as unite_name', 'p.price_achat')
+            ->first();
+        
+        // Get CURRENT stock quantity
+        $currentStock = DB::table('stock')
+            ->where('id_product', $perte->id_product)
+            ->value('quantite') ?? 0;
+        
+        // Calculate quantities based on status
+        if ($perte->status === 'Visa Magasinier') {
+            // Stock already reduced
+            $qte_apres_perte = $currentStock; // Current = After
+            $qte_avant_perte = $currentStock + $perte->quantite; // Before = After + Lost
+        } else {
+            // Stock NOT reduced yet
+            $qte_avant_perte = $currentStock; // Current = Before
+            $qte_apres_perte = $currentStock; // Same (no change yet)
+        }
+    }
+    
+    // Get plat details if it's a produit fini loss
+    $platDetails = null;
+    $compositionDetails = [];
+    
+    if ($perte->nature === 'produit fini' && $perte->id_plat) {
+        $platDetails = DB::table('plats')->where('id', $perte->id_plat)->first();
+        
+        // Get composition WITH stock quantities
+        $compositionDetails = DB::table('ligne_plat as lp')
+            ->join('products as p', 'lp.idproduit', '=', 'p.id')
+            ->leftJoin('unite as u', 'p.id_unite', '=', 'u.id')
+            ->leftJoin('stock as s', 's.id_product', '=', 'p.id')
+            ->where('lp.id_plat', $perte->id_plat)
+            ->select(
+                'p.id as product_id',
+                'p.name',
+                'lp.qte',
+                'u.name as unite_name',
+                'lp.nombre_couvert',
+                'p.price_achat',
+                DB::raw('(lp.qte * p.price_achat) as cout_unitaire'),
+                's.quantite as current_stock'
+            )
+            ->get()
+            ->map(function($item) use ($perte) {
+                $quantitePerdue = $item->qte * $perte->nombre_plats;
+                
+                // Calculate quantities based on status
+                if ($perte->status === 'Visa Magasinier') {
+                    // Stock already reduced
+                    $item->qte_apres_perte = $item->current_stock ?? 0;
+                    $item->qte_avant_perte = ($item->current_stock ?? 0) + $quantitePerdue;
+                } else {
+                    // Stock NOT reduced yet
+                    $item->qte_avant_perte = $item->current_stock ?? 0;
+                    $item->qte_apres_perte = $item->current_stock ?? 0;
+                }
+                
+                return $item;
+            });
+    }
+    
+    // Get signature history FROM AUDITS
+    $getHistorique_sig = DB::table('audits as a')
+        ->leftJoin('users as u', 'u.id', '=', 'a.user_id')
+        ->select(
+            'a.new_values',
+            'a.created_at',
+            DB::raw("CONCAT(COALESCE(u.prenom, ''), ' ', COALESCE(u.nom, '')) as name"),
+            'u.signature'
+        )
+        ->where('a.auditable_type', 'App\\Models\\Perte')
+        ->where('a.auditable_id', $id)
+        ->where('a.event', 'updated')
+        ->whereRaw("JSON_EXTRACT(a.new_values, '$.status') IS NOT NULL")
+        ->orderBy('a.created_at', 'asc')
+        ->get()
+        ->map(function($audit) {
+            $newValues = json_decode($audit->new_values, true);
+            $status = $newValues['status'] ?? null;
+            
+            // Process signature if exists
+            $signatureBase64 = null;
+            if (!empty($audit->signature) && file_exists(public_path($audit->signature))) {
+                $signatureBase64 = base64_encode(file_get_contents(public_path($audit->signature)));
+            }
+            
+            return (object)[
+                'status' => $status,
+                'created_at' => $audit->created_at,
+                'name' => $audit->name ?: 'Système',
+                'signature' => $signatureBase64
+            ];
+        })
+        ->filter(function($item) {
+            return !is_null($item->status);
+        });
+    
+    // Add creation record (En attente status) - from creator
+    $creatorUser = DB::table('users')
+        ->where('id', $perte->id_user)
+        ->select(DB::raw("CONCAT(prenom, ' ', nom) as name"), 'signature')
+        ->first();
+    
+    $creatorSignatureBase64 = null;
+    if ($creatorUser && !empty($creatorUser->signature) && file_exists(public_path($creatorUser->signature))) {
+        $creatorSignatureBase64 = base64_encode(file_get_contents(public_path($creatorUser->signature)));
+    }
+    
+    $creationRecord = (object)[
+        'status' => 'En attente',
+        'created_at' => $perte->created_at,
+        'name' => $creatorUser ? $creatorUser->name : 'Système',
+        'signature' => $creatorSignatureBase64
+    ];
+    
+    // Merge creation with other status changes
+    $getHistorique_sig = collect([$creationRecord])->merge($getHistorique_sig);
+
+    // Load images
+    $imagePath = public_path('images/logo_top.png');
+    $imageData = base64_encode(file_get_contents($imagePath));
+    $logo_bottom = public_path('images/logo_bottom.png');
+    $imageData_bottom = base64_encode(file_get_contents($logo_bottom));
+    
+    // Render view
+    $html = view('pertes.facture', compact(
+        'perte',
+        'declarant',
+        'productDetails',
+        'qte_avant_perte',
+        'qte_apres_perte',
+        'platDetails',
+        'compositionDetails',
+        'imageData',
+        'imageData_bottom',
+        'getHistorique_sig',
+        'showNInv'  // ✅ Pass this to the view
+    ))->render();
+
+    $pdf = Pdf::loadHTML($html)->output();
+
+    $headers = [
+        "Content-type" => "application/pdf",
+    ];
+    
+    return response()->streamDownload(
+        fn() => print($pdf),
+        "FicheDeclarationPerte.pdf",
+        $headers
+    );
 }
 }

@@ -311,7 +311,7 @@ Route::post('/addPerte', [PerteController::class, 'store'])->name('pertes.store'
 Route::get('/getProductsBySubcategory/{id}', [PerteController::class, 'getProductsBySubcategory'])->name('pertes.getProductsBySubcategory');
 Route::get('/viewPerte/{id}', [PerteController::class, 'edit'])->name('pertes.view');
 Route::post('/changeStatusPerte', [PerteController::class, 'changeStatus'])->name('pertes.changeStatus');
-Route::post('/deletePerte', [PerteController::class, 'destroy'])->name('pertes.delete');
+Route::post('/deletePerte', [PerteController::class, 'destroy']);
 
 // In web.php or routes file
 Route::get('/pertes/plats-by-type/{type}', [PerteController::class, 'getPlatsByType'])->name('pertes.plats.by.type');
@@ -376,5 +376,6 @@ Route::post('/exportPlatsPdf', [PlatsController::class, 'exportPdf'])->name('pla
     Route::get('stock/expiring/export-pdf', [StockController::class, 'exportExpiringPdf'])->name('stock.expiring.export.pdf');
     Route::get('stock/low-stock/export-excel', [StockController::class, 'exportLowStockExcel'])->name('stock.low-stock.export.excel');
     Route::get('stock/low-stock/export-pdf', [StockController::class, 'exportLowStockPdf'])->name('stock.low-stock.export.pdf');
+    Route::get('facture-perte/{id}', [PerteController::class, 'FacturePerte'])->name('facture.perte');
 });
 
