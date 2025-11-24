@@ -41,7 +41,7 @@
 
             <div class="py-3 d-flex align-items-sm-center flex-sm-row flex-column">
                 <div class="flex-grow-1">
-                    <h4 class="fs-18 fw-semibold m-0">Détails de la Perte #PRT-{{ str_pad($perte->id, 6, '0', STR_PAD_LEFT) }}</h4>
+                    <h4 class="fs-18 fw-semibold m-0">Détails de la Perte {{ $perte->reference }}</h4>
                 </div>
                 
                 <div class="text-end">
@@ -62,7 +62,7 @@
             </div>
 
             <!-- Status Card -->
-            <div class="row mb-3">
+            <!-- <div class="row mb-3">
                 <div class="col-12">
                     <div class="perte-info-section">
                         <div class="row align-items-center">
@@ -73,13 +73,33 @@
                                         <span class="badge bg-warning text-dark badge-lg">
                                             <i class="fa-solid fa-clock me-1"></i> En attente
                                         </span>
+                                    @elseif($perte->status == 'Visa Directeur')
+                                        <span class="badge bg-info badge-lg">
+                                            <i class="fa-solid fa-check-circle me-1"></i> Visa Directeur
+                                        </span>
+                                    @elseif($perte->status == 'Visa Chargé')
+                                        <span class="badge bg-info badge-lg">
+                                            <i class="fa-solid fa-check-circle me-1"></i> Visa Chargé
+                                        </span>
+                                    @elseif($perte->status == 'Visa Économe')
+                                        <span class="badge bg-primary badge-lg">
+                                            <i class="fa-solid fa-check-circle me-1"></i> Visa Économe
+                                        </span>
                                     @elseif($perte->status == 'Validé')
                                         <span class="badge bg-success badge-lg">
                                             <i class="fa-solid fa-check me-1"></i> Validé
                                         </span>
+                                    @elseif($perte->status == 'Visa Magasinier')
+                                        <span class="badge bg-success badge-lg">
+                                            <i class="fa-solid fa-check-double me-1"></i> Visa Magasinier
+                                        </span>
                                     @elseif($perte->status == 'Refusé')
                                         <span class="badge bg-danger badge-lg">
                                             <i class="fa-solid fa-times me-1"></i> Refusé
+                                        </span>
+                                    @elseif($perte->status == 'Annuler')
+                                        <span class="badge bg-dark badge-lg">
+                                            <i class="fa-solid fa-ban me-1"></i> Annulé
                                         </span>
                                     @endif
                                 </div>
@@ -94,7 +114,7 @@
                         </div>
                     </div>
                 </div>
-            </div>
+            </div> -->
 
             <!-- Declaration Information Card -->
             <div class="row mt-3">
@@ -138,6 +158,104 @@
                     </div>
                 </div>
             </div>
+
+            <!-- ✅ Status History Section - FIXED -->
+            @php
+                // Get status history from audits
+                $statusHistory = DB::table('audits as a')
+                    ->leftJoin('users as u', 'u.id', '=', 'a.user_id')
+                    ->select(
+                        'a.new_values',
+                        'a.created_at',
+                        DB::raw("CONCAT(COALESCE(u.prenom, ''), ' ', COALESCE(u.nom, '')) as user_name")
+                    )
+                    ->where('a.auditable_type', 'App\\Models\\Perte')
+                    ->where('a.auditable_id', $perte->id)
+                    ->where('a.event', 'updated')
+                    ->whereRaw("JSON_EXTRACT(a.new_values, '$.status') IS NOT NULL")
+                    ->orderBy('a.created_at', 'asc')
+                    ->get()
+                    ->map(function($audit) {
+                        $newValues = json_decode($audit->new_values, true);
+                        return (object)[
+                            'status' => $newValues['status'] ?? null,
+                            'date' => $audit->created_at,
+                            'user_name' => $audit->user_name ?: 'Système'
+                        ];
+                    })
+                    ->filter(function($item) {
+                        return !is_null($item->status);
+                    });
+
+                // Add creation record (En attente status)
+                $creatorUser = DB::table('users')
+                    ->where('id', $perte->id_user)
+                    ->select(DB::raw("CONCAT(prenom, ' ', nom) as name"))
+                    ->first();
+                
+                $creationRecord = (object)[
+                    'status' => 'En attente',
+                    'date' => $perte->created_at,
+                    'user_name' => $creatorUser ? $creatorUser->name : 'Système'
+                ];
+                
+                // Merge creation with other status changes
+                $statusHistory = collect([$creationRecord])->merge($statusHistory);
+            @endphp
+
+            @if($statusHistory->count() > 0)
+            <div class="card card-body">
+                <h5 class="card-title border p-2 bg-light rounded-2">
+                    <i class="mdi mdi-history"></i> Historique des changements de statut
+                </h5>
+                <div class="table-responsive">
+                    <table class="table table-bordered table-striped">
+                        <thead class="table-light">
+                            <tr>
+                                <th width="30%">Statut</th>
+                                <th width="40%">Date de changement</th>
+                                <th width="30%">Modifié par</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($statusHistory as $change)
+                            <tr>
+                                <td>
+                                    @if ($change->status == 'En attente')
+                                        <span class="badge bg-warning">{{$change->status}}</span>
+                                    @elseif ($change->status == 'Visa Directeur')
+                                        <span class="badge bg-info">{{$change->status}}</span>
+                                    @elseif ($change->status == 'Visa Chargé')
+                                        <span class="badge bg-info">{{$change->status}}</span>
+                                    @elseif ($change->status == 'Visa Économe')
+                                        <span class="badge bg-primary">{{$change->status}}</span>
+                                    @elseif ($change->status == 'Validé')
+                                        <span class="badge bg-success">{{$change->status}}</span>
+                                    @elseif ($change->status == 'Visa Magasinier')
+                                        <span class="badge bg-success">{{$change->status}}</span>
+                                    @elseif ($change->status == 'Refusé')
+                                        <span class="badge bg-danger">{{$change->status}}</span>
+                                    @elseif ($change->status == 'Annuler')
+                                        <span class="badge bg-dark">{{$change->status}}</span>
+                                    @else
+                                        <span class="badge bg-secondary">{{$change->status}}</span>
+                                    @endif
+                                </td>
+                                <td>
+                                    <i class="mdi mdi-calendar-clock"></i>
+                                    {{ \Carbon\Carbon::parse($change->date)->format('d/m/Y H:i:s') }}
+                                </td>
+                                <td>
+                                    <i class="mdi mdi-account"></i>
+                                    {{ $change->user_name }}
+                                </td>
+                            </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            @endif
 
             <!-- Product Information Card -->
             <div class="row">
@@ -185,6 +303,17 @@
                                     </div>
                                 </div>
 
+                                @if($perte->n_inv)
+                                <div class="row mb-3">
+                                    <div class="col-md-6 mb-3">
+                                        <span class="detail-label">N° Inv:</span>
+                                        <div class="detail-value">
+                                            <i class="fa-solid fa-barcode me-1"></i>{{ $perte->n_inv }}
+                                        </div>
+                                    </div>
+                                </div>
+                                @endif
+
                                 <hr>
 
                                 <div class="row mb-3">
@@ -203,13 +332,9 @@
                                     <div class="col-md-4 mb-3">
                                         <span class="detail-label">Coût de la perte:</span>
                                         <div class="detail-value">
-                                            @if($perte->product && $perte->product->price_achat)
-                                                <span class="badge bg-danger badge-lg">
-                                                    <i class="fa-solid fa-coins me-1"></i>{{ number_format($perte->quantite * $perte->product->price_achat, 2) }} DH
-                                                </span>
-                                            @else
-                                                <span class="text-muted">N/A</span>
-                                            @endif
+                                            <span class="badge bg-danger badge-lg">
+                                                <i class="fa-solid fa-coins me-1"></i>{{ number_format($perte->cout_total ?? 0, 2) }} DH
+                                            </span>
                                         </div>
                                     </div>
                                 </div>
@@ -250,7 +375,8 @@
                                     </div>
                                 </div>
 
-                                @if($perte->plat)
+                                <!-- ✅ FIXED: Composition Section for Produit Fini -->
+                                @if($perte->id_plat)
                                     <hr>
                                     <div class="row">
                                         <div class="col-12">
@@ -262,10 +388,12 @@
                                                     <thead class="table-light">
                                                         <tr>
                                                             <th>Produit</th>
-                                                            <th>Quantité / plat</th>
+                                                            <th>Qté/plat</th>
                                                             <th>Unité</th>
-                                                            <th>Prix Unitaire</th>
-                                                            <th>Coût</th>
+                                                            <th>Prix Unit.</th>
+                                                            <th>Coût/plat</th>
+                                                            <th>Qté Totale Perdue</th>
+                                                            <th>Coût Total</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody>
@@ -277,28 +405,44 @@
                                                                 ->whereNull('lp.deleted_at')
                                                                 ->select(
                                                                     'p.name as product_name',
-                                                                    'lp.qte as quantite',
+                                                                    'lp.qte as quantite_par_plat',
                                                                     'u.name as unite_name',
                                                                     'p.price_achat',
-                                                                    DB::raw('lp.qte * p.price_achat as cout')
+                                                                    DB::raw('lp.qte * p.price_achat as cout_unitaire')
                                                                 )
                                                                 ->get();
+                                                            
+                                                            $nombrePlats = $perte->nombre_plats ?? 1;
                                                         @endphp
                                                         
                                                         @forelse($composition as $item)
+                                                            @php
+                                                                $qteTotale = $item->quantite_par_plat * $nombrePlats;
+                                                                $coutTotal = $item->cout_unitaire * $nombrePlats;
+                                                            @endphp
                                                             <tr>
                                                                 <td>{{ $item->product_name }}</td>
-                                                                <td>{{ number_format($item->quantite, 2) }}</td>
+                                                                <td>{{ number_format($item->quantite_par_plat, 2) }}</td>
                                                                 <td>{{ $item->unite_name }}</td>
                                                                 <td>{{ number_format($item->price_achat, 2) }} DH</td>
-                                                                <td><strong>{{ number_format($item->cout, 2) }} DH</strong></td>
+                                                                <td>{{ number_format($item->cout_unitaire, 2) }} DH</td>
+                                                                <td><strong>{{ number_format($qteTotale, 2) }}</strong></td>
+                                                                <td><strong class="text-danger">{{ number_format($coutTotal, 2) }} DH</strong></td>
                                                             </tr>
                                                         @empty
                                                             <tr>
-                                                                <td colspan="5" class="text-center text-muted">Aucune composition disponible</td>
+                                                                <td colspan="7" class="text-center text-muted">Aucune composition disponible</td>
                                                             </tr>
                                                         @endforelse
                                                     </tbody>
+                                                    @if($composition->count() > 0)
+                                                    <tfoot class="table-light">
+                                                        <tr>
+                                                            <th colspan="6" class="text-end">Total de la perte:</th>
+                                                            <th class="text-danger">{{ number_format($perte->cout_total ?? 0, 2) }} DH</th>
+                                                        </tr>
+                                                    </tfoot>
+                                                    @endif
                                                 </table>
                                             </div>
                                         </div>
@@ -332,6 +476,17 @@
                                         </div>
                                     </div>
                                 </div>
+                                
+                                @if($perte->circonstances)
+                                <div class="col-12 mb-3">
+                                    <span class="detail-label">Circonstances:</span>
+                                    <div class="detail-value mt-2">
+                                        <div class="alert alert-light border">
+                                            <i class="fa-solid fa-info-circle me-1"></i>{{ $perte->circonstances }}
+                                        </div>
+                                    </div>
+                                </div>
+                                @endif
                             </div>
                         </div>
                     </div>
@@ -342,155 +497,4 @@
     </div>
 </div>
 
-<!-- Refusal Reason Modal -->
-<div class="modal fade" id="refusalModal" tabindex="-1" aria-labelledby="refusalModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title" id="refusalModalLabel">
-                    <i class="fa-solid fa-ban me-2"></i>Motif de refus
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div class="mb-3">
-                    <label for="refusal_reason" class="form-label fw-bold">
-                        Veuillez indiquer le motif de refus: <span class="text-danger">*</span>
-                    </label>
-                    <textarea class="form-control" id="refusal_reason" rows="4" required placeholder="Expliquez la raison du refus..."></textarea>
-                    <div class="invalid-feedback">Le motif de refus est requis.</div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                    <i class="fa-solid fa-times me-1"></i>Annuler
-                </button>
-                <button type="button" class="btn btn-danger" id="confirmRefuseBtn">
-                    <i class="fa-solid fa-check me-1"></i>Confirmer le refus
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-@endsection
-
-@section('scripts')
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-<script>
-$(document).ready(function() {
-    const perteId = {{ $perte->id }};
-    
-    // Validate button
-    $('#validateBtn').on('click', function() {
-        Swal.fire({
-            title: 'Confirmer la validation?',
-            text: "Cette action va réduire le stock du produit.",
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#28a745',
-            cancelButtonColor: '#6c757d',
-            confirmButtonText: '<i class="fa-solid fa-check me-1"></i> Oui, valider!',
-            cancelButtonText: '<i class="fa-solid fa-times me-1"></i> Annuler'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                // Show loading
-                Swal.fire({
-                    title: 'Validation en cours...',
-                    allowOutsideClick: false,
-                    didOpen: () => {
-                        Swal.showLoading();
-                    }
-                });
-
-                $.ajax({
-                    url: "{{ route('pertes.changeStatus') }}",
-                    type: 'POST',
-                    data: {
-                        _token: "{{ csrf_token() }}",
-                        id: perteId,
-                        status: 'Validé'
-                    },
-                    success: function(response) {
-                        Swal.fire({
-                            icon: 'success',
-                            title: 'Succès',
-                            text: response.message,
-                            confirmButtonColor: '#28a745',
-                            timer: 2000
-                        }).then(() => {
-                            window.location.href = "{{ route('pertes.index') }}";
-                        });
-                    },
-                    error: function(xhr) {
-                        Swal.fire({
-                            icon: 'error',
-                            title: 'Erreur',
-                            text: xhr.responseJSON?.message || 'Une erreur est survenue',
-                            confirmButtonColor: '#dc3545'
-                        });
-                    }
-                });
-            }
-        });
-    });
-    
-    // Refuse button - show modal
-    $('#refuseBtn').on('click', function() {
-        $('#refusalModal').modal('show');
-        $('#refusal_reason').val('').removeClass('is-invalid');
-    });
-    
-    // Confirm refuse button
-    $('#confirmRefuseBtn').on('click', function() {
-        const refusalReason = $('#refusal_reason').val().trim();
-        
-        if (!refusalReason) {
-            $('#refusal_reason').addClass('is-invalid');
-            return;
-        }
-        
-        $('#refusalModal').modal('hide');
-        
-        // Show loading
-        Swal.fire({
-            title: 'Refus en cours...',
-            allowOutsideClick: false,
-            didOpen: () => {
-                Swal.showLoading();
-            }
-        });
-        
-        $.ajax({
-            url: "{{ route('pertes.changeStatus') }}",
-            type: 'POST',
-            data: {
-                _token: "{{ csrf_token() }}",
-                id: perteId,
-                status: 'Refusé',
-                refusal_reason: refusalReason
-            },
-            success: function(response) {
-                Swal.fire({
-                    icon: 'success',
-                    title: 'Succès',
-                    text: response.message,
-                    confirmButtonColor: '#28a745',
-                    timer: 2000
-                }).then(() => {
-                    window.location.href = "{{ route('pertes.index') }}";
-                });
-            },
-            error: function(xhr) {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Erreur',
-                    text: xhr.responseJSON?.message || 'Une erreur est survenue',
-                    confirmButtonColor: '#dc3545'
-                });
-            }
-        });
-    });
-});
-</script>
 @endsection
